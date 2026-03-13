@@ -268,7 +268,8 @@ function submitAssign(){
     btn.textContent=isReassign?"Re-assigning...":"Assigning...";
     var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
-    var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
+    var hh=now.getHours(),ampm=hh>=12?"PM":"
+      AM";hh=hh%12;if(hh===0)hh=12;
     var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
     var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
     var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
