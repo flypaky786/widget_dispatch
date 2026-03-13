@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --header-bg: linear-gradient(135deg, #1a1f36 0%, #252d4a 100%);
+      --th-bg: #f1f5f9;
+      --th-text: #64748b;
+      --border: #e8ecf1;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+      --accent: #3b82f6;
+      --amber: #f59e0b;
+      --amber-hover: #d97706;
+      --green: #10b981;
+      --red: #ef4444;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+      --shadow-lg: 0 8px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.06);
+      --transition: 0.15s ease;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .header {
+      background: var(--header-bg);
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header h2 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(16,185,129,0.6); animation: pulse 2s infinite; }
+    .status-dot.error { background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.6); }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .last-update { font-size: 12px; color: var(--text-faint); font-weight: 500; }
+
+    .table-wrap { padding: 20px 24px; }
+    .table-container {
+      background: var(--card);
+      border-radius: var(--radius);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      box-shadow: var(--shadow-md);
+      max-height: 80vh;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    thead { position: sticky; top: 0; z-index: 10; }
+    th {
+      background: var(--th-bg);
+      color: var(--th-text);
+      padding: 14px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td {
+      padding: 14px 16px;
+      font-size: 14px;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--border);
+      transition: background var(--transition);
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: inline-block; text-transform: uppercase; }
+    .badge.new { background: #fef3c7; color: #92400e; }
+    .badge.pending { background: #fef3c7; color: #92400e; }
+    .badge.in-progress { background: #ede9fe; color: #6d28d9; }
+    .badge.assigned { background: #dbeafe; color: #1e40af; }
+    .badge.dispatched { background: #dbeafe; color: #1e40af; }
+    .badge.en-route { background: #d1fae5; color: #065f46; }
+    .badge.completed { background: #e5e7eb; color: #374151; }
+    .badge.cancelled { background: #fee2e2; color: #b91c1c; }
+
+    .sub-yes { color: #059669; font-weight: 600; }
+    .sub-no { color: #dc2626; font-weight: 600; }
+
+    .flash { animation: flashRow 1.2s ease-out; }
+    @keyframes flashRow { 0% { background: rgba(251,191,36,0.25); } 100% { background: transparent; } }
+
+    .btn-cancel-req {
+      background: var(--amber); color: #fff; border: none; padding: 10px 18px;
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: all var(--transition); -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation; min-height: 44px; display: inline-flex; align-items: center;
+      justify-content: center; box-shadow: 0 1px 3px rgba(245,158,11,0.3);
+    }
+    .btn-cancel-req:hover { background: var(--amber-hover); transform: translateY(-1px); }
+    .btn-cancel-req:active { transform: translateY(0); }
+    .btn-cancel-req:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .overlay.active { display: flex; }
+    .dialog {
+      background: var(--card); border-radius: 16px; padding: 32px; max-width: 440px; width: 92%;
+      box-shadow: var(--shadow-lg); animation: popIn 0.2s ease-out;
+    }
+    @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .dialog h3 { margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: var(--text); }
+    .dialog p { margin: 0 0 24px 0; font-size: 15px; color: var(--text-muted); line-height: 1.5; }
+    .dialog-buttons { display: flex; gap: 12px; justify-content: flex-end; }
+    .dialog-buttons button {
+      padding: 14px 24px; border-radius: var(--radius); font-size: 15px; font-weight: 600;
+      font-family: inherit; cursor: pointer; border: none; min-height: 48px; transition: all var(--transition);
+    }
+    .btn-dialog-cancel { background: #f1f5f9; color: var(--text-muted); }
+    .btn-dialog-cancel:hover { background: #e2e8f0; }
+    .btn-confirm-cancel { background: var(--amber); color: #fff; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
+    .btn-confirm-cancel:hover { background: var(--amber-hover); transform: translateY(-1px); }
+    .btn-confirm-cancel:disabled { background: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .no-results { text-align: center; padding: 40px 24px; color: var(--text-faint); font-size: 15px; }
+
+    @media (max-width: 1024px) {
+      .header { padding: 16px 16px; }
+      .table-wrap { padding: 12px 16px; }
+      th { padding: 12px 10px; font-size: 10px; }
+      td { padding: 12px 10px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="status-dot live" id="statusDot"></span>
+    <h2 id="headerTitle">Active Requests</h2>
+  </div>
+  <span class="last-update" id="lastUpdate">Connecting...</span>
+</div>
+
+<div class="table-wrap">
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Requested</th><th>Vehicle Type</th><th>Specific Request</th><th>Sub OK?</th>
+          <th>Status</th><th>MVA</th><th>Stall</th><th></th><th>Assigned</th>
+        </tr>
+      </thead>
+      <tbody id="dispatchBody">
+        <tr><td colspan="9" class="no-results">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="cancelOverlay">
+  <div class="dialog">
+    <h3>Cancel this request?</h3>
+    <p>Are you sure you want to cancel this <strong id="cancelVehicle"></strong> request?</p>
+    <div class="dialog-buttons">
+      <button class="btn-dialog-cancel" onclick="closeCancelDialog()">No, go back</button>
+      <button class="btn-confirm-cancel" id="btnConfirmCancel" onclick="confirmCancel()">Yes, cancel it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var POLL_INTERVAL = 4000;
+  var previousData = {};
+  var previousStatuses = {};
+  var cancelRecordId = null;
+  var loggedInUser = "";
+  var firstLoadComplete = false;
+
+  var audioCtx = null;
+  var audioUnlocked = false;
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume().then(function() { audioUnlocked = true; });
+    } catch (e) {}
+  }
+  document.addEventListener("click", unlockAudio, { once: true });
+  document.addEventListener("touchstart", unlockAudio, { once: true });
+  document.addEventListener("keydown", unlockAudio, { once: true });
+
+  function playDing() {
+    if (!audioUnlocked || !audioCtx) return;
+    try {
+      var now = audioCtx.currentTime;
+      var osc1 = audioCtx.createOscillator();
+      var gain1 = audioCtx.createGain();
+      osc1.connect(gain1); gain1.connect(audioCtx.destination);
+      osc1.frequency.value = 880; osc1.type = "sine";
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc1.start(now); osc1.stop(now + 0.4);
+      var osc2 = audioCtx.createOscillator();
+      var gain2 = audioCtx.createGain();
+      osc2.connect(gain2); gain2.connect(audioCtx.destination);
+      osc2.frequency.value = 1175; osc2.type = "sine";
+      gain2.gain.setValueAtTime(0.2, now + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc2.start(now + 0.15); osc2.stop(now + 0.6);
+    } catch (e) {}
+  }
+
+  function checkForNewAssignments(records) {
+    if (!firstLoadComplete) return;
+    var dinged = false;
+    for (var i = 0; i < records.length; i++) {
+      var rec = records[i];
+      var id = rec.ID ? rec.ID.toString() : "";
+      if (!id) continue;
+      var currentStatus = (rec.Dispatch_Status || "").toLowerCase();
+      var prevStatus = previousStatuses[id] || "";
+      var isNowAssigned = currentStatus.indexOf("assign") >= 0 || currentStatus.indexOf("dispatch") >= 0;
+      var wasAssigned = prevStatus.indexOf("assign") >= 0 || prevStatus.indexOf("dispatch") >= 0;
+      if (isNowAssigned && !wasAssigned && !dinged) { playDing(); dinged = true; }
+    }
+    for (var j = 0; j < records.length; j++) {
+      var r = records[j];
+      var rid = r.ID ? r.ID.toString() : "";
+      if (rid) previousStatuses[rid] = (r.Dispatch_Status || "").toLowerCase();
+    }
+  }
+
+  function badgeClass(status) {
+    var s = (status || "").toLowerCase();
+    if (s.indexOf("in progress") >= 0 || s.indexOf("in-progress") >= 0) return "in-progress";
+    if (s.indexOf("new") >= 0) return "new";
+    if (s.indexOf("pending") >= 0) return "pending";
+    if (s.indexOf("assign") >= 0) return "assigned";
+    if (s.indexOf("dispatch") >= 0) return "dispatched";
+    if (s.indexOf("route") >= 0) return "en-route";
+    if (s.indexOf("complet") >= 0) return "completed";
+    if (s.indexOf("cancel") >= 0) return "cancelled";
+    return "pending";
+  }
+
+  function isAssignedStatus(status) {
+    var s = (status || "").toLowerCase();
+    return s.indexOf("assign") >= 0 || s.indexOf("dispatch") >= 0;
+  }
+
+  function parseZohoDate(dateStr) {
+    if (!dateStr) return null;
+    try {
+      var parts = dateStr.toString().split(" ");
+      if (parts.length < 2) return null;
+      var dateParts = parts[0].split("-");
+      if (dateParts.length < 3) return null;
+      var reformatted = dateParts[1] + " " + dateParts[0] + ", " + dateParts[2] + " " + parts.slice(1).join(" ");
+      var d = new Date(reformatted);
+      if (isNaN(d.getTime())) return null;
+      return d;
+    } catch (e) { return null; }
+  }
+
+  function formatTime(dateStr) {
+    var d = parseZohoDate(dateStr);
+    if (!d) return "—";
+    var h = d.getHours(); var m = d.getMinutes();
+    var ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12; if (h === 0) h = 12;
+    return h + ":" + ("0" + m).slice(-2) + " " + ampm;
+  }
+
+  function formatSub(val) {
+    if (val === true || val === "true") return '<span class="sub-no">No</span>';
+    if (val === false || val === "false") return '<span class="sub-yes">Yes</span>';
+    return "—";
+  }
+
+  function renderTable(records) {
+    var tbody = document.getElementById("dispatchBody");
+    if (!records || records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="no-results">No active requests</td></tr>';
+      return;
+    }
+    var html = "";
+    records.forEach(function(rec) {
+      var id = rec.ID;
+      var recStr = JSON.stringify(rec);
+      var changed = previousData[id] && previousData[id] !== recStr;
+      previousData[id] = recStr;
+      var status = rec.Dispatch_Status || "New";
+      var vehicleEsc = (rec.Vehicle_Type || '').replace(/'/g, "\\'");
+      var cancelBtn = isAssignedStatus(status) ? '' : '<button class="btn-cancel-req" onclick="openCancelDialog(\'' + id + '\', \'' + vehicleEsc + '\')">Cancel</button>';
+
+      html += '<tr class="' + (changed ? 'flash' : '') + '">' +
+        '<td><strong>' + formatTime(rec.Added_Time) + '</strong></td>' +
+        '<td><strong>' + (rec.Vehicle_Type || '') + '</strong></td>' +
+        '<td>' + (rec.Specific_Make_Model_optional || '') + '</td>' +
+        '<td>' + formatSub(rec.Sub_Acceptable) + '</td>' +
+        '<td><span class="badge ' + badgeClass(status) + '">' + status + '</span></td>' +
+        '<td>' + (rec.Assigned_MVA || '') + '</td>' +
+        '<td>' + (rec.Stall_Number || '') + '</td>' +
+        '<td>' + cancelBtn + '</td>' +        '<td>' + formatTime(rec.Assignment_Time) + '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function openCancelDialog(id, vehicle) {
+    cancelRecordId = id;
+    document.getElementById("cancelVehicle").textContent = vehicle;
+    document.getElementById("cancelOverlay").classList.add("active");
+  }
+
+  function closeCancelDialog() {
+    cancelRecordId = null;
+    document.getElementById("cancelOverlay").classList.remove("active");
+  }
+
+  function confirmCancel() {
+    if (!cancelRecordId) return;
+    var btn = document.getElementById("btnConfirmCancel");
+    btn.textContent = "Cancelling..."; btn.disabled = true;
+    var now = new Date();
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var dd = ("0" + now.getDate()).slice(-2), mmm = months[now.getMonth()], yyyy = now.getFullYear();
+    var hh = now.getHours(), ampm = hh >= 12 ? "PM" : "AM";
+    hh = hh % 12; if (hh === 0) hh = 12;
+    var mm = ("0" + now.getMinutes()).slice(-2), ss = ("0" + now.getSeconds()).slice(-2);
+    var cancelTimestamp = dd + "-" + mmm + "-" + yyyy + " " + ("0" + hh).slice(-2) + ":" + mm + ":" + ss + " " + ampm;
+    ZOHO.CREATOR.DATA.updateRecordById({
+      app_name: "lax-abg", report_name: "All_Vehicle_Requests", id: cancelRecordId,
+      payload: { data: { Dispatch_Status: "Cancelled", Cancelled_Time: cancelTimestamp } }
+    }).then(function(response) {
+      closeCancelDialog(); btn.textContent = "Yes, cancel it"; btn.disabled = false;
+      if (response.code === 3000) fetchDispatches();
+      else alert("Cancel failed: " + (response.message || "Unknown error"));
+    }).catch(function(err) {
+      alert("Cancel failed."); btn.textContent = "Yes, cancel it"; btn.disabled = false;
+    });
+  }
+
+  function fetchDispatches() {
+    var config = { app_name: "lax-abg", report_name: "All_Vehicle_Requests", page: 1, max_records: 200 };
+    if (loggedInUser) { config.criteria = '(User_Email == "' + loggedInUser + '")'; }
+
+    ZOHO.CREATOR.DATA.getRecords(config).then(function(response) {
+      if (response.code === 3000) {
+        var allRecords = response.data || [];
+        var now = Date.now();
+        var filtered = allRecords.filter(function(rec) {
+          var status = (rec.Dispatch_Status || "").toLowerCase();
+          if (status.indexOf("complet") >= 0) return false;
+          if (status.indexOf("cancel") >= 0) return false;
+          if (!isAssignedStatus(rec.Dispatch_Status)) {
+            var addedDate = parseZohoDate(rec.Added_Time);
+            if (addedDate && (now - addedDate.getTime()) > 120 * 60 * 1000) return false;
+          } else {
+            var modDate = parseZohoDate(rec.Modified_Time);
+            if (modDate && (now - modDate.getTime()) > 20 * 60 * 1000) return false;
+          }
+          return true;
+        });
+        filtered.sort(function(a, b) {
+          return (parseZohoDate(a.Added_Time) || 0) - (parseZohoDate(b.Added_Time) || 0);
+        });
+        checkForNewAssignments(filtered);
+        renderTable(filtered);
+        firstLoadComplete = true;
+        document.getElementById("statusDot").className = "status-dot live";
+        document.getElementById("lastUpdate").textContent = "Updated " + new Date().toLocaleTimeString();
+      } else {
+        renderTable([]);
+        document.getElementById("statusDot").className = "status-dot live";
+        document.getElementById("lastUpdate").textContent = "Updated " + new Date().toLocaleTimeString();
+      }
+    }).catch(function(err) {
+      console.error("Fetch error:", err);
+      document.getElementById("statusDot").className = "status-dot error";
+      document.getElementById("lastUpdate").textContent = "Connection error";
+    });
+  }
+
+  ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+    loggedInUser = params.loginUser || "";
+    console.log("Logged in as:", loggedInUser);
+    document.getElementById("headerTitle").textContent = "Active Requests for " + loggedInUser.split("@")[0];
+    fetchDispatches(); setInterval(fetchDispatches, POLL_INTERVAL);
+  }).catch(function(err) {
+    console.error("Could not get login user:", err);
+    document.getElementById("headerTitle").textContent = "Active Requests";
+    fetchDispatches(); setInterval(fetchDispatches, POLL_INTERVAL);
+  });
+</script>
+</body>
+</html>
