@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  DISPATCHER QUEUE WIDGET
+  ============================================================================
+  Light table headers matching CSR widget. Scrollable table for mobile.
+  Mark IP sends detailed error to console for debugging.
+  ============================================================================
+-->
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --header-bg: linear-gradient(135deg, #1a1f36 0%, #252d4a 100%);
+      --th-bg: #f1f5f9;
+      --th-text: #64748b;
+      --border: #e8ecf1;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --purple: #7c3aed;
+      --purple-hover: #6d28d9;
+      --amber: #f59e0b;
+      --amber-hover: #d97706;
+      --gray-btn: #64748b;
+      --gray-btn-hover: #475569;
+      --green: #10b981;
+      --red: #ef4444;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+      --shadow-lg: 0 8px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.06);
+      --transition: 0.15s ease;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg); color: var(--text); padding: 0;
+      -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+    }
+
+    .header {
+      background: var(--header-bg); padding: 20px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header h2 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .status-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(16,185,129,0.6); animation: pulse 2s infinite; }
+    .status-dot.error { background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.6); }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .last-update { font-size: 12px; color: var(--text-faint); font-weight: 500; }
+
+    .toolbar {
+      padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    }
+    .search-box {
+      flex: 1; max-width: 400px; padding: 12px 16px; border: 2px solid var(--border);
+      border-radius: var(--radius); font-size: 15px; font-family: inherit; outline: none;
+      background: var(--card); color: var(--text); transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+    .search-box::placeholder { color: var(--text-faint); }
+    .record-count {
+      font-size: 14px; font-weight: 600; color: var(--text-muted); white-space: nowrap;
+      background: var(--card); padding: 8px 16px; border-radius: 20px; box-shadow: var(--shadow-sm);
+    }
+
+    .table-wrap { padding: 0 24px 24px; }
+    .table-container {
+      background: var(--card); border-radius: var(--radius);
+      overflow: auto; -webkit-overflow-scrolling: touch;
+      box-shadow: var(--shadow-md); max-height: 80vh;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 680px; }
+    thead { position: sticky; top: 0; z-index: 10; }
+    th {
+      background: var(--th-bg); color: var(--th-text); padding: 12px 10px; text-align: left;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase;
+      cursor: pointer; user-select: none; white-space: nowrap;
+      border-bottom: 2px solid #e2e8f0; transition: background var(--transition);
+    }
+    th:hover { background: #e2e8f0; }
+    th.no-sort { cursor: default; }
+    th.no-sort:hover { background: var(--th-bg); }
+    .sort-arrow { font-size: 9px; margin-left: 3px; opacity: 0.35; }
+    th.sort-active { color: #1e293b; }
+    th.sort-active .sort-arrow { opacity: 1; color: var(--accent); }
+
+    td {
+      padding: 10px 10px; font-size: 14px; vertical-align: middle;
+      border-bottom: 1px solid var(--border); transition: background var(--transition);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    tr.row-ip td { background: rgba(124,58,237,0.03); }
+    tr.row-ip:hover td { background: rgba(124,58,237,0.06); }
+    tr.row-assigned td { background: rgba(59,130,246,0.03); }
+    tr.row-assigned:hover td { background: rgba(59,130,246,0.06); }
+    tr.row-cancelled td { background: rgba(239,68,68,0.03); opacity: 0.7; }
+    tr.row-cancelled:hover td { background: rgba(239,68,68,0.06); }
+    tr.group-divider td { border-top: 2px solid var(--border); padding-top: 16px; }
+
+    .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: inline-block; text-transform: uppercase; }
+    .badge.new { background: #fef3c7; color: #92400e; }
+    .badge.pending { background: #fef3c7; color: #92400e; }
+    .badge.in-progress { background: #ede9fe; color: #6d28d9; }
+    .badge.assigned { background: #dbeafe; color: #1e40af; }
+    .badge.dispatched { background: #dbeafe; color: #1e40af; }
+    .badge.en-route { background: #d1fae5; color: #065f46; }
+    .badge.completed { background: #e5e7eb; color: #374151; }
+    .badge.cancelled { background: #fee2e2; color: #b91c1c; }
+
+    .age-badge { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .age-ok { color: #059669; }
+    .age-warn { color: #d97706; }
+    .age-urgent { color: #dc2626; animation: urgentPulse 1.5s ease-in-out infinite; }
+    @keyframes urgentPulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+
+    .sub-yes { color: #059669; font-weight: 600; }
+    .sub-no { color: #dc2626; font-weight: 600; }
+
+    .flash { animation: flashRow 1.2s ease-out; }
+    @keyframes flashRow { 0% { background: rgba(251,191,36,0.25); } 100% { background: transparent; } }
+
+    .btn-assign, .btn-reassign, .btn-markip, .btn-unclaim {
+      border: none; padding: 8px 14px; border-radius: var(--radius-sm); font-size: 12px;
+      font-weight: 600; font-family: inherit; cursor: pointer; transition: all var(--transition);
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-assign { background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(59,130,246,0.3); }
+    .btn-assign:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-assign:active { transform: translateY(0); }
+    .btn-reassign { background: var(--amber); color: #fff; box-shadow: 0 1px 3px rgba(245,158,11,0.3); }
+    .btn-reassign:hover { background: var(--amber-hover); transform: translateY(-1px); }
+    .btn-reassign:active { transform: translateY(0); }
+    .btn-markip { background: var(--purple); color: #fff; box-shadow: 0 1px 3px rgba(124,58,237,0.3); }
+    .btn-markip:hover { background: var(--purple-hover); transform: translateY(-1px); }
+    .btn-markip:active { transform: translateY(0); }
+    .btn-unclaim { background: var(--gray-btn); color: #fff; box-shadow: 0 1px 3px rgba(100,116,139,0.3); }
+    .btn-unclaim:hover { background: var(--gray-btn-hover); transform: translateY(-1px); }
+    .btn-unclaim:active { transform: translateY(0); }
+    .btn-group { display: flex; gap: 6px; flex-wrap: nowrap; }
+    .claimed-label { font-size: 12px; color: var(--purple); font-weight: 600; font-style: italic; padding: 10px 0; }
+
+    .overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .overlay.active { display: flex; }
+    .popup {
+      background: var(--card); border-radius: 16px; padding: 32px; max-width: 460px; width: 92%;
+      box-shadow: var(--shadow-lg); animation: popIn 0.2s ease-out;
+    }
+    @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .popup h3 { margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: var(--text); }
+    .popup .subtitle { margin: 0 0 24px 0; font-size: 14px; color: var(--text-muted); }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .form-group input {
+      width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: var(--radius);
+      font-size: 16px; font-family: inherit; box-sizing: border-box; outline: none; color: var(--text);
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+    .popup-buttons { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+    .popup-buttons button {
+      padding: 14px 28px; border-radius: var(--radius); font-size: 15px; font-weight: 600;
+      font-family: inherit; cursor: pointer; border: none; min-height: 48px; transition: all var(--transition);
+    }
+    .btn-cancel { background: #f1f5f9; color: var(--text-muted); }
+    .btn-cancel:hover { background: #e2e8f0; }
+    .btn-submit { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
+    .btn-submit:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-submit:disabled { background: #93c5fd; cursor: not-allowed; transform: none; box-shadow: none; }
+    .popup-error {
+      display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+      padding: 12px 16px; border-radius: var(--radius-sm); font-size: 14px; margin-top: 16px; font-weight: 500;
+    }
+    .popup-error.active { display: block; }
+    .no-results { text-align: center; padding: 40px 24px; color: var(--text-faint); font-size: 15px; }
+    .btn-scan {
+      background: var(--text); color: #fff; border: none; padding: 14px 18px; border-radius: var(--radius);
+      font-size: 15px; font-family: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px; min-height: 48px; transition: all var(--transition);
+    }
+    .btn-scan:hover { background: #0f172a; }
+
+    @media (max-width: 1024px) {
+      .header { padding: 16px 16px; }
+      .toolbar { padding: 12px 16px; }
+      .table-wrap { padding: 0 16px 16px; }
+      th { padding: 12px 10px; font-size: 10px; }
+      td { padding: 12px 10px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="status-dot live" id="statusDot"></span>
+    <h2>Dispatcher Queue</h2>
+  </div>
+  <span class="last-update" id="lastUpdate">Connecting...</span>
+</div>
+
+<div class="toolbar">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search vehicles, desk ID, MVA, stall...">
+  <span class="record-count" id="recordCount"></span>
+</div>
+
+<div class="table-wrap">
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr id="headerRow">
+          <th data-col="age">Age <span class="sort-arrow">▼</span></th>
+          <th data-col="requested">Requested <span class="sort-arrow">▼</span></th>
+          <th data-col="vehicle">Vehicle <span class="sort-arrow">▼</span></th>
+          <th data-col="desk">Desk ID <span class="sort-arrow">▼</span></th>
+          <th data-col="sub">Sub? <span class="sort-arrow">▼</span></th>
+          <th data-col="status">Status <span class="sort-arrow">▼</span></th>
+          <th class="no-sort">Actions</th>
+          <th data-col="mva">Assignment <span class="sort-arrow">▼</span></th>
+          <th data-col="assigntime">Assigned <span class="sort-arrow">▼</span></th>
+        </tr>
+      </thead>
+      <tbody id="dispatchBody">
+        <tr><td colspan="9" class="no-results">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="overlay" id="assignOverlay">
+  <div class="popup">
+    <h3 id="popupTitle">Assign Vehicle</h3>
+    <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
+    <div class="form-group">
+      <label for="inputMva">MVA Number</label>
+      <div style="display:flex;gap:10px;align-items:stretch;">
+        <input type="text" id="inputMva" placeholder="Enter or scan MVA" style="flex:1;">
+        <button type="button" class="btn-scan" id="btnScanMva" onclick="startScanner()" title="Scan barcode">&#128247; Scan</button>
+      </div>
+    </div>
+    <div id="scannerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;flex-direction:column;justify-content:center;align-items:center;">
+      <div style="position:relative;width:90%;max-width:420px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="color:#fff;font-size:16px;font-weight:600;font-family:'DM Sans',sans-serif;">Scan Barcode</span>
+          <button onclick="stopScanner()" style="background:#ef4444;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Close</button>
+        </div>
+        <div id="scannerView" style="width:100%;border-radius:12px;overflow:hidden;background:#000;position:relative;min-height:280px;"></div>
+        <p id="scannerStatus" style="color:#94a3b8;font-size:13px;text-align:center;margin-top:12px;font-family:'DM Sans',sans-serif;">Initializing camera...</p>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="inputStall">Stall #</label>
+      <input type="text" id="inputStall" placeholder="Enter stall number">
+    </div>
+    <div class="popup-error" id="popupError"></div>
+    <div class="popup-buttons">
+      <button class="btn-cancel" onclick="closeAssignPopup()">Cancel</button>
+      <button class="btn-submit" id="btnSubmitAssign" onclick="submitAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var POLL_INTERVAL = 4000;
+  var previousData = {}, currentRecords = [], displayRecords = [];
+  var assignRecordId = null, isReassign = false, firstLoadComplete = false;
+  var deletingIds = {}, previousRecordIds = {}, loggedInUser = "", sdkReady = false;
+  var sortCol = null, sortDir = "desc";
+  var ASSIGNED_HIDE_MS = 5 * 60 * 1000, UNASSIGNED_DELETE_MS = 4 * 60 * 60 * 1000;
+  var audioCtx = null, audioUnlocked = false;
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume().then(function() { audioUnlocked = true; }); } catch (e) {}
+  }
+  document.addEventListener("click", unlockAudio, { once: true });
+  document.addEventListener("touchstart", unlockAudio, { once: true });
+  document.addEventListener("keydown", unlockAudio, { once: true });
+
+  function playDing() {
+    if (!audioUnlocked || !audioCtx) return;
+    try {
+      var now = audioCtx.currentTime;
+      var o1 = audioCtx.createOscillator(), g1 = audioCtx.createGain();
+      o1.connect(g1); g1.connect(audioCtx.destination); o1.frequency.value = 880; o1.type = "sine";
+      g1.gain.setValueAtTime(0.3, now); g1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      o1.start(now); o1.stop(now + 0.4);
+      var o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
+      o2.connect(g2); g2.connect(audioCtx.destination); o2.frequency.value = 1175; o2.type = "sine";
+      g2.gain.setValueAtTime(0.2, now + 0.15); g2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      o2.start(now + 0.15); o2.stop(now + 0.6);
+    } catch (e) {}
+  }
+
+  function checkForNewRequests(records) {
+    if (!firstLoadComplete) { for (var k = 0; k < records.length; k++) { var kid = records[k].ID ? records[k].ID.toString() : ""; if (kid) previousRecordIds[kid] = true; } return; }
+    var dinged = false;
+    for (var i = 0; i < records.length; i++) {
+      var rec = records[i], id = rec.ID ? rec.ID.toString() : "";
+      if (!id) continue;
+      if (!previousRecordIds[id] && !isAssignedStatus(rec.Dispatch_Status) && !isInProgressStatus(rec.Dispatch_Status)) { if (!dinged) { playDing(); dinged = true; } }
+      previousRecordIds[id] = true;
+    }
+  }
+
+  function badgeClass(s) { s = (s||"").toLowerCase(); if (s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0) return "in-progress"; if (s.indexOf("new")>=0) return "new"; if (s.indexOf("pending")>=0) return "pending"; if (s.indexOf("assign")>=0) return "assigned"; if (s.indexOf("dispatch")>=0) return "dispatched"; if (s.indexOf("route")>=0) return "en-route"; if (s.indexOf("complet")>=0) return "completed"; if (s.indexOf("cancel")>=0) return "cancelled"; return "pending"; }
+  function rowClass(s) { if (isAssignedStatus(s)) return "row-assigned"; if (isInProgressStatus(s)) return "row-ip"; if (isCancelledStatus(s)) return "row-cancelled"; return "row-new"; }
+  function isAssignedStatus(s) { s=(s||"").toLowerCase(); return s.indexOf("assign")>=0||s.indexOf("dispatch")>=0; }
+  function isInProgressStatus(s) { s=(s||"").toLowerCase(); return s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0; }
+  function isNewStatus(s) { return !isAssignedStatus(s)&&!isInProgressStatus(s)&&!isCancelledStatus(s)&&(s||"").toLowerCase().indexOf("complet")<0; }
+  function isCancelledStatus(s) { return (s||"").toLowerCase().indexOf("cancel")>=0; }
+
+  function parseZohoDate(d) { if(!d)return null; try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;} }
+  function formatTime(d) { var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a; }
+  function getAge(d) { var dt=parseZohoDate(d);if(!dt)return{text:"—",cls:"age-ok",minutes:0};var m=Math.floor((Date.now()-dt.getTime())/60000);if(m<0)m=0;var c="age-ok";if(m>=10)c="age-warn";if(m>=20)c="age-urgent";return{text:m+"m",cls:c,minutes:m}; }
+  function formatSub(v) { if(v===false||v==="false")return'<span class="sub-yes">Yes</span>';if(v===true||v==="true")return'<span class="sub-no">No</span>';return"—"; }
+  function subText(v) { if(v===true||v==="true")return"yes";if(v===false||v==="false")return"no";return""; }
+  function showPopupError(m) { var e=document.getElementById("popupError");e.textContent=m;e.classList.add("active"); }
+  function clearPopupError() { document.getElementById("popupError").classList.remove("active"); }
+
+  function defaultSort(records) {
+    var n=[],ip=[],a=[],c=[];
+    for(var i=0;i<records.length;i++){var r=records[i];if(isCancelledStatus(r.Dispatch_Status))c.push(r);else if(isAssignedStatus(r.Dispatch_Status))a.push(r);else if(isInProgressStatus(r.Dispatch_Status))ip.push(r);else n.push(r);}
+    n.sort(function(a,b){return(parseZohoDate(a.Added_Time)||0)-(parseZohoDate(b.Added_Time)||0);});
+    ip.sort(function(a,b){return(parseZohoDate(a.Added_Time)||0)-(parseZohoDate(b.Added_Time)||0);});
+    a.sort(function(x,y){var da=parseZohoDate(x.Assignment_Time),db=parseZohoDate(y.Assignment_Time);return(db?db.getTime():0)-(da?da.getTime():0);});
+    c.sort(function(a,b){return(parseZohoDate(a.Added_Time)||0)-(parseZohoDate(b.Added_Time)||0);});
+    return n.concat(ip).concat(a).concat(c);
+  }
+
+  function getSortValue(r,col) { switch(col){case"age":return getAge(r.Added_Time).minutes;case"requested":var d=parseZohoDate(r.Added_Time);return d?d.getTime():0;case"vehicle":return(r.Vehicle_Type||"").toLowerCase();case"desk":return(r.Your_desk_ID||"").toLowerCase();case"sub":return subText(r.Sub_Acceptable);case"status":return(r.Dispatch_Status||"").toLowerCase();case"mva":return(r.Assigned_MVA||"").toString();case"assigntime":var at=parseZohoDate(r.Assignment_Time);return at?at.getTime():0;default:return"";} }
+  function columnSort(records,col,dir) { var s=records.slice();s.sort(function(a,b){var va=getSortValue(a,col),vb=getSortValue(b,col),c=0;if(typeof va==="number"&&typeof vb==="number")c=va-vb;else c=va.toString().localeCompare(vb.toString());return dir==="desc"?-c:c;});return s; }
+  function updateSortHeaders() { var ths=document.querySelectorAll("#headerRow th[data-col]");for(var i=0;i<ths.length;i++){var th=ths[i],ar=th.querySelector(".sort-arrow");if(sortCol&&th.getAttribute("data-col")===sortCol){th.classList.add("sort-active");ar.textContent=sortDir==="desc"?"▼":"▲";}else{th.classList.remove("sort-active");ar.textContent="▼";}} }
+  function getSearchTerm() { return(document.getElementById("searchBox").value||"").toLowerCase().trim(); }
+  function matchesSearch(r,t) { if(!t)return true;var f=[r.Vehicle_Type,r.Specific_Make_Model_optional,r.Your_desk_ID,r.Dispatch_Status,r.Assigned_MVA,r.Stall_Number,r.Added_Time,r.Assignment_Time];f.push(subText(r.Sub_Acceptable));f.push(getAge(r.Added_Time).text);for(var i=0;i<f.length;i++){if((f[i]||"").toString().toLowerCase().indexOf(t)>=0)return true;}return false; }
+
+  function refreshTable() {
+    var t=getSearchTerm();var filtered=currentRecords.filter(function(r){return matchesSearch(r,t);});
+    var sorted=sortCol?columnSort(filtered,sortCol,sortDir):defaultSort(filtered);
+    displayRecords=sorted;updateSortHeaders();renderTable(sorted);
+    var ce=document.getElementById("recordCount");
+    if(t){ce.textContent=sorted.length+" of "+currentRecords.length+" shown";}
+    else{var uc=sorted.filter(function(r){return!isAssignedStatus(r.Dispatch_Status);}).length;ce.textContent=uc+" active request"+(uc!==1?"s":"");}
+  }
+
+  function validateAssignment(mva,stall,rid,live,reass) {
+    if(!mva||mva.length===0)return"MVA number is required.";if(!/^\d{8}$/.test(mva))return"MVA must be exactly 8 digits.";if(!stall||stall.length===0)return"Stall number is required.";
+    var target=null;for(var t=0;t<live.length;t++){if(live[t].ID&&live[t].ID.toString()===rid.toString()){target=live[t];break;}}
+    if(!target)return"This request was deleted or completed by another dispatcher. Refreshing...";
+    if(!reass){var ts=(target.Dispatch_Status||"").toLowerCase();if(ts.indexOf("assigned")>=0||ts.indexOf("dispatch")>=0||ts.indexOf("complet")>=0)return"This request was just updated by another dispatcher. Refreshing...";}
+    for(var i=0;i<live.length;i++){var r=live[i],ri=r.ID?r.ID.toString():"",rm=r.Assigned_MVA?r.Assigned_MVA.toString().trim():"",rs=r.Dispatch_Status?r.Dispatch_Status.toString().toLowerCase():"";if(ri===rid.toString())continue;if(rm===mva&&rs.indexOf("assigned")>=0)return"MVA "+mva+" is already assigned to another active request.";}
+    return null;
+  }
+
+  function parseUpdateError(r) { try{if(r.responseText){var p=JSON.parse(r.responseText);if(p.alert_message)return p.alert_message;if(p.message&&p.message!=="error")return p.message;}if(r.message&&r.message!=="error")return r.message;}catch(e){}return"Operation failed. Please try again."; }
+  function fetchLatestRecords() { return ZOHO.CREATOR.DATA.getRecords({app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200}); }
+
+  function autoDeleteExpired(all) {
+    var now=Date.now();for(var i=0;i<all.length;i++){var r=all[i],id=r.ID?r.ID.toString():"";if(!id||deletingIds[id])continue;if(isAssignedStatus(r.Dispatch_Status)||isInProgressStatus(r.Dispatch_Status)||isCancelledStatus(r.Dispatch_Status))continue;if((r.Dispatch_Status||"").toLowerCase().indexOf("complet")>=0)continue;var ad=parseZohoDate(r.Added_Time);if(!ad||(now-ad.getTime())<=UNASSIGNED_DELETE_MS)continue;deletingIds[id]=true;ZOHO.CREATOR.DATA.deleteRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id}).then(function(){delete deletingIds[id];}).catch(function(){delete deletingIds[id];});break;}
+  }
+
+  function markInProgress(id) {
+    if (!loggedInUser) { alert("Could not determine your user identity. Please refresh."); return; }
+    console.log("Mark IP attempt — record:", id, "user:", loggedInUser);
+    ZOHO.CREATOR.DATA.updateRecordById({
+      app_name: "lax-abg", report_name: "All_Vehicle_Requests", id: id,
+      payload: { data: { Dispatch_Status: "In Progress", Claimed_By_Email: loggedInUser } }
+    }).then(function(resp) {
+      console.log("Mark IP response:", JSON.stringify(resp));
+      if (resp.code === 3000) { fetchDispatches(); }
+      else {
+        var errMsg = "Operation failed.";
+        try {
+          if (resp.error && resp.error.length > 0) {
+            for (var i = 0; i < resp.error.length; i++) {
+              if (resp.error[i].alert_message) { errMsg = resp.error[i].alert_message; break; }
+            }
+          }
+        } catch (e) {}
+        console.error("Mark IP failed:", errMsg, resp);
+        alert("Mark IP failed: " + errMsg);
+      }
+    }).catch(function(err) {
+      console.error("Mark IP error:", err);
+      alert("Failed to mark In Progress. Check console for details.");
+    });
+  }
+
+  function unclaimRecord(id) {
+    console.log("Unclaim attempt — record:", id);
+    ZOHO.CREATOR.DATA.updateRecordById({
+      app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id,
+      payload:{data:{Dispatch_Status:"New",Claimed_By_Email:""}}
+    }).then(function(resp){
+      console.log("Unclaim response:", JSON.stringify(resp));
+      if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));
+    }).catch(function(err){console.error("Unclaim error:",err);alert("Failed to unclaim.");});
+  }
+
+  function buildActionButtons(rec) {
+    var id=rec.ID,status=rec.Dispatch_Status||"New";
+    var claimedBy=(rec.Claimed_By_Email||"").toLowerCase().trim();
+    var isMe=loggedInUser&&claimedBy===loggedInUser.toLowerCase().trim();
+    var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
+    var cm=(rec.Assigned_MVA||'').toString().replace(/'/g,"\\'");
+    var cs=(rec.Stall_Number||'').toString().replace(/'/g,"\\'");
+    if(isCancelledStatus(status))return'';
+    if(isAssignedStatus(status))return'<button class="btn-reassign" onclick="openReassignPopup(\''+id+'\',\''+ve+'\',\''+cm+'\',\''+cs+'\')">Re-assign</button>';
+    if(isInProgressStatus(status)){if(isMe)return'<div class="btn-group"><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\')">Assign</button><button class="btn-unclaim" onclick="unclaimRecord(\''+id+'\')">Unclaim</button></div>';var cn=claimedBy?claimedBy.split("@")[0]:"someone";return'<span class="claimed-label">Claimed by '+cn+'</span>';}
+    return'<div class="btn-group"><button class="btn-markip" onclick="markInProgress(\''+id+'\')">Mark IP</button><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\')">Assign</button></div>';
+  }
+
+  function renderTable(records) {
+    var tbody=document.getElementById("dispatchBody");
+    if(!records||records.length===0){var t=getSearchTerm();tbody.innerHTML='<tr><td colspan="9" class="no-results">'+(t?'No results matching "'+t+'"':'No requests in queue')+'</td></tr>';return;}
+    var html="",prevGroup="";
+    records.forEach(function(rec){
+      var id=rec.ID,recStr=JSON.stringify(rec);var changed=previousData[id]&&previousData[id]!==recStr;previousData[id]=recStr;
+      var status=rec.Dispatch_Status||"New",age=getAge(rec.Added_Time);
+      var curGroup=rowClass(status);var divider=(prevGroup&&curGroup!==prevGroup)?" group-divider":"";prevGroup=curGroup;
+      var vehicleCell = '<strong>'+(rec.Vehicle_Type||'')+'</strong>';
+      var spec = rec.Specific_Make_Model_optional || '';
+      if (spec) vehicleCell += '<br><span style="font-size:12px;color:var(--text-muted);">'+spec+'</span>';
+      var assignCell = '';
+      var mva = rec.Assigned_MVA || '';
+      var stall = rec.Stall_Number || '';
+      if (mva && stall) assignCell = mva + ' / ' + stall;
+      else if (mva) assignCell = mva;
+      else if (stall) assignCell = stall;
+      html+='<tr class="'+curGroup+divider+(changed?' flash':'')+'">'+'<td><span class="age-badge '+age.cls+'">'+age.text+'</span></td>'+'<td>'+formatTime(rec.Added_Time)+'</td>'+'<td>'+vehicleCell+'</td>'+'<td>'+(rec.Your_desk_ID||'')+'</td>'+'<td>'+formatSub(rec.Sub_Acceptable)+'</td>'+'<td><span class="badge '+badgeClass(status)+'">'+status+'</span></td>'+'<td>'+buildActionButtons(rec)+'</td>'+'<td>'+assignCell+'</td>'+'<td>'+formatTime(rec.Assignment_Time)+'</td>'+'</tr>';
+    });
+    tbody.innerHTML=html;
+  }
+
+  document.getElementById("headerRow").addEventListener("click",function(e){var th=e.target.closest("th[data-col]");if(!th)return;var col=th.getAttribute("data-col");if(col===sortCol)sortDir=sortDir==="desc"?"asc":"desc";else{sortCol=col;sortDir="desc";}refreshTable();});
+  var searchTimeout=null;document.getElementById("searchBox").addEventListener("input",function(){clearTimeout(searchTimeout);searchTimeout=setTimeout(function(){refreshTable();},150);});
+
+  function openAssignPopup(id,v){assignRecordId=id;isReassign=false;document.getElementById("popupTitle").textContent="Assign Vehicle";document.getElementById("assignVehicle").textContent=v;document.getElementById("inputMva").value="";document.getElementById("inputStall").value="";document.getElementById("btnSubmitAssign").textContent="Assign";clearPopupError();document.getElementById("assignOverlay").classList.add("active");setTimeout(function(){document.getElementById("inputMva").focus();},100);}
+  function openReassignPopup(id,v,m,s){assignRecordId=id;isReassign=true;document.getElementById("popupTitle").textContent="Re-assign Vehicle";document.getElementById("assignVehicle").textContent=v;document.getElementById("inputMva").value=m;document.getElementById("inputStall").value=s;document.getElementById("btnSubmitAssign").textContent="Re-assign";clearPopupError();document.getElementById("assignOverlay").classList.add("active");setTimeout(function(){document.getElementById("inputMva").focus();},100);}
+  function closeAssignPopup(){assignRecordId=null;isReassign=false;document.getElementById("assignOverlay").classList.remove("active");}
+
+  function submitAssign(){
+    if(!assignRecordId)return;var mva=document.getElementById("inputMva").value.trim(),stall=document.getElementById("inputStall").value.trim();clearPopupError();
+    if(!firstLoadComplete){showPopupError("Still loading queue data.");return;}if(!mva||mva.length!==8){showPopupError("MVA number must be 8 digits.");return;}if(!/^\d{8}$/.test(mva)){showPopupError("MVA must be exactly 8 digits.");return;}if(!stall||stall.length===0){showPopupError("Stall number is required.");return;}
+    var btn=document.getElementById("btnSubmitAssign");btn.textContent="Checking...";btn.disabled=true;
+    fetchLatestRecords().then(function(response){
+      if(response.code!==3000){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");return;}
+      var live=response.data||[];currentRecords=applyFilter(live);
+      var error=validateAssignment(mva,stall,assignRecordId,live,isReassign);
+      if(error){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(error);if(error.indexOf("another dispatcher")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);return;}
+      btn.textContent=isReassign?"Re-assigning...":"Assigning...";
+      var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
+      var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
+      var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
+      var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
+      var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+      ZOHO.CREATOR.DATA.updateRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:assignRecordId,payload:{data:payload}})
+        .then(function(ur){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;if(ur.code===3000){closeAssignPopup();fetchDispatches();}else showPopupError(parseUpdateError(ur));})
+        .catch(function(ue){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(parseUpdateError(ue));});
+    }).catch(function(){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");});
+  }
+
+  document.getElementById("inputMva").addEventListener("input",clearPopupError);
+  document.getElementById("inputStall").addEventListener("input",clearPopupError);
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeAssignPopup();if(e.key==="Enter"&&assignRecordId)submitAssign();});
+
+  function applyFilter(all){var now=Date.now();return all.filter(function(r){var s=(r.Dispatch_Status||"").toLowerCase();if(s.indexOf("complet")>=0)return false;if(isAssignedStatus(r.Dispatch_Status)){var md=parseZohoDate(r.Modified_Time);if(md&&(now-md.getTime())>ASSIGNED_HIDE_MS)return false;}if(isCancelledStatus(r.Dispatch_Status)){var cd=parseZohoDate(r.Modified_Time);if(cd&&(now-cd.getTime())>ASSIGNED_HIDE_MS)return false;}if(isNewStatus(r.Dispatch_Status)){var ad=parseZohoDate(r.Added_Time);if(ad&&(now-ad.getTime())>UNASSIGNED_DELETE_MS)return false;}return true;});}
+
+  function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(function(response){if(response.code===3000){var all=response.data||[];autoDeleteExpired(all);currentRecords=applyFilter(all);checkForNewRequests(currentRecords);firstLoadComplete=true;refreshTable();document.getElementById("statusDot").className="status-dot live";document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();}}).catch(function(err){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error - retrying...";});}
+
+  ZOHO.CREATOR.UTIL.getInitParams().then(function(params){loggedInUser=params.loginUser||"";sdkReady=true;console.log("Dispatcher logged in as:",loggedInUser);fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);}).catch(function(err){sdkReady=true;fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);});
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script>
+  var html5QrCode=null,scannerActive=false,scannerPaused=false;
+  function startScanner(){var o=document.getElementById("scannerOverlay");o.style.display="flex";if(scannerActive&&html5QrCode){scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning... hold barcode steady";return;}document.getElementById("scannerStatus").textContent="Initializing camera...";html5QrCode=new Html5Qrcode("scannerView");html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:120},aspectRatio:1.5,formatsToSupport:[Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.ITF,Html5QrcodeSupportedFormats.CODABAR,Html5QrcodeSupportedFormats.QR_CODE]},function(d){if(scannerPaused)return;scannerPaused=true;document.getElementById("inputMva").value=d.replace(/\D/g,"");clearPopupError();document.getElementById("scannerOverlay").style.display="none";setTimeout(function(){document.getElementById("inputStall").focus();},200);},function(){}).then(function(){scannerActive=true;scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning... hold barcode steady";}).catch(function(e){document.getElementById("scannerStatus").textContent="Camera access denied or unavailable";setTimeout(function(){document.getElementById("scannerOverlay").style.display="none";},3000);});}
+  function stopScanner(){scannerPaused=true;document.getElementById("scannerOverlay").style.display="none";}
+</script>
+</body>
+</html>
