@@ -11,14 +11,14 @@
   /* ── Top bar ── */
   #topbar {
     background: #161b22; border-bottom: 2px solid #388bfd;
-    padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+    padding: 9px 14px; display: flex; align-items: center; gap: 10px;
     flex-shrink: 0; flex-wrap: wrap;
   }
-  #topbar h1 { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.05em; margin-right: 4px; }
-  .tb-sep { width: 1px; height: 24px; background: #30363d; }
+  #topbar h1 { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.05em; white-space: nowrap; }
+  .tb-sep { width: 1px; height: 24px; background: #30363d; flex-shrink: 0; }
 
   .tb-btn {
-    padding: 6px 14px; border-radius: 7px; border: none;
+    padding: 6px 13px; border-radius: 7px; border: none;
     font-size: 12px; font-weight: 600; cursor: pointer;
     font-family: inherit; transition: all 0.15s; white-space: nowrap;
   }
@@ -26,21 +26,22 @@
   .btn-blue   { background: #388bfd; color: #fff; }
   .btn-green  { background: #22c55e; color: #fff; }
   .btn-red    { background: #ef4444; color: #fff; }
-  .btn-orange { background: #f97316; color: #fff; }
+  .btn-purple { background: #a855f7; color: #fff; }
   .btn-gray   { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
 
   #zone-name-wrap { display: flex; align-items: center; gap: 6px; }
-  #zone-name-wrap label { font-size: 11px; color: #8b949e; }
+  #zone-name-wrap label { font-size: 11px; color: #8b949e; white-space: nowrap; }
   #zone-name-input {
     background: #21262d; border: 1px solid #30363d; border-radius: 6px;
     color: #e6edf3; font-size: 12px; padding: 5px 10px;
-    font-family: inherit; width: 160px;
+    font-family: inherit; width: 150px;
   }
   #zone-name-input:focus { outline: none; border-color: #388bfd; }
 
   #mode-indicator {
     font-size: 11px; color: #8b949e; background: #21262d;
     border: 1px solid #30363d; border-radius: 6px; padding: 5px 10px;
+    white-space: nowrap;
   }
   #mode-indicator span { color: #388bfd; font-weight: 600; }
 
@@ -50,93 +51,14 @@
   /* ── Canvas area ── */
   #canvas-wrap {
     flex: 1; overflow: hidden; position: relative;
-    cursor: crosshair; background: #1e2330;
-    touch-action: none;
+    cursor: crosshair; background: #1e2330; touch-action: none;
   }
-  #canvas-wrap.mode-pan { cursor: grab; }
+  #canvas-wrap.mode-pan         { cursor: grab; }
   #canvas-wrap.mode-pan.panning { cursor: grabbing; }
 
-  #map-canvas {
-    position: absolute; top: 0; left: 0;
-    transform-origin: 0 0;
-    will-change: transform;
-  }
-  #floor-img {
-    display: block; max-width: none; height: auto;
-    user-select: none; -webkit-user-drag: none; pointer-events: none;
-  }
-  #draw-layer {
-    position: absolute; top: 0; left: 0; pointer-events: none;
-  }
-
-  /* ── Sidebar ── */
-  #sidebar {
-    width: 280px; background: #161b22; border-left: 1px solid #21262d;
-    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
-  }
-  #sidebar-header {
-    padding: 12px 14px; border-bottom: 1px solid #21262d;
-    font-size: 12px; font-weight: 700; color: #8b949e; letter-spacing: 0.08em; text-transform: uppercase;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  #zone-count { background: #388bfd; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 99px; }
-
-  #zone-list { flex: 1; overflow-y: auto; padding: 8px; }
-  .zone-item {
-    background: #21262d; border: 1px solid #30363d; border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .zone-item:hover   { border-color: #388bfd55; }
-  .zone-item.selected { border-color: #388bfd; background: #388bfd11; }
-  .zone-item-header { display: flex; align-items: center; justify-content: space-between; }
-  .zone-label { font-size: 13px; font-weight: 600; color: #e6edf3; }
-  .zone-coords { font-size: 10px; color: #64748b; margin-top: 4px; font-family: monospace; }
-  .zone-del {
-    background: none; border: none; color: #64748b; cursor: pointer;
-    font-size: 14px; padding: 2px 5px; border-radius: 4px;
-    transition: color 0.15s, background 0.15s;
-  }
-  .zone-del:hover { color: #ef4444; background: #ef444422; }
-  .zone-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-right: 6px; }
-
-  /* ── Output panel ── */
-  #output-wrap {
-    border-top: 1px solid #21262d; padding: 12px 14px;
-    background: #0d1117; flex-shrink: 0;
-  }
-  #output-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
-  }
-  #output-header span { font-size: 11px; color: #8b949e; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
-  #copy-btn {
-    background: #22c55e; color: #fff; border: none; border-radius: 6px;
-    padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
-    font-family: inherit; transition: all 0.15s;
-  }
-  #copy-btn:hover { filter: brightness(1.1); }
-  #output-box {
-    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
-    padding: 10px; font-size: 10px; font-family: monospace; color: #22c55e;
-    max-height: 160px; overflow-y: auto; white-space: pre; line-height: 1.6;
-    resize: none; width: 100%;
-  }
-
-  /* ── Upload prompt ── */
-  #upload-prompt {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 16px; z-index: 10;
-    background: #1e2330;
-  }
-  #upload-prompt h2 { font-size: 18px; color: #e6edf3; }
-  #upload-prompt p  { font-size: 13px; color: #6e7681; }
-  #file-input { display: none; }
-  #upload-label {
-    background: #388bfd; color: #fff; padding: 12px 28px;
-    border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;
-    transition: filter 0.15s;
-  }
-  #upload-label:hover { filter: brightness(1.1); }
+  #map-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+  #floor-img  { display: block; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+  #draw-layer { position: absolute; top: 0; left: 0; pointer-events: none; }
 
   /* ── Zoom controls ── */
   #zoom-controls {
@@ -155,27 +77,111 @@
   .zoom-btn:active { background: #30363d; }
   #zoom-pct { font-size: 10px; color: #6e7681; text-align: center; }
 
-  /* ── Toast ── */
-  #toast {
-    position: fixed; bottom: 20px; left: 50%;
-    transform: translateX(-50%) translateY(60px);
-    background: #22c55e; color: #fff;
-    padding: 8px 18px; border-radius: 8px;
-    font-size: 12px; font-weight: 600; z-index: 2000;
-    transition: transform 0.3s; white-space: nowrap;
-    box-shadow: 0 4px 14px rgba(34,197,94,0.4);
-  }
-  #toast.show { transform: translateX(-50%) translateY(0); }
-
-  /* ── Instruction bar ── */
   #instructions {
-    position: absolute; top: 10px; left: 50%;
-    transform: translateX(-50%);
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
     background: rgba(22,27,34,0.92); border: 1px solid #30363d;
     border-radius: 20px; padding: 5px 14px;
     font-size: 11px; color: #8b949e; z-index: 30;
     pointer-events: none; white-space: nowrap;
   }
+
+  /* ── Upload prompt ── */
+  #upload-prompt {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; z-index: 10;
+    background: #1e2330;
+  }
+  #upload-prompt h2 { font-size: 18px; color: #e6edf3; }
+  #upload-prompt p  { font-size: 13px; color: #6e7681; }
+  #file-input { display: none; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 290px; background: #161b22; border-left: 1px solid #21262d;
+    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  }
+  #sidebar-header {
+    padding: 11px 14px; border-bottom: 1px solid #21262d;
+    font-size: 12px; font-weight: 700; color: #8b949e;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #zone-count { background: #388bfd; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 99px; }
+
+  #zone-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .zone-item {
+    background: #21262d; border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 7px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .zone-item:hover    { border-color: #388bfd55; }
+  .zone-item.selected { border-color: #388bfd; background: #388bfd11; }
+  .zone-item-header   { display: flex; align-items: center; justify-content: space-between; }
+  .zone-label  { font-size: 13px; font-weight: 600; color: #e6edf3; }
+  .zone-coords { font-size: 10px; color: #64748b; margin-top: 4px; font-family: monospace; }
+  .zone-center { font-size: 10px; color: #388bfd; margin-top: 2px; font-family: monospace; }
+  .zone-del {
+    background: none; border: none; color: #64748b; cursor: pointer;
+    font-size: 14px; padding: 2px 5px; border-radius: 4px; transition: color 0.15s, background 0.15s;
+  }
+  .zone-del:hover { color: #ef4444; background: #ef444422; }
+  .zone-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-right: 6px; }
+
+  /* ── Import / Export panel ── */
+  #io-panel {
+    border-top: 1px solid #21262d; background: #0d1117; flex-shrink: 0;
+  }
+
+  /* Tabs */
+  #io-tabs { display: flex; border-bottom: 1px solid #21262d; }
+  .io-tab {
+    flex: 1; padding: 8px; text-align: center; font-size: 11px; font-weight: 600;
+    color: #6e7681; cursor: pointer; transition: all 0.15s; border: none;
+    background: none; font-family: inherit;
+  }
+  .io-tab:hover    { color: #e6edf3; }
+  .io-tab.active   { color: #388bfd; border-bottom: 2px solid #388bfd; }
+
+  .io-pane { display: none; padding: 10px 12px 12px; }
+  .io-pane.active { display: block; }
+
+  /* Import area */
+  #import-textarea {
+    width: 100%; height: 90px; background: #161b22;
+    border: 1px solid #30363d; border-radius: 8px;
+    color: #e6edf3; font-size: 10px; font-family: monospace;
+    padding: 8px; resize: none; line-height: 1.5;
+  }
+  #import-textarea:focus { outline: none; border-color: #a855f7; }
+  #import-textarea::placeholder { color: #4a5568; }
+
+  .io-row { display: flex; gap: 7px; margin-top: 8px; }
+  .io-row .tb-btn { flex: 1; text-align: center; }
+
+  #import-status {
+    font-size: 10px; margin-top: 6px; min-height: 16px;
+    padding: 0 2px;
+  }
+
+  /* Export area */
+  #export-textarea {
+    width: 100%; height: 90px; background: #161b22;
+    border: 1px solid #30363d; border-radius: 8px;
+    color: #22c55e; font-size: 10px; font-family: monospace;
+    padding: 8px; resize: none; line-height: 1.5;
+  }
+  #export-textarea:focus { outline: none; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    padding: 8px 18px; border-radius: 8px;
+    font-size: 12px; font-weight: 600; z-index: 2000;
+    transition: transform 0.3s; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4); color: #fff;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -185,19 +191,19 @@
   <h1>🗺 Zone Editor</h1>
   <div class="tb-sep"></div>
 
-  <label id="upload-label-btn" class="tb-btn btn-blue" for="file-input">📂 Load Floor Plan</label>
+  <label class="tb-btn btn-blue" for="file-input">📂 Load Image</label>
   <input type="file" id="file-input" accept="image/*"/>
 
   <div class="tb-sep"></div>
 
   <div id="zone-name-wrap">
-    <label for="zone-name-input">Zone Name:</label>
-    <input type="text" id="zone-name-input" placeholder="e.g. LB1, Gate A…" />
+    <label for="zone-name-input">Zone:</label>
+    <input type="text" id="zone-name-input" placeholder="LB1, Gate A…" />
   </div>
 
-  <button class="tb-btn btn-green"  id="btn-draw" onclick="setMode('draw')">✏️ Draw Zone</button>
-  <button class="tb-btn btn-gray"   id="btn-pan"  onclick="setMode('pan')">🤚 Pan</button>
-  <button class="tb-btn btn-red"    onclick="clearAll()">🗑 Clear All</button>
+  <button class="tb-btn btn-green" onclick="setMode('draw')">✏️ Draw</button>
+  <button class="tb-btn btn-gray"  onclick="setMode('pan')">🤚 Pan</button>
+  <button class="tb-btn btn-red"   onclick="clearAll()">🗑 Clear All</button>
 
   <div class="tb-sep"></div>
   <div id="mode-indicator">Mode: <span id="mode-label">Draw</span></div>
@@ -208,24 +214,20 @@
 
   <!-- Canvas -->
   <div id="canvas-wrap">
-    <!-- Upload prompt -->
     <div id="upload-prompt">
       <h2>Load Your Floor Plan</h2>
       <p>Upload the LAX floor plan image to start placing zones</p>
-      <label class="tb-btn btn-blue" id="upload-label" for="file-input" style="font-size:15px;padding:14px 32px;">📂 Choose Image</label>
-      <p style="font-size:11px;color:#4a5568;">PNG, JPG supported · stays in your browser</p>
+      <label class="tb-btn btn-blue" for="file-input" style="font-size:15px;padding:14px 32px;">📂 Choose Image</label>
+      <p style="font-size:11px;color:#4a5568;">PNG, JPG · stays in your browser</p>
     </div>
 
-    <!-- The pannable canvas -->
     <div id="map-canvas">
       <img id="floor-img" src="" alt=""/>
       <svg id="draw-layer"></svg>
     </div>
 
-    <!-- Instructions -->
-    <div id="instructions">Click & drag to draw a zone box · Name it in the top bar first</div>
+    <div id="instructions">Name zone above → click & drag to draw</div>
 
-    <!-- Zoom controls -->
     <div id="zoom-controls">
       <div class="zoom-btn" onclick="adjustZoom(0.2)">+</div>
       <div class="zoom-btn" onclick="adjustZoom(-0.2)">−</div>
@@ -239,16 +241,43 @@
     <div id="sidebar-header">
       Zones <span id="zone-count">0</span>
     </div>
+
     <div id="zone-list"></div>
-    <div id="output-wrap">
-      <div id="output-header">
-        <span>📋 JSON Output</span>
-        <button id="copy-btn" onclick="copyJSON()">Copy</button>
+
+    <!-- Import / Export tabs -->
+    <div id="io-panel">
+      <div id="io-tabs">
+        <button class="io-tab active" onclick="switchTab('import')">📥 Import JSON</button>
+        <button class="io-tab"        onclick="switchTab('export')">📤 Export JSON</button>
       </div>
-      <textarea id="output-box" readonly>// Draw zones to generate output…</textarea>
+
+      <!-- Import pane -->
+      <div class="io-pane active" id="pane-import">
+        <textarea id="import-textarea"
+          placeholder='Paste your AREA_POSITIONS JSON here…
+
+const AREA_POSITIONS = { "Zone 1": { "x":868, ... } };
+
+— or just the raw object —
+
+{ "Zone 1": { "x":868, ... } }'></textarea>
+        <div class="io-row">
+          <button class="tb-btn btn-purple" onclick="importJSON()">⬇ Load Zones</button>
+          <button class="tb-btn btn-gray"   onclick="importMerge()">➕ Merge (keep existing)</button>
+        </div>
+        <div id="import-status"></div>
+      </div>
+
+      <!-- Export pane -->
+      <div class="io-pane" id="pane-export">
+        <textarea id="export-textarea" readonly>// Draw zones to generate output…</textarea>
+        <div class="io-row">
+          <button class="tb-btn btn-green" onclick="copyExport()">📋 Copy</button>
+          <button class="tb-btn btn-gray"  onclick="refreshExport()">🔄 Refresh</button>
+        </div>
+      </div>
     </div>
   </div>
-
 </div>
 
 <div id="toast"></div>
@@ -257,38 +286,24 @@
 // ─────────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────────
-let zones      = [];        // { id, name, x, y, w, h, color }
+let zones      = [];
 let selectedId = null;
-let mode       = "draw";    // "draw" | "pan"
-let scale      = 1;
-let originX    = 0;
-let originY    = 0;
-let imgNatW    = 0;
-let imgNatH    = 0;
-let imageLoaded = false;
+let mode       = "draw";
+let scale      = 1, originX = 0, originY = 0;
+let imgNatW    = 0, imgNatH = 0, imageLoaded = false;
 
-// Drawing state
-let isDrawing   = false;
-let drawStartX  = 0;
-let drawStartY  = 0;
-let previewRect = null;
-
-// Panning state
-let isPanning    = false;
-let panStartX    = 0;
-let panStartY    = 0;
-let panOriginX   = 0;
-let panOriginY   = 0;
+let isDrawing = false, drawStartX = 0, drawStartY = 0, previewRect = null;
+let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
 
 const COLORS = [
   "#388bfd","#22c55e","#f97316","#ef4444","#a855f7",
   "#06b6d4","#eab308","#ec4899","#14b8a6","#f43f5e",
+  "#8b5cf6","#10b981","#fb923c","#60a5fa","#e879f9",
 ];
 let colorIdx = 0;
 
-// ─────────────────────────────────────────────
-//  ELEMENTS
-// ─────────────────────────────────────────────
+const MIN_SCALE = 0.05, MAX_SCALE = 6;
+
 const canvasWrap  = () => document.getElementById("canvas-wrap");
 const mapCanvas   = () => document.getElementById("map-canvas");
 const floorImg    = () => document.getElementById("floor-img");
@@ -305,10 +320,11 @@ document.getElementById("file-input").addEventListener("change", e => {
   img.onload = () => {
     imgNatW = img.naturalWidth;
     imgNatH = img.naturalHeight;
-    drawLayer().setAttribute("width",  imgNatW);
-    drawLayer().setAttribute("height", imgNatH);
-    drawLayer().style.width  = imgNatW + "px";
-    drawLayer().style.height = imgNatH + "px";
+    const svg = drawLayer();
+    svg.setAttribute("width",  imgNatW);
+    svg.setAttribute("height", imgNatH);
+    svg.style.width  = imgNatW + "px";
+    svg.style.height = imgNatH + "px";
     document.getElementById("upload-prompt").style.display = "none";
     imageLoaded = true;
     fitView();
@@ -320,44 +336,34 @@ document.getElementById("file-input").addEventListener("change", e => {
 // ─────────────────────────────────────────────
 //  PAN / ZOOM
 // ─────────────────────────────────────────────
-const MIN_SCALE = 0.1;
-const MAX_SCALE = 5.0;
-
 function applyTransform() {
   mapCanvas().style.transform = `translate(${originX}px,${originY}px) scale(${scale})`;
-  document.getElementById("zoom-pct").textContent = Math.round(scale * 100) + "%";
+  document.getElementById("zoom-pct").textContent = Math.round(scale*100)+"%";
 }
 
 function fitView() {
   if (!imageLoaded) return;
-  const vp = canvasWrap().getBoundingClientRect();
-  const scaleX = vp.width  / imgNatW;
-  const scaleY = vp.height / imgNatH;
-  scale   = Math.min(scaleX, scaleY) * 0.95;
-  originX = (vp.width  - imgNatW * scale) / 2;
-  originY = (vp.height - imgNatH * scale) / 2;
+  const r = canvasWrap().getBoundingClientRect();
+  scale   = Math.min(r.width/imgNatW, r.height/imgNatH) * 0.95;
+  originX = (r.width  - imgNatW*scale)/2;
+  originY = (r.height - imgNatH*scale)/2;
   applyTransform();
 }
 
-function adjustZoom(delta, pivotX, pivotY) {
-  const vp = canvasWrap().getBoundingClientRect();
-  const px = (pivotX !== undefined) ? pivotX : vp.width  / 2;
-  const py = (pivotY !== undefined) ? pivotY : vp.height / 2;
-  const prev  = scale;
-  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta * scale));
-  const ratio = scale / prev;
-  originX = px - ratio * (px - originX);
-  originY = py - ratio * (py - originY);
+function adjustZoom(delta, px, py) {
+  const r  = canvasWrap().getBoundingClientRect();
+  px = px ?? r.width/2; py = py ?? r.height/2;
+  const prev = scale;
+  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale*(1+delta)));
+  const ratio = scale/prev;
+  originX = px - ratio*(px-originX);
+  originY = py - ratio*(py-originY);
   applyTransform();
 }
 
-// Canvas coords → image coords
-function toImgCoords(clientX, clientY) {
-  const vp = canvasWrap().getBoundingClientRect();
-  return {
-    x: (clientX - vp.left - originX) / scale,
-    y: (clientY - vp.top  - originY) / scale,
-  };
+function toImgCoords(cx, cy) {
+  const r = canvasWrap().getBoundingClientRect();
+  return { x:(cx-r.left-originX)/scale, y:(cy-r.top-originY)/scale };
 }
 
 // ─────────────────────────────────────────────
@@ -365,253 +371,174 @@ function toImgCoords(clientX, clientY) {
 // ─────────────────────────────────────────────
 function setMode(m) {
   mode = m;
-  document.getElementById("mode-label").textContent = m === "draw" ? "Draw" : "Pan";
-  canvasWrap().classList.toggle("mode-pan", m === "pan");
+  document.getElementById("mode-label").textContent = m==="draw" ? "Draw" : "Pan";
+  canvasWrap().classList.toggle("mode-pan", m==="pan");
   document.getElementById("instructions").textContent =
-    m === "draw"
-      ? "Click & drag to draw a zone box · Name it in the top bar first"
-      : "Drag to pan · Scroll or +/− to zoom";
+    m==="draw" ? "Name zone above → click & drag to draw"
+               : "Drag to pan · Scroll or +/− to zoom";
 }
 
 // ─────────────────────────────────────────────
-//  EVENTS — Mouse
+//  MOUSE EVENTS
 // ─────────────────────────────────────────────
 canvasWrap().addEventListener("mousedown", e => {
-  if (!imageLoaded || e.button !== 0) return;
-  if (mode === "pan") {
-    isPanning  = true;
-    panStartX  = e.clientX;
-    panStartY  = e.clientY;
-    panOriginX = originX;
-    panOriginY = originY;
+  if (e.button!==0 || !imageLoaded) return;
+  if (mode==="pan") {
+    isPanning=true; panStartX=e.clientX; panStartY=e.clientY;
+    panOriginX=originX; panOriginY=originY;
     canvasWrap().classList.add("panning");
   } else {
-    const p = toImgCoords(e.clientX, e.clientY);
-    isDrawing  = true;
-    drawStartX = p.x;
-    drawStartY = p.y;
-    previewRect = makeTempRect();
+    const p=toImgCoords(e.clientX,e.clientY);
+    isDrawing=true; drawStartX=p.x; drawStartY=p.y;
+    previewRect=makeTempRect();
   }
 });
-
 canvasWrap().addEventListener("mousemove", e => {
   if (isPanning) {
-    originX = panOriginX + (e.clientX - panStartX);
-    originY = panOriginY + (e.clientY - panStartY);
+    originX=panOriginX+(e.clientX-panStartX);
+    originY=panOriginY+(e.clientY-panStartY);
     applyTransform();
   } else if (isDrawing && previewRect) {
-    const p = toImgCoords(e.clientX, e.clientY);
-    updateTempRect(previewRect, drawStartX, drawStartY, p.x, p.y);
+    const p=toImgCoords(e.clientX,e.clientY);
+    updateTempRect(previewRect,drawStartX,drawStartY,p.x,p.y);
   }
 });
-
 canvasWrap().addEventListener("mouseup", e => {
-  if (isPanning) {
-    isPanning = false;
-    canvasWrap().classList.remove("panning");
-    return;
-  }
+  if (isPanning) { isPanning=false; canvasWrap().classList.remove("panning"); return; }
   if (!isDrawing) return;
-  isDrawing = false;
-  const p = toImgCoords(e.clientX, e.clientY);
-  finishZone(drawStartX, drawStartY, p.x, p.y);
-  if (previewRect) { previewRect.remove(); previewRect = null; }
+  isDrawing=false;
+  const p=toImgCoords(e.clientX,e.clientY);
+  finishZone(drawStartX,drawStartY,p.x,p.y);
+  if (previewRect) { previewRect.remove(); previewRect=null; }
 });
-
-canvasWrap().addEventListener("mouseleave", e => {
-  isPanning = false;
-  canvasWrap().classList.remove("panning");
-  if (isDrawing && previewRect) { previewRect.remove(); previewRect = null; }
-  isDrawing = false;
+canvasWrap().addEventListener("mouseleave", () => {
+  isPanning=false; canvasWrap().classList.remove("panning");
+  if (isDrawing && previewRect) { previewRect.remove(); previewRect=null; }
+  isDrawing=false;
 });
-
 canvasWrap().addEventListener("wheel", e => {
   e.preventDefault();
-  const vp    = canvasWrap().getBoundingClientRect();
-  const delta = e.deltaY < 0 ? 0.1 : -0.1;
-  adjustZoom(delta, e.clientX - vp.left, e.clientY - vp.top);
-}, { passive: false });
+  const r=canvasWrap().getBoundingClientRect();
+  adjustZoom(e.deltaY<0?0.12:-0.12, e.clientX-r.left, e.clientY-r.top);
+},{passive:false});
 
 // ─────────────────────────────────────────────
-//  EVENTS — Touch
+//  TOUCH EVENTS
 // ─────────────────────────────────────────────
-let touchPinchStartDist  = 0;
-let touchPinchStartScale = 1;
-let touchPinchMidX = 0;
-let touchPinchMidY = 0;
-let touchPanning = false;
+let tPinchDist0=0,tPinchScale0=1,tPinchMX=0,tPinchMY=0,tPanning=false;
 
-canvasWrap().addEventListener("touchstart", e => {
+canvasWrap().addEventListener("touchstart",e=>{
   e.preventDefault();
-  if (e.touches.length === 1) {
-    if (mode === "pan") {
-      touchPanning = true;
-      panStartX  = e.touches[0].clientX;
-      panStartY  = e.touches[0].clientY;
-      panOriginX = originX;
-      panOriginY = originY;
-    } else {
-      const p = toImgCoords(e.touches[0].clientX, e.touches[0].clientY);
-      isDrawing  = true;
-      drawStartX = p.x;
-      drawStartY = p.y;
-      previewRect = makeTempRect();
-    }
-  } else if (e.touches.length === 2) {
-    isDrawing = touchPanning = false;
-    const t0 = e.touches[0], t1 = e.touches[1];
-    touchPinchStartDist  = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    touchPinchStartScale = scale;
-    const vp = canvasWrap().getBoundingClientRect();
-    touchPinchMidX = (t0.clientX+t1.clientX)/2 - vp.left;
-    touchPinchMidY = (t0.clientY+t1.clientY)/2 - vp.top;
+  if(e.touches.length===1){
+    if(mode==="pan"){ tPanning=true; panStartX=e.touches[0].clientX; panStartY=e.touches[0].clientY; panOriginX=originX; panOriginY=originY; }
+    else { const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY); isDrawing=true; drawStartX=p.x; drawStartY=p.y; previewRect=makeTempRect(); }
+  } else if(e.touches.length===2){
+    isDrawing=tPanning=false;
+    const t0=e.touches[0],t1=e.touches[1];
+    tPinchDist0=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    tPinchScale0=scale;
+    const r=canvasWrap().getBoundingClientRect();
+    tPinchMX=(t0.clientX+t1.clientX)/2-r.left;
+    tPinchMY=(t0.clientY+t1.clientY)/2-r.top;
   }
-}, { passive: false });
+},{passive:false});
 
-canvasWrap().addEventListener("touchmove", e => {
+canvasWrap().addEventListener("touchmove",e=>{
   e.preventDefault();
-  if (e.touches.length === 1) {
-    if (touchPanning) {
-      originX = panOriginX + (e.touches[0].clientX - panStartX);
-      originY = panOriginY + (e.touches[0].clientY - panStartY);
-      applyTransform();
-    } else if (isDrawing && previewRect) {
-      const p = toImgCoords(e.touches[0].clientX, e.touches[0].clientY);
-      updateTempRect(previewRect, drawStartX, drawStartY, p.x, p.y);
-    }
-  } else if (e.touches.length === 2) {
-    const t0   = e.touches[0], t1 = e.touches[1];
-    const dist = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, touchPinchStartScale * (dist/touchPinchStartDist)));
-    const ratio = newScale / scale;
-    scale = newScale;
-    originX = touchPinchMidX - ratio*(touchPinchMidX - originX);
-    originY = touchPinchMidY - ratio*(touchPinchMidY - originY);
+  if(e.touches.length===1){
+    if(tPanning){ originX=panOriginX+(e.touches[0].clientX-panStartX); originY=panOriginY+(e.touches[0].clientY-panStartY); applyTransform(); }
+    else if(isDrawing&&previewRect){ const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY); updateTempRect(previewRect,drawStartX,drawStartY,p.x,p.y); }
+  } else if(e.touches.length===2){
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const newScale=Math.min(MAX_SCALE,Math.max(MIN_SCALE,tPinchScale0*(dist/tPinchDist0)));
+    const ratio=newScale/scale; scale=newScale;
+    originX=tPinchMX-ratio*(tPinchMX-originX); originY=tPinchMY-ratio*(tPinchMY-originY);
     applyTransform();
   }
-}, { passive: false });
+},{passive:false});
 
-canvasWrap().addEventListener("touchend", e => {
-  if (e.touches.length === 0) {
-    touchPanning = false;
-    if (isDrawing && previewRect) {
-      const touch = e.changedTouches[0];
-      const p = toImgCoords(touch.clientX, touch.clientY);
-      finishZone(drawStartX, drawStartY, p.x, p.y);
-      previewRect.remove(); previewRect = null;
+canvasWrap().addEventListener("touchend",e=>{
+  if(e.touches.length===0){
+    tPanning=false;
+    if(isDrawing&&previewRect){
+      const t=e.changedTouches[0], p=toImgCoords(t.clientX,t.clientY);
+      finishZone(drawStartX,drawStartY,p.x,p.y);
+      previewRect.remove(); previewRect=null;
     }
-    isDrawing = false;
+    isDrawing=false;
   }
-}, { passive: false });
+},{passive:false});
 
 // ─────────────────────────────────────────────
-//  ZONE DRAWING
+//  DRAWING
 // ─────────────────────────────────────────────
 function makeTempRect() {
-  const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-  rect.setAttribute("fill","rgba(56,139,253,0.15)");
-  rect.setAttribute("stroke","#388bfd");
-  rect.setAttribute("stroke-width","2");
-  rect.setAttribute("stroke-dasharray","6 3");
-  drawLayer().appendChild(rect);
-  return rect;
+  const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  r.setAttribute("fill","rgba(56,139,253,0.12)");
+  r.setAttribute("stroke","#388bfd"); r.setAttribute("stroke-width","2");
+  r.setAttribute("stroke-dasharray","6 3");
+  drawLayer().appendChild(r); return r;
 }
-
-function updateTempRect(rect, x1, y1, x2, y2) {
-  const rx = Math.min(x1,x2), ry = Math.min(y1,y2);
-  const rw = Math.abs(x2-x1),  rh = Math.abs(y2-y1);
-  rect.setAttribute("x",rx); rect.setAttribute("y",ry);
-  rect.setAttribute("width",rw); rect.setAttribute("height",rh);
+function updateTempRect(rect,x1,y1,x2,y2){
+  rect.setAttribute("x",Math.min(x1,x2)); rect.setAttribute("y",Math.min(y1,y2));
+  rect.setAttribute("width",Math.abs(x2-x1)); rect.setAttribute("height",Math.abs(y2-y1));
 }
-
-function finishZone(x1, y1, x2, y2) {
-  const rx = Math.round(Math.min(x1,x2));
-  const ry = Math.round(Math.min(y1,y2));
-  const rw = Math.round(Math.abs(x2-x1));
-  const rh = Math.round(Math.abs(y2-y1));
-  if (rw < 5 || rh < 5) return; // too small — ignore
-
-  const name  = document.getElementById("zone-name-input").value.trim() || ("Zone " + (zones.length+1));
-  const color = COLORS[colorIdx % COLORS.length];
-  colorIdx++;
-
-  zones.push({ id: Date.now(), name, x: rx, y: ry, w: rw, h: rh, color });
-  redrawSVG();
-  renderSidebar();
-  updateOutput();
+function finishZone(x1,y1,x2,y2){
+  const rx=Math.round(Math.min(x1,x2)), ry=Math.round(Math.min(y1,y2));
+  const rw=Math.round(Math.abs(x2-x1)),  rh=Math.round(Math.abs(y2-y1));
+  if(rw<5||rh<5) return;
+  const name  = document.getElementById("zone-name-input").value.trim() || ("Zone "+(zones.length+1));
+  const color = COLORS[colorIdx%COLORS.length]; colorIdx++;
+  zones.push({ id:Date.now(), name, x:rx, y:ry, w:rw, h:rh, color });
+  redrawSVG(); renderSidebar(); refreshExport();
 }
 
 // ─────────────────────────────────────────────
 //  SVG REDRAW
 // ─────────────────────────────────────────────
-function redrawSVG() {
-  const svg = drawLayer();
-  svg.innerHTML = "";
-  zones.forEach(z => {
-    const isSelected = z.id === selectedId;
+function redrawSVG(){
+  const svg=drawLayer(); svg.innerHTML="";
+  zones.forEach(z=>{
+    const sel=z.id===selectedId;
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("x",z.x); rect.setAttribute("y",z.y);
+    rect.setAttribute("width",z.w); rect.setAttribute("height",z.h);
+    rect.setAttribute("fill",z.color+(sel?"33":"1a"));
+    rect.setAttribute("stroke",z.color); rect.setAttribute("stroke-width",sel?"3":"2");
+    rect.setAttribute("rx","4"); svg.appendChild(rect);
 
-    // Box
-    const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-    rect.setAttribute("x", z.x); rect.setAttribute("y", z.y);
-    rect.setAttribute("width", z.w); rect.setAttribute("height", z.h);
-    rect.setAttribute("fill", z.color + (isSelected ? "33" : "22"));
-    rect.setAttribute("stroke", z.color);
-    rect.setAttribute("stroke-width", isSelected ? "3" : "2");
-    rect.setAttribute("rx","4");
-    svg.appendChild(rect);
+    const approxW=z.name.length*7+16;
+    const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    bg.setAttribute("x",z.x); bg.setAttribute("y",z.y);
+    bg.setAttribute("width",approxW); bg.setAttribute("height","22");
+    bg.setAttribute("fill",z.color); bg.setAttribute("rx","4"); svg.appendChild(bg);
 
-    // Label background
-    const labelH = 20, labelPad = 8;
-    const labelText = z.name;
-    const approxW   = labelText.length * 7 + labelPad * 2;
-    const lx = z.x, ly = z.y;
+    const txt=document.createElementNS("http://www.w3.org/2000/svg","text");
+    txt.setAttribute("x",z.x+8); txt.setAttribute("y",z.y+15);
+    txt.setAttribute("fill","#fff"); txt.setAttribute("font-size","13");
+    txt.setAttribute("font-weight","700"); txt.setAttribute("font-family","Segoe UI,sans-serif");
+    txt.textContent=z.name; svg.appendChild(txt);
 
-    const labelBg = document.createElementNS("http://www.w3.org/2000/svg","rect");
-    labelBg.setAttribute("x",  lx);
-    labelBg.setAttribute("y",  ly);
-    labelBg.setAttribute("width",  approxW);
-    labelBg.setAttribute("height", labelH);
-    labelBg.setAttribute("fill",   z.color);
-    labelBg.setAttribute("rx","4");
-    svg.appendChild(labelBg);
-
-    // Label text
-    const text = document.createElementNS("http://www.w3.org/2000/svg","text");
-    text.setAttribute("x", lx + labelPad);
-    text.setAttribute("y", ly + 14);
-    text.setAttribute("fill","#fff");
-    text.setAttribute("font-size","12");
-    text.setAttribute("font-weight","700");
-    text.setAttribute("font-family","Segoe UI, sans-serif");
-    text.textContent = labelText;
-    svg.appendChild(text);
-
-    // Corner coords (small)
-    const coordText = document.createElementNS("http://www.w3.org/2000/svg","text");
-    coordText.setAttribute("x", z.x + z.w - 4);
-    coordText.setAttribute("y", z.y + z.h - 4);
-    coordText.setAttribute("text-anchor","end");
-    coordText.setAttribute("fill", z.color);
-    coordText.setAttribute("font-size","9");
-    coordText.setAttribute("font-family","monospace");
-    coordText.textContent = `${z.x},${z.y} ${z.w}×${z.h}`;
-    svg.appendChild(coordText);
+    const coord=document.createElementNS("http://www.w3.org/2000/svg","text");
+    coord.setAttribute("x",z.x+z.w-4); coord.setAttribute("y",z.y+z.h-4);
+    coord.setAttribute("text-anchor","end"); coord.setAttribute("fill",z.color);
+    coord.setAttribute("font-size","10"); coord.setAttribute("font-family","monospace");
+    coord.textContent=`${z.x},${z.y}  ${z.w}×${z.h}`; svg.appendChild(coord);
   });
 }
 
 // ─────────────────────────────────────────────
 //  SIDEBAR
 // ─────────────────────────────────────────────
-function renderSidebar() {
-  const list = document.getElementById("zone-list");
-  list.innerHTML = "";
-  document.getElementById("zone-count").textContent = zones.length;
-
-  zones.forEach(z => {
-    const div = document.createElement("div");
-    div.className = "zone-item" + (z.id === selectedId ? " selected" : "");
-    div.onclick = () => { selectedId = z.id; redrawSVG(); renderSidebar(); };
-    div.innerHTML = `
+function renderSidebar(){
+  const list=document.getElementById("zone-list"); list.innerHTML="";
+  document.getElementById("zone-count").textContent=zones.length;
+  zones.forEach(z=>{
+    const div=document.createElement("div");
+    div.className="zone-item"+(z.id===selectedId?" selected":"");
+    div.onclick=()=>{ selectedId=z.id; redrawSVG(); renderSidebar(); };
+    div.innerHTML=`
       <div class="zone-item-header">
         <div style="display:flex;align-items:center;gap:6px;">
           <div class="zone-color-dot" style="background:${z.color}"></div>
@@ -620,61 +547,137 @@ function renderSidebar() {
         <button class="zone-del" onclick="deleteZone(${z.id},event)">✕</button>
       </div>
       <div class="zone-coords">x:${z.x} y:${z.y} &nbsp;|&nbsp; ${z.w}×${z.h}px</div>
-      <div class="zone-coords" style="color:#388bfd;margin-top:2px;">center: ${Math.round(z.x+z.w/2)}, ${Math.round(z.y+z.h/2)}</div>
+      <div class="zone-center">center → ${Math.round(z.x+z.w/2)}, ${Math.round(z.y+z.h/2)}</div>
     `;
     list.appendChild(div);
   });
 }
 
-function deleteZone(id, e) {
+function deleteZone(id,e){
   e.stopPropagation();
-  zones = zones.filter(z => z.id !== id);
-  if (selectedId === id) selectedId = null;
-  redrawSVG();
-  renderSidebar();
-  updateOutput();
+  zones=zones.filter(z=>z.id!==id);
+  if(selectedId===id) selectedId=null;
+  redrawSVG(); renderSidebar(); refreshExport();
 }
 
-function clearAll() {
-  if (zones.length && !confirm("Clear all zones?")) return;
-  zones = []; selectedId = null;
-  redrawSVG(); renderSidebar(); updateOutput();
+function clearAll(){
+  if(zones.length&&!confirm("Clear all zones?")) return;
+  zones=[]; selectedId=null; colorIdx=0;
+  redrawSVG(); renderSidebar(); refreshExport();
 }
 
 // ─────────────────────────────────────────────
-//  JSON OUTPUT
+//  IMPORT / EXPORT TABS
 // ─────────────────────────────────────────────
-function updateOutput() {
-  const obj = {};
-  zones.forEach(z => {
-    obj[z.name] = {
-      // Center point for avatar pin (what the widget uses)
-      x: Math.round(z.x + z.w/2),
-      y: Math.round(z.y + z.h/2),
-      // Full box for reference
-      box: { x: z.x, y: z.y, w: z.w, h: z.h }
+function switchTab(tab){
+  document.querySelectorAll(".io-tab").forEach((t,i)=>t.classList.toggle("active",(i===0&&tab==="import")||(i===1&&tab==="export")));
+  document.getElementById("pane-import").classList.toggle("active",tab==="import");
+  document.getElementById("pane-export").classList.toggle("active",tab==="export");
+  if(tab==="export") refreshExport();
+}
+
+// ── IMPORT ────────────────────────────────────
+function parseImportText(raw){
+  // Strip  "const AREA_POSITIONS =" prefix if present
+  let text = raw.trim();
+  text = text.replace(/^const\s+AREA_POSITIONS\s*=\s*/,"");
+  text = text.replace(/;+$/, "").trim();
+  // Also strip trailing semicolons / var declarations
+  return JSON.parse(text);
+}
+
+function zonesFromObj(obj, mergeColors){
+  // obj shape: { "ZoneName": { x, y, box:{ x,y,w,h } }, ... }
+  const result=[];
+  Object.entries(obj).forEach(([name,val])=>{
+    const color = mergeColors && mergeColors[name]
+      ? mergeColors[name]
+      : COLORS[colorIdx%COLORS.length];
+    colorIdx++;
+    // If box present use it; otherwise synthesize 100×60 box around center
+    let bx,by,bw,bh;
+    if(val.box){ bx=val.box.x; by=val.box.y; bw=val.box.w; bh=val.box.h; }
+    else { bx=Math.round(val.x-50); by=Math.round(val.y-30); bw=100; bh=60; }
+    result.push({ id:Date.now()+Math.random(), name, x:bx, y:by, w:bw, h:bh, color });
+  });
+  return result;
+}
+
+function importJSON(){
+  const raw = document.getElementById("import-textarea").value.trim();
+  if(!raw){ setImportStatus("⚠️ Paste JSON first","#f97316"); return; }
+  try{
+    const obj = parseImportText(raw);
+    zones=[]; colorIdx=0;
+    zones = zonesFromObj(obj);
+    redrawSVG(); renderSidebar(); refreshExport();
+    setImportStatus(`✅ Loaded ${zones.length} zone${zones.length!==1?"s":""}`, "#22c55e");
+    showToast(`✅ ${zones.length} zones loaded`,"#22c55e");
+  } catch(err){
+    setImportStatus("⚠️ Invalid JSON: "+err.message, "#ef4444");
+  }
+}
+
+function importMerge(){
+  const raw = document.getElementById("import-textarea").value.trim();
+  if(!raw){ setImportStatus("⚠️ Paste JSON first","#f97316"); return; }
+  try{
+    const obj = parseImportText(raw);
+    // Build existing color map so colors stay consistent
+    const colorMap={};
+    zones.forEach(z=>{ colorMap[z.name]=z.color; });
+    // Remove zones that are in the import (will re-add them)
+    const importNames = new Set(Object.keys(obj));
+    zones = zones.filter(z=>!importNames.has(z.name));
+    const added = zonesFromObj(obj, colorMap);
+    zones = [...zones, ...added];
+    redrawSVG(); renderSidebar(); refreshExport();
+    setImportStatus(`✅ Merged — ${added.length} zone${added.length!==1?"s":""} added/updated`,"#22c55e");
+    showToast(`➕ ${added.length} zones merged`,"#a855f7");
+  } catch(err){
+    setImportStatus("⚠️ Invalid JSON: "+err.message,"#ef4444");
+  }
+}
+
+function setImportStatus(msg,color){
+  const el=document.getElementById("import-status");
+  el.textContent=msg; el.style.color=color;
+}
+
+// ── EXPORT ────────────────────────────────────
+function buildExportObj(){
+  const obj={};
+  zones.forEach(z=>{
+    obj[z.name]={
+      x: Math.round(z.x+z.w/2),
+      y: Math.round(z.y+z.h/2),
+      box:{ x:z.x, y:z.y, w:z.w, h:z.h }
     };
   });
-
-  const json = "const AREA_POSITIONS = " + JSON.stringify(obj, null, 2) + ";";
-  document.getElementById("output-box").value = zones.length ? json : "// Draw zones to generate output…";
+  return obj;
 }
 
-function copyJSON() {
-  const box = document.getElementById("output-box");
-  box.select();
-  document.execCommand("copy");
-  showToast("✅ JSON copied to clipboard!");
+function refreshExport(){
+  const box=document.getElementById("export-textarea");
+  if(!zones.length){ box.value="// Draw zones to generate output…"; return; }
+  box.value="const AREA_POSITIONS = "+JSON.stringify(buildExportObj(),null,2)+";";
+}
+
+function copyExport(){
+  refreshExport();
+  const box=document.getElementById("export-textarea");
+  box.select(); document.execCommand("copy");
+  showToast("📋 JSON copied!","#22c55e");
 }
 
 // ─────────────────────────────────────────────
 //  TOAST
 // ─────────────────────────────────────────────
-function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+function showToast(msg,color="#22c55e"){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.style.background=color;
+  t.style.boxShadow=`0 4px 14px ${color}55`;
+  t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2600);
 }
 
 // ─────────────────────────────────────────────
