@@ -1,4 +1,28 @@
 <!DOCTYPE html>
+<!--
+  CSR ACTIVE REQUESTS WIDGET — v2
+  ================================
+  App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
+
+  CHANGES LOG (latest first):
+  - Upsell displays as "Upsell (99)", Walk-up as "Walk Up (49)"
+  - Font size 15px in table (th + td + badges all same size)
+  - Sub_Acceptable column removed
+  - Vehicle cell: Vehicle Type + Specific Request + Upsell/Walk-up/One-Way stacked
+  - MVA + Stall merged into "Assignment" column (MVA / Stall)
+  - Cancel button hidden when status is Assigned
+  - Cancel sets Dispatch_Status="Cancelled" + Cancelled_Time=timestamp
+  - Audio ding on assignment transition
+  - Server-side criteria filter by User_Email
+
+  TIMEOUT PERIODS:
+  - Unassigned (New/In Progress): hidden after 120 min (2 hrs)
+  - Assigned: hidden after 20 min
+  - Completed/Cancelled: always hidden
+
+  SORT ORDER: New/In Progress oldest-first → Assigned oldest-first → Cancelled oldest-first
+  (no priority bumping — purely chronological within groups)
+-->
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -6,17 +30,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
   <style>
-    :root {
-      --bg:#f0f2f5;--card:#fff;--header-bg:linear-gradient(135deg,#1a1f36 0%,#252d4a 100%);
-      --th-bg:#f1f5f9;--th-text:#64748b;--border:#e8ecf1;
-      --text:#1e293b;--text-muted:#64748b;--text-faint:#94a3b8;
-      --accent:#3b82f6;--amber:#f59e0b;--amber-hover:#d97706;
-      --green:#10b981;--red:#ef4444;
-      --radius:12px;--radius-sm:8px;
-      --shadow-md:0 4px 6px rgba(0,0,0,.04),0 2px 12px rgba(0,0,0,.06);
-      --shadow-lg:0 8px 25px rgba(0,0,0,.1),0 4px 10px rgba(0,0,0,.06);
-      --transition:.15s ease;
-    }
+    :root{--bg:#f0f2f5;--card:#fff;--header-bg:linear-gradient(135deg,#1a1f36 0%,#252d4a 100%);--th-bg:#f1f5f9;--th-text:#64748b;--border:#e8ecf1;--text:#1e293b;--text-muted:#64748b;--text-faint:#94a3b8;--accent:#3b82f6;--amber:#f59e0b;--amber-hover:#d97706;--green:#10b981;--red:#ef4444;--radius:12px;--radius-sm:8px;--shadow-md:0 4px 6px rgba(0,0,0,.04),0 2px 12px rgba(0,0,0,.06);--shadow-lg:0 8px 25px rgba(0,0,0,.1),0 4px 10px rgba(0,0,0,.06);--transition:.15s ease}
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);padding:0;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
     .header{background:var(--header-bg);padding:20px 24px;display:flex;justify-content:space-between;align-items:center}
@@ -29,25 +43,26 @@
     .last-update{font-size:12px;color:var(--text-faint);font-weight:500}
     .table-wrap{padding:20px 24px}
     .table-container{background:var(--card);border-radius:var(--radius);overflow:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-md);max-height:80vh}
-    table{width:100%;border-collapse:collapse;min-width:560px}
+    table{width:100%;border-collapse:collapse;min-width:520px}
     thead{position:sticky;top:0;z-index:10}
-    th{background:var(--th-bg);color:var(--th-text);padding:12px 10px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap;border-bottom:2px solid #e2e8f0}
-    td{padding:10px 10px;font-size:14px;vertical-align:middle;border-bottom:1px solid var(--border);transition:background var(--transition)}
+    /* th and td same font size (15px) */
+    th{background:var(--th-bg);color:var(--th-text);padding:12px 10px;text-align:left;font-size:15px;font-weight:600;letter-spacing:.3px;white-space:nowrap;border-bottom:2px solid #e2e8f0}
+    td{padding:10px 10px;font-size:15px;vertical-align:middle;border-bottom:1px solid var(--border);transition:background var(--transition)}
     tr:last-child td{border-bottom:none}tr:hover td{background:#f8fafc}
-    .badge{padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.3px;display:inline-block;text-transform:uppercase}
+    /* badges same size as table text */
+    .badge{padding:4px 10px;border-radius:6px;font-size:15px;font-weight:700;letter-spacing:.3px;display:inline-block}
     .badge.new{background:#fef3c7;color:#92400e}.badge.pending{background:#fef3c7;color:#92400e}
     .badge.in-progress{background:#ede9fe;color:#6d28d9}.badge.assigned{background:#dbeafe;color:#1e40af}
     .badge.dispatched{background:#dbeafe;color:#1e40af}.badge.en-route{background:#d1fae5;color:#065f46}
     .badge.completed{background:#e5e7eb;color:#374151}.badge.cancelled{background:#fee2e2;color:#b91c1c}
-    .priority-tag{font-weight:700;color:#dc2626;font-size:15px}
-    .oneway-tag{font-size:12px;color:var(--text-muted)}
-    .spec-tag{font-size:12px;color:var(--text-muted)}
+    .priority-tag{font-weight:700;color:#dc2626;font-size:16px}
+    .oneway-tag{font-size:13px;color:var(--text-muted)}
+    .spec-tag{font-size:13px;color:var(--text-muted)}
     .flash{animation:flashRow 1.2s ease-out}
     @keyframes flashRow{0%{background:rgba(251,191,36,.25)}100%{background:transparent}}
     .btn-cancel-req{background:var(--amber);color:#fff;border:none;padding:8px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all var(--transition);-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:44px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(245,158,11,.3)}
     .btn-cancel-req:hover{background:var(--amber-hover);transform:translateY(-1px)}.btn-cancel-req:active{transform:translateY(0)}.btn-cancel-req:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none}
-    .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}
-    .overlay.active{display:flex}
+    .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}.overlay.active{display:flex}
     .dialog{background:var(--card);border-radius:16px;padding:32px;max-width:440px;width:92%;box-shadow:var(--shadow-lg);animation:popIn .2s ease-out}
     @keyframes popIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
     .dialog h3{margin:0 0 8px;font-size:20px;font-weight:700;color:var(--text)}
@@ -57,7 +72,7 @@
     .btn-dialog-cancel{background:#f1f5f9;color:var(--text-muted)}.btn-dialog-cancel:hover{background:#e2e8f0}
     .btn-confirm-cancel{background:var(--amber);color:#fff;box-shadow:0 2px 8px rgba(245,158,11,.3)}.btn-confirm-cancel:hover{background:var(--amber-hover);transform:translateY(-1px)}.btn-confirm-cancel:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none}
     .no-results{text-align:center;padding:40px 24px;color:var(--text-faint);font-size:15px}
-    @media(max-width:1024px){.header{padding:16px}.table-wrap{padding:12px 16px}th{padding:12px 10px;font-size:10px}td{padding:10px 8px;font-size:14px}}
+    @media(max-width:1024px){.header{padding:16px}.table-wrap{padding:12px 16px}th{padding:12px 10px;font-size:14px}td{padding:10px 8px;font-size:15px}}
   </style>
 </head>
 <body>
@@ -79,39 +94,38 @@
 var POLL_INTERVAL=4000,previousData={},previousStatuses={},cancelRecordId=null,loggedInUser="",firstLoadComplete=false;
 var audioCtx=null,audioUnlocked=false;
 
+/* === AUDIO === */
 function unlockAudio(){if(audioUnlocked)return;try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume().then(function(){audioUnlocked=true});}catch(e){}}
 document.addEventListener("click",unlockAudio,{once:true});
 document.addEventListener("touchstart",unlockAudio,{once:true});
 document.addEventListener("keydown",unlockAudio,{once:true});
-
 function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=880;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=1175;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
 
+/* === ASSIGNMENT DETECTION (ding) === */
 function checkForNewAssignments(recs){if(!firstLoadComplete)return;var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var cs=(rec.Dispatch_Status||"").toLowerCase(),ps=previousStatuses[id]||"";var na=cs.indexOf("assign")>=0||cs.indexOf("dispatch")>=0;var wa=ps.indexOf("assign")>=0||ps.indexOf("dispatch")>=0;if(na&&!wa&&!dinged){playDing();dinged=true;}}for(var j=0;j<recs.length;j++){var r=recs[j],rid=r.ID?r.ID.toString():"";if(rid)previousStatuses[rid]=(r.Dispatch_Status||"").toLowerCase();}}
 
+/* === HELPERS === */
 function isBool(v){return v===true||v==="true";}
-function isPriority(r){return isBool(r.Upsell)||isBool(r.Walk_Up_Customer);}
 function badgeClass(s){s=(s||"").toLowerCase();if(s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0)return"in-progress";if(s.indexOf("new")>=0)return"new";if(s.indexOf("pending")>=0)return"pending";if(s.indexOf("assign")>=0)return"assigned";if(s.indexOf("dispatch")>=0)return"dispatched";if(s.indexOf("route")>=0)return"en-route";if(s.indexOf("complet")>=0)return"completed";if(s.indexOf("cancel")>=0)return"cancelled";return"pending";}
 function isAssignedStatus(s){s=(s||"").toLowerCase();return s.indexOf("assign")>=0||s.indexOf("dispatch")>=0;}
+function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
 function parseZohoDate(d){if(!d)return null;try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;}}
 function formatTime(d){var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a;}
 
+/* === CELL BUILDERS === */
 function buildVehicleCell(rec){
   var lines=[];
   lines.push('<strong>'+(rec.Vehicle_Type||'—')+'</strong>');
   var spec=rec.Specific_Make_Model_optional||'';
   if(spec)lines.push('<span class="spec-tag">'+spec+'</span>');
-  if(isBool(rec.Upsell))lines.push('<span class="priority-tag">Upsell</span>');
-  if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">Walk-up</span>');
+  if(isBool(rec.Upsell))lines.push('<span class="priority-tag">Upsell (99)</span>');
+  if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">Walk Up (49)</span>');
   if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">One-Way Rental</span>');
   return lines.join('<br>');
 }
+function buildAssignCell(rec){var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';if(mva&&stall)return mva+' / '+stall;return mva||stall||'';}
 
-function buildAssignCell(rec){
-  var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';
-  if(mva&&stall)return mva+' / '+stall;
-  return mva||stall||'';
-}
-
+/* === RENDER TABLE === */
 function renderTable(records){
   var tbody=document.getElementById("dispatchBody");
   if(!records||!records.length){tbody.innerHTML='<tr><td colspan="6" class="no-results">No active requests</td></tr>';return;}
@@ -133,9 +147,9 @@ function renderTable(records){
   tbody.innerHTML=html;
 }
 
+/* === CANCEL DIALOG === */
 function openCancelDialog(id,vehicle){cancelRecordId=id;document.getElementById("cancelVehicle").textContent=vehicle;document.getElementById("cancelOverlay").classList.add("active");}
 function closeCancelDialog(){cancelRecordId=null;document.getElementById("cancelOverlay").classList.remove("active");}
-
 function confirmCancel(){
   if(!cancelRecordId)return;var btn=document.getElementById("btnConfirmCancel");btn.textContent="Cancelling...";btn.disabled=true;
   var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -148,25 +162,37 @@ function confirmCancel(){
   .catch(function(){alert("Cancel failed.");btn.textContent="Yes, cancel it";btn.disabled=false;});
 }
 
+/* === POLLING + FILTER === */
 function fetchDispatches(){
   var config={app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200};
-  if(loggedInUser)config.criteria='(User_Email == "'+loggedInUser+'")';
+  if(loggedInUser)config.criteria='(User_Email == "'+loggedInUser+'")'; // server-side user filter
   ZOHO.CREATOR.DATA.getRecords(config).then(function(response){
     if(response.code===3000){
       var all=response.data||[],now=Date.now();
+
+      /* === FILTER: apply timeout periods === */
       var filtered=all.filter(function(rec){
         var s=(rec.Dispatch_Status||"").toLowerCase();
-        if(s.indexOf("complet")>=0||s.indexOf("cancel")>=0)return false;
-        if(!isAssignedStatus(rec.Dispatch_Status)){var ad=parseZohoDate(rec.Added_Time);if(ad&&(now-ad.getTime())>120*60*1000)return false;}
-        else{var md=parseZohoDate(rec.Modified_Time);if(md&&(now-md.getTime())>20*60*1000)return false;}
+        if(s.indexOf("complet")>=0||s.indexOf("cancel")>=0)return false; // completed/cancelled: always hidden
+        if(!isAssignedStatus(rec.Dispatch_Status)){
+          var ad=parseZohoDate(rec.Added_Time);if(ad&&(now-ad.getTime())>120*60*1000)return false; // unassigned: 120 min
+        }else{
+          var md=parseZohoDate(rec.Modified_Time);if(md&&(now-md.getTime())>20*60*1000)return false; // assigned: 20 min
+        }
         return true;
       });
-      // Sort: priority first (oldest-first), then normal (oldest-first)
-      var pri=[],norm=[];
-      for(var i=0;i<filtered.length;i++){if(isPriority(filtered[i]))pri.push(filtered[i]);else norm.push(filtered[i]);}
+
+      /* === SORT: New/IP oldest-first → Assigned oldest-first → Cancelled oldest-first === */
+      var newIp=[],assigned=[],cancelled=[];
+      for(var i=0;i<filtered.length;i++){
+        if(isCancelledStatus(filtered[i].Dispatch_Status))cancelled.push(filtered[i]);
+        else if(isAssignedStatus(filtered[i].Dispatch_Status))assigned.push(filtered[i]);
+        else newIp.push(filtered[i]);
+      }
       var byAdded=function(a,b){return(parseZohoDate(a.Added_Time)||0)-(parseZohoDate(b.Added_Time)||0);};
-      pri.sort(byAdded);norm.sort(byAdded);
-      filtered=pri.concat(norm);
+      newIp.sort(byAdded);assigned.sort(byAdded);cancelled.sort(byAdded);
+      filtered=newIp.concat(assigned).concat(cancelled);
+
       checkForNewAssignments(filtered);renderTable(filtered);firstLoadComplete=true;
       document.getElementById("statusDot").className="status-dot live";
       document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();
@@ -174,6 +200,7 @@ function fetchDispatches(){
   }).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});
 }
 
+/* === INIT === */
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   loggedInUser=params.loginUser||"";
   document.getElementById("headerTitle").textContent="Active Requests for "+loggedInUser.split("@")[0];
