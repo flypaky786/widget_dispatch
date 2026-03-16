@@ -1,6 +1,5 @@
 /* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -563,18 +562,14 @@ function loadRecords(){
 }
 
 function loadEmployees(){
-  // ── Report name: create a report in Zoho called "All_Employee_Infos"
-  //    that exposes your Employee_Info form records with Employee_ID1 visible.
-  //    Alternatively change EMP_REPORT_NAME at the top to match your actual report.
   ZOHO.CREATOR.API.getAllRecords({
-    appName:APP_NAME, reportName:All_Employee_Info, page:1, pageSize:1000
+    appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
   }).then(resp=>{
     if(resp.code===3000 && resp.data){
       allEmployees=resp.data.map(r=>({
         id:    r.ID,
-        // Employee_ID1 is the display field on your Employee_Info form
-        // Fall back through common field name variations
-        label: r.Employee_ID1 || r.Employee_ID1 || r.Last_Name || r.First_Name,
+        // Fields from Employee_Info: Employee_ID, First_Name, Last_Name, Full_Name
+        label: r.Employee_ID || r.Full_Name || r.First_Name+" "+r.Last_Name || r.ID,
       })).sort((a,b)=>a.label.localeCompare(b.label));
     } else {
       console.warn("Employee load failed:",resp.code, resp.message);
@@ -583,7 +578,7 @@ function loadEmployees(){
 }
 
 function normalizeRecord(r){
-  const empDisplay = r.Employee_Info_display || r.Employee_Info || "—";
+  const empDisplay = r.Employee_Info_display || r.Employee_ID || r.Employee_Info || "—";
   const parts=empDisplay.trim().split(/[\s\-]+/);
   const initials=parts.length>=2
     ?(parts[0][0]+parts[parts.length-1][0]).toUpperCase()
@@ -771,7 +766,7 @@ function openAssignModal(zoneName){
       if(resp.code===3000&&resp.data){
         allEmployees=resp.data.map(r=>({
           id:    r.ID,
-          label: r.Employee_ID1||r.Employee_ID1||r.First_Name||r.ID,
+          label: r.Employee_ID || r.Full_Name || r.First_Name+" "+r.Last_Name || r.ID,
         })).sort((a,b)=>a.label.localeCompare(b.label));
       }
       populate();
@@ -938,13 +933,21 @@ function closeManageModal(){
 // ═══════════════════════════════════════════════════════
 //  ACTION HANDLER
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  ACTION HANDLER
+//  Field names match Staffing_Map schema exactly:
+//    Break_Type_Start, Break_Type_End  → Break 1
+//    Lunch_Start, Lunch_End            → Lunch
+//    Break_2_Start, Break_2_End        → Break 2
+//    Current_Status                    → text field updated on every action
+// ═══════════════════════════════════════════════════════
 const ACTION_MAP={
-  b1s:{ field:"Break_Type_Start", status:"Break 1", startField:true  },
-  b1e:{ field:"Break_Type_End",   status:"Active",  startField:false },
-  ls: { field:"Lunch_Start",      status:"Lunch",   startField:true  },
-  le: { field:"Lunch_End",        status:"Active",  startField:false },
-  b2s:{ field:"Break_2_Start",    status:"Break 2", startField:true  },
-  b2e:{ field:"Break_2_End",      status:"Active",  startField:false },
+  b1s:{ field:"Break_Type_Start", localField:"Break_Type_Start", status:"Break 1" },
+  b1e:{ field:"Break_Type_End",   localField:"Break_Type_End",   status:"Active"  },
+  ls: { field:"Lunch_Start",      localField:"Lunch_Start",      status:"Lunch"   },
+  le: { field:"Lunch_End",        localField:"Lunch_End",        status:"Active"  },
+  b2s:{ field:"Break_2_Start",    localField:"Break_2_Start",    status:"Break 2" },
+  b2e:{ field:"Break_2_End",      localField:"Break_2_End",      status:"Active"  },
 };
 
 function doAction(actionKey){
@@ -959,18 +962,25 @@ function doAction(actionKey){
 
   setSaving(true);
 
-  const payload={ [act.field]: nowZoho, Current_Status: act.status };
+  // Payload uses exact Zoho form field names
+  const payload={
+    [act.field]:    nowZoho,
+    Current_Status: act.status,
+  };
 
-  zohoUpdate(s.id,payload).then(ok=>{
+  zohoUpdate(s.id, payload).then(ok=>{
     if(!ok){ setSaving(false); return; }
-    s[act.field]=nowISO;
-    s.currentStatus=act.status;
+
+    // Update local record to keep UI in sync
+    s[act.localField] = nowISO;
+    s.currentStatus   = act.status;
+
     setSaving(false);
     renderAll();
     refreshManageModal(s);
 
-    const icons={ b1s:"☕",b1e:"✅",ls:"🍽️",le:"✅",b2s:"☕",b2e:"✅" };
-    const labels={ b1s:"Break 1 started",b1e:"Break 1 ended",ls:"Lunch started",le:"Lunch ended",b2s:"Break 2 started",b2e:"Break 2 ended" };
+    const icons ={ b1s:"☕", b1e:"✅", ls:"🍽️", le:"✅", b2s:"☕", b2e:"✅" };
+    const labels={ b1s:"Break 1 started", b1e:"Break 1 ended", ls:"Lunch started", le:"Lunch ended", b2s:"Break 2 started", b2e:"Break 2 ended" };
     showToast(icons[actionKey]+" "+s.empId+" — "+labels[actionKey],
       actionKey.endsWith("e")?"#22c55e":"#f97316");
   });
@@ -998,14 +1008,21 @@ function unassignEmployee(){
 // ═══════════════════════════════════════════════════════
 const DEV_MODE=typeof ZOHO==="undefined"||!ZOHO.CREATOR;
 
-function zohoUpdate(recId,data){
+function zohoUpdate(recId, data){
   if(DEV_MODE) return new Promise(r=>setTimeout(()=>r(true),400));
   return ZOHO.CREATOR.API.updateRecord({
-    appName:APP_NAME,formName:FORM_NAME,id:recId,data:{data}
+    appName:  APP_NAME,
+    formName: FORM_NAME,
+    id:       recId,
+    data:     { data: data },   // Zoho Creator expects { data: { field: value } }
   }).then(resp=>{
-    if(resp.code!==3000){showToast("⚠️ Save failed ("+resp.code+")","#ef4444");return false;}
+    if(resp.code!==3000){
+      console.error("Zoho update failed:",resp);
+      showToast("⚠️ Save failed ("+resp.code+"): "+(resp.message||""),"#ef4444");
+      return false;
+    }
     return true;
-  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return false;});
+  }).catch(e=>{ showToast("⚠️ "+e,"#ef4444"); return false; });
 }
 
 function zohoAdd(data){
