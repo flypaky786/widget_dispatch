@@ -58,7 +58,9 @@
 
   #map-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
   #floor-img  { display: block; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; pointer-events: none; }
-  #draw-layer { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #draw-layer { position: absolute; top: 0; left: 0; pointer-events: all; }
+  .zone-hit { cursor: move; }
+  .zone-hit:hover { opacity: 0.85; }
 
   /* ── Zoom controls ── */
   #zoom-controls {
@@ -226,7 +228,7 @@
       <svg id="draw-layer"></svg>
     </div>
 
-    <div id="instructions">Name zone above → click & drag to draw</div>
+    <div id="instructions">Draw mode: drag canvas to draw · click zone to select · drag selected zone to move</div>
 
     <div id="zoom-controls">
       <div class="zoom-btn" onclick="adjustZoom(0.2)">+</div>
@@ -374,26 +376,77 @@ function setMode(m) {
   document.getElementById("mode-label").textContent = m==="draw" ? "Draw" : "Pan";
   canvasWrap().classList.toggle("mode-pan", m==="pan");
   document.getElementById("instructions").textContent =
-    m==="draw" ? "Name zone above → click & drag to draw"
-               : "Drag to pan · Scroll or +/− to zoom";
+    m==="draw"
+      ? "Draw mode: drag canvas to draw · click zone to select · drag selected zone to move"
+      : "Pan mode: drag to pan · scroll or +/− to zoom";
 }
+
+// ─────────────────────────────────────────────
+//  ZONE MOVE STATE
+// ─────────────────────────────────────────────
+let isMoving     = false;  // dragging a selected zone
+let moveZoneId   = null;
+let moveStartImgX= 0, moveStartImgY= 0;  // img coords where drag started
+let moveZoneOrigX= 0, moveZoneOrigY= 0;  // zone's original x,y at drag start
 
 // ─────────────────────────────────────────────
 //  MOUSE EVENTS
 // ─────────────────────────────────────────────
 canvasWrap().addEventListener("mousedown", e => {
   if (e.button!==0 || !imageLoaded) return;
+
+  // Check if we hit a zone's hit rect (forwarded via dataset)
+  const hitEl = e.target.closest ? e.target.closest("[data-zone-id]") : null;
+  if (hitEl && mode !== "pan") {
+    const zid = Number(hitEl.dataset.zoneId);
+    const z   = zones.find(z => z.id === zid);
+    if (z) {
+      // Select it
+      selectedId = zid;
+      renderSidebar();
+      scrollSidebarToSelected();
+      redrawSVG();
+
+      // Start move drag
+      isMoving      = true;
+      moveZoneId    = zid;
+      const p       = toImgCoords(e.clientX, e.clientY);
+      moveStartImgX = p.x;
+      moveStartImgY = p.y;
+      moveZoneOrigX = z.x;
+      moveZoneOrigY = z.y;
+      e.stopPropagation();
+      return;
+    }
+  }
+
   if (mode==="pan") {
     isPanning=true; panStartX=e.clientX; panStartY=e.clientY;
     panOriginX=originX; panOriginY=originY;
     canvasWrap().classList.add("panning");
   } else {
+    // Start drawing new zone (only if we didn't hit an existing one)
     const p=toImgCoords(e.clientX,e.clientY);
     isDrawing=true; drawStartX=p.x; drawStartY=p.y;
     previewRect=makeTempRect();
   }
 });
+
 canvasWrap().addEventListener("mousemove", e => {
+  if (isMoving) {
+    const p  = toImgCoords(e.clientX, e.clientY);
+    const dx = p.x - moveStartImgX;
+    const dy = p.y - moveStartImgY;
+    const z  = zones.find(z => z.id === moveZoneId);
+    if (z) {
+      z.x = Math.round(moveZoneOrigX + dx);
+      z.y = Math.round(moveZoneOrigY + dy);
+      redrawSVG();
+      updateSidebarCoords(z);
+      refreshExport();
+    }
+    return;
+  }
   if (isPanning) {
     originX=panOriginX+(e.clientX-panStartX);
     originY=panOriginY+(e.clientY-panStartY);
@@ -403,7 +456,13 @@ canvasWrap().addEventListener("mousemove", e => {
     updateTempRect(previewRect,drawStartX,drawStartY,p.x,p.y);
   }
 });
+
 canvasWrap().addEventListener("mouseup", e => {
+  if (isMoving) {
+    isMoving = false; moveZoneId = null;
+    showToast("📍 Zone moved","#388bfd");
+    return;
+  }
   if (isPanning) { isPanning=false; canvasWrap().classList.remove("panning"); return; }
   if (!isDrawing) return;
   isDrawing=false;
@@ -411,11 +470,14 @@ canvasWrap().addEventListener("mouseup", e => {
   finishZone(drawStartX,drawStartY,p.x,p.y);
   if (previewRect) { previewRect.remove(); previewRect=null; }
 });
+
 canvasWrap().addEventListener("mouseleave", () => {
+  isMoving  = false; moveZoneId = null;
   isPanning=false; canvasWrap().classList.remove("panning");
   if (isDrawing && previewRect) { previewRect.remove(); previewRect=null; }
   isDrawing=false;
 });
+
 canvasWrap().addEventListener("wheel", e => {
   e.preventDefault();
   const r=canvasWrap().getBoundingClientRect();
@@ -430,10 +492,23 @@ let tPinchDist0=0,tPinchScale0=1,tPinchMX=0,tPinchMY=0,tPanning=false;
 canvasWrap().addEventListener("touchstart",e=>{
   e.preventDefault();
   if(e.touches.length===1){
+    const hitEl = e.target.closest ? e.target.closest("[data-zone-id]") : null;
+    if(hitEl && mode!=="pan"){
+      const zid=Number(hitEl.dataset.zoneId);
+      const z=zones.find(z=>z.id===zid);
+      if(z){
+        selectedId=zid; renderSidebar(); scrollSidebarToSelected(); redrawSVG();
+        isMoving=true; moveZoneId=zid;
+        const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY);
+        moveStartImgX=p.x; moveStartImgY=p.y;
+        moveZoneOrigX=z.x; moveZoneOrigY=z.y;
+        return;
+      }
+    }
     if(mode==="pan"){ tPanning=true; panStartX=e.touches[0].clientX; panStartY=e.touches[0].clientY; panOriginX=originX; panOriginY=originY; }
     else { const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY); isDrawing=true; drawStartX=p.x; drawStartY=p.y; previewRect=makeTempRect(); }
   } else if(e.touches.length===2){
-    isDrawing=tPanning=false;
+    isDrawing=tPanning=isMoving=false;
     const t0=e.touches[0],t1=e.touches[1];
     tPinchDist0=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
     tPinchScale0=scale;
@@ -446,7 +521,12 @@ canvasWrap().addEventListener("touchstart",e=>{
 canvasWrap().addEventListener("touchmove",e=>{
   e.preventDefault();
   if(e.touches.length===1){
-    if(tPanning){ originX=panOriginX+(e.touches[0].clientX-panStartX); originY=panOriginY+(e.touches[0].clientY-panStartY); applyTransform(); }
+    if(isMoving){
+      const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY);
+      const dx=p.x-moveStartImgX, dy=p.y-moveStartImgY;
+      const z=zones.find(z=>z.id===moveZoneId);
+      if(z){ z.x=Math.round(moveZoneOrigX+dx); z.y=Math.round(moveZoneOrigY+dy); redrawSVG(); updateSidebarCoords(z); refreshExport(); }
+    } else if(tPanning){ originX=panOriginX+(e.touches[0].clientX-panStartX); originY=panOriginY+(e.touches[0].clientY-panStartY); applyTransform(); }
     else if(isDrawing&&previewRect){ const p=toImgCoords(e.touches[0].clientX,e.touches[0].clientY); updateTempRect(previewRect,drawStartX,drawStartY,p.x,p.y); }
   } else if(e.touches.length===2){
     const t0=e.touches[0],t1=e.touches[1];
@@ -460,6 +540,7 @@ canvasWrap().addEventListener("touchmove",e=>{
 
 canvasWrap().addEventListener("touchend",e=>{
   if(e.touches.length===0){
+    if(isMoving){ isMoving=false; moveZoneId=null; showToast("📍 Zone moved","#388bfd"); }
     tPanning=false;
     if(isDrawing&&previewRect){
       const t=e.changedTouches[0], p=toImgCoords(t.clientX,t.clientY);
@@ -501,30 +582,61 @@ function redrawSVG(){
   const svg=drawLayer(); svg.innerHTML="";
   zones.forEach(z=>{
     const sel=z.id===selectedId;
+
+    // Fill rect
     const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
     rect.setAttribute("x",z.x); rect.setAttribute("y",z.y);
     rect.setAttribute("width",z.w); rect.setAttribute("height",z.h);
     rect.setAttribute("fill",z.color+(sel?"33":"1a"));
     rect.setAttribute("stroke",z.color); rect.setAttribute("stroke-width",sel?"3":"2");
-    rect.setAttribute("rx","4"); svg.appendChild(rect);
+    rect.setAttribute("rx","4"); rect.setAttribute("pointer-events","none");
+    svg.appendChild(rect);
 
+    // Label bg
     const approxW=z.name.length*7+16;
     const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
     bg.setAttribute("x",z.x); bg.setAttribute("y",z.y);
     bg.setAttribute("width",approxW); bg.setAttribute("height","22");
-    bg.setAttribute("fill",z.color); bg.setAttribute("rx","4"); svg.appendChild(bg);
+    bg.setAttribute("fill",z.color); bg.setAttribute("rx","4");
+    bg.setAttribute("pointer-events","none"); svg.appendChild(bg);
 
+    // Label text
     const txt=document.createElementNS("http://www.w3.org/2000/svg","text");
     txt.setAttribute("x",z.x+8); txt.setAttribute("y",z.y+15);
     txt.setAttribute("fill","#fff"); txt.setAttribute("font-size","13");
     txt.setAttribute("font-weight","700"); txt.setAttribute("font-family","Segoe UI,sans-serif");
+    txt.setAttribute("pointer-events","none");
     txt.textContent=z.name; svg.appendChild(txt);
 
+    // Coords text
     const coord=document.createElementNS("http://www.w3.org/2000/svg","text");
     coord.setAttribute("x",z.x+z.w-4); coord.setAttribute("y",z.y+z.h-4);
     coord.setAttribute("text-anchor","end"); coord.setAttribute("fill",z.color);
     coord.setAttribute("font-size","10"); coord.setAttribute("font-family","monospace");
+    coord.setAttribute("pointer-events","none");
     coord.textContent=`${z.x},${z.y}  ${z.w}×${z.h}`; svg.appendChild(coord);
+
+    // Move handle corners (selected only)
+    if(sel){
+      [[z.x,z.y],[z.x+z.w,z.y],[z.x,z.y+z.h],[z.x+z.w,z.y+z.h]].forEach(([cx,cy])=>{
+        const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+        c.setAttribute("cx",cx); c.setAttribute("cy",cy); c.setAttribute("r","7");
+        c.setAttribute("fill",z.color); c.setAttribute("stroke","#fff");
+        c.setAttribute("stroke-width","2"); c.setAttribute("pointer-events","none");
+        svg.appendChild(c);
+      });
+    }
+
+    // ── Invisible hit rect (MUST be last so it's on top) ──
+    const hit=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    hit.setAttribute("x",z.x); hit.setAttribute("y",z.y);
+    hit.setAttribute("width",z.w); hit.setAttribute("height",z.h);
+    hit.setAttribute("fill","transparent");
+    hit.setAttribute("stroke","none");
+    hit.setAttribute("rx","4");
+    hit.setAttribute("class","zone-hit");
+    hit.dataset.zoneId = z.id;   // ← key: lets mousedown detect which zone was hit
+    svg.appendChild(hit);
   });
 }
 
@@ -537,7 +649,8 @@ function renderSidebar(){
   zones.forEach(z=>{
     const div=document.createElement("div");
     div.className="zone-item"+(z.id===selectedId?" selected":"");
-    div.onclick=()=>{ selectedId=z.id; redrawSVG(); renderSidebar(); };
+    div.dataset.id = z.id;
+    div.onclick=()=>{ selectedId=z.id; redrawSVG(); renderSidebar(); scrollSidebarToSelected(); };
     div.innerHTML=`
       <div class="zone-item-header">
         <div style="display:flex;align-items:center;gap:6px;">
@@ -564,6 +677,22 @@ function clearAll(){
   if(zones.length&&!confirm("Clear all zones?")) return;
   zones=[]; selectedId=null; colorIdx=0;
   redrawSVG(); renderSidebar(); refreshExport();
+}
+
+// Scroll the sidebar so the selected zone item is visible
+function scrollSidebarToSelected(){
+  const el=document.querySelector(".zone-item.selected");
+  if(el) el.scrollIntoView({ block:"nearest", behavior:"smooth" });
+}
+
+// Live-update only the coords/center lines of one zone item during drag (no full re-render)
+function updateSidebarCoords(z){
+  const item=document.querySelector(`.zone-item[data-id="${z.id}"]`);
+  if(!item) return;
+  const c=item.querySelector(".zone-coords");
+  const ctr=item.querySelector(".zone-center");
+  if(c)   c.textContent   = `x:${z.x} y:${z.y} | ${z.w}×${z.h}px`;
+  if(ctr) ctr.textContent = `center → ${Math.round(z.x+z.w/2)}, ${Math.round(z.y+z.h/2)}`;
 }
 
 // ─────────────────────────────────────────────
