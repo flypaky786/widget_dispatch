@@ -320,7 +320,7 @@ const REPORT_NAME = "All_Staffing_Maps";
 //  → Upload your PNG to Zoho Widget assets and reference it here,
 //    or host it on any CDN. Replace the URL below.
 // ═══════════════════════════════════════════════════════════
-const MAP_IMAGE_URL = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.png";
+const MAP_IMAGE_URL = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v2.png";
 // When deployed in Zoho: use  ZOHO.CREATOR.UTIL.getBaseURL() + "/images/your-image.png"
 // or reference a widget asset path.
 
@@ -329,21 +329,37 @@ const MAP_IMAGE_URL = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_wit
 //  x/y = center of zone on raw image (pixels)
 // ═══════════════════════════════════════════════════════════
 const AREA_POSITIONS = {
-  "Zone 1": {
-    "x": 868,
-    "y": 1169,
-    "box": { "x": 619, "y": 988, "w": 497, "h": 362 }
-  },
-  "Test1": {
-    "x": 2100,
-    "y": 807,
-    "box": { "x": 1919, "y": 589, "w": 362, "h": 436 }
-  },
-  "Test2": {
-    "x": 4003,
-    "y": 1151,
-    "box": { "x": 3717, "y": 933, "w": 571, "h": 436 }
-  }
+  "Return 2":     { "x": 1300, "y": 3255, "box": { "x": 1178, "y": 3178, "w": 243, "h": 153 } },
+  "Return 3":     { "x": 1779, "y": 3252, "box": { "x": 1660, "y": 3162, "w": 238, "h": 180 } },
+  "Return 4":     { "x": 1205, "y": 3554, "box": { "x": 1072, "y": 3448, "w": 265, "h": 212 } },
+  "Return 5":     { "x": 1864, "y": 3554, "box": { "x": 1697, "y": 3427, "w": 333, "h": 254 } },
+  "Dispatch 2":   { "x": 1814, "y": 2921, "box": { "x": 1713, "y": 2855, "w": 201, "h": 132 } },
+  "A-LC 1":       { "x": 2986, "y": 3443, "box": { "x": 2861, "y": 3358, "w": 249, "h": 169 } },
+  "A-LC 2":       { "x": 3067, "y": 3183, "box": { "x": 2940, "y": 3093, "w": 254, "h": 180 } },
+  "A-CP 1":       { "x": 2618, "y": 3022, "box": { "x": 2533, "y": 2956, "w": 169, "h": 132 } },
+  "A-CP 2":       { "x": 2374, "y": 3022, "box": { "x": 2284, "y": 2945, "w": 180, "h": 153 } },
+  "A-CP 3":       { "x": 2144, "y": 3014, "box": { "x": 2046, "y": 2940, "w": 196, "h": 148 } },
+  "Exit 1":       { "x": 933,  "y": 1196, "box": { "x": 808,  "y": 1135, "w": 249, "h": 122 } },
+  "Exit 2":       { "x": 932,  "y": 1335, "box": { "x": 813,  "y": 1284, "w": 238, "h": 101 } },
+  "Exit 3":       { "x": 1252, "y": 1268, "box": { "x": 1109, "y": 1194, "w": 286, "h": 148 } },
+  "Rec Booth 1":  { "x": 1524, "y": 2729, "box": { "x": 1432, "y": 2672, "w": 184, "h": 114 } },
+  "Rec Booth 2":  { "x": 1523, "y": 2894, "box": { "x": 1421, "y": 2815, "w": 203, "h": 158 } },
+  "Dispatch 1":   { "x": 1805, "y": 2745, "box": { "x": 1695, "y": 2664, "w": 219, "h": 161 } },
+  "Return 1":     { "x": 2285, "y": 3298, "box": { "x": 2130, "y": 3180, "w": 309, "h": 235 } },
+  "HS-Return E":  { "x": 728,  "y": 3315, "box": { "x": 621,  "y": 3160, "w": 213, "h": 309 } },
+  "HS-South Elev":{ "x": 1584, "y": 2490, "box": { "x": 1448, "y": 2385, "w": 271, "h": 209 } },
+  "Preferred 1":  { "x": 1201, "y": 1464, "box": { "x": 1112, "y": 1399, "w": 177, "h": 129 } },
+  "Preferred 2":  { "x": 1432, "y": 1464, "box": { "x": 1324, "y": 1390, "w": 215, "h": 147 } },
+  "Preferred 3":  { "x": 1714, "y": 1470, "box": { "x": 1607, "y": 1393, "w": 213, "h": 154 } },
+  "Preferred 4":  { "x": 1330, "y": 1640, "box": { "x": 1215, "y": 1549, "w": 230, "h": 181 } },
+  "Preferred 5":  { "x": 1679, "y": 1676, "box": { "x": 1565, "y": 1578, "w": 227, "h": 195 } },
+  "Key Ldr 1":    { "x": 2120, "y": 972,  "box": { "x": 2000, "y": 877,  "w": 239, "h": 190 } },
+  "Key Ldr 2":    { "x": 2520, "y": 971,  "box": { "x": 2400, "y": 872,  "w": 239, "h": 197 } },
+  "Key Ldr 3":    { "x": 2157, "y": 1281, "box": { "x": 2002, "y": 1179, "w": 309, "h": 204 } },
+  "Key Ldr 4":    { "x": 2562, "y": 1296, "box": { "x": 2427, "y": 1170, "w": 269, "h": 251 } },
+  "HS B1":        { "x": 1037, "y": 1730, "box": { "x": 954,  "y": 1665, "w": 165, "h": 130 } },
+  "HS B2":        { "x": 987,  "y": 1513, "box": { "x": 887,  "y": 1438, "w": 200, "h": 149 } },
+  "HS B3":        { "x": 1359, "y": 1851, "box": { "x": 1243, "y": 1768, "w": 232, "h": 165 } }
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -864,12 +880,23 @@ document.getElementById("modal-overlay").addEventListener("click", function(e) {
 //  MOCK DATA (dev/preview only)
 // ─────────────────────────────────────────────
 function getMockRecords() {
+  const r = (id,emp,ini,status,area,loc,bType,bStart) => {
+    const pos = AREA_POSITIONS[area] || { x:500, y:500 };
+    return { id, empId:emp, initials:ini, status, area, location:loc,
+      breakType:bType||"", breakStart:bStart||null, breakEnd:null,
+      x:pos.x, y:pos.y };
+  };
   return [
-    { id:"R001", empId:"EMP-1042", initials:"MT", status:"active",     area:"Zone 1", location:"LAX-ABG Gate 1",  breakType:"",      breakStart:null,                      breakEnd:null, x:868,  y:1169 },
-    { id:"R002", empId:"EMP-2081", initials:"PK", status:"Break",      area:"Test1",  location:"LAX-ABG Level 2", breakType:"Break", breakStart:new Date(Date.now()-9*60000).toISOString(), breakEnd:null, x:2100, y:807  },
-    { id:"R003", empId:"EMP-3017", initials:"DR", status:"active",     area:"Test2",  location:"LAX-ABG Sector B",breakType:"",      breakStart:null,                      breakEnd:null, x:4003, y:1151 },
-    { id:"R004", empId:"EMP-4053", initials:"KL", status:"Lunch",      area:"Zone 1", location:"LAX-ABG Row C",   breakType:"Lunch", breakStart:new Date(Date.now()-22*60000).toISOString(),breakEnd:null, x:780,  y:1050 },
-    { id:"R005", empId:"EMP-5029", initials:"BS", status:"unassigned", area:"Test1",  location:"",                breakType:"",      breakStart:null,                      breakEnd:null, x:2200, y:900  },
+    r("R001","EMP-1042","MT","active",    "Exit 1",      "LAX-ABG Exit Lane"),
+    r("R002","EMP-2081","PK","Break",     "Dispatch 1",  "LAX-ABG Dispatch","Break", new Date(Date.now()-9*60000).toISOString()),
+    r("R003","EMP-3017","DR","active",    "Key Ldr 1",   "LAX-ABG Key Leadership"),
+    r("R004","EMP-4053","KL","Lunch",     "Return 1",    "LAX-ABG Return Lane","Lunch", new Date(Date.now()-22*60000).toISOString()),
+    r("R005","EMP-5029","BS","active",    "Preferred 1", "LAX-ABG Preferred"),
+    r("R006","EMP-6074","TH","Break",     "A-CP 1",      "LAX-ABG Car Park","Break", new Date(Date.now()-4*60000).toISOString()),
+    r("R007","EMP-7011","RO","active",    "Rec Booth 1", "LAX-ABG Rec Booth"),
+    r("R008","EMP-8033","NB","active",    "HS B1",       "LAX-ABG HS Bay"),
+    r("R009","EMP-9002","JF","unassigned","A-LC 1",      ""),
+    r("R010","EMP-1099","SW","active",    "HS-Return E", "LAX-ABG HS Return East"),
   ];
 }
 
