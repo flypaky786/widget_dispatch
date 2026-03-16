@@ -404,6 +404,11 @@ const canvas = ()=>document.getElementById("map-canvas");
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
+  // Keep pins at constant visual size by inverse-scaling them
+  const inv=1/scale;
+  canvas().querySelectorAll(".pin,.plus-pin").forEach(pin=>{
+    pin.style.transform=`translate(-50%,-50%) scale(${inv})`;
+  });
 }
 function fitView(){
   const r=vp().getBoundingClientRect();
@@ -549,32 +554,45 @@ function init(){
 //  ZOHO LOADS
 // ═══════════════════════════════════════════════════════
 function loadRecords(){
+  console.log("[Staffing Widget] Loading records from report:", REPORT_NAME);
   ZOHO.CREATOR.API.getAllRecords({
     appName:APP_NAME, reportName:REPORT_NAME, page:1, pageSize:500
   }).then(resp=>{
+    console.log("[Staffing Widget] Staffing records response code:", resp.code, "count:", resp.data?.length);
     if(resp.code===3000){
-      // Filter to today / overnight window
+      if(resp.data?.length) console.log("[Staffing Widget] First staffing record:", JSON.stringify(resp.data[0]));
       records=resp.data.filter(r=>todayFilter(r.Date_Time)).map(normalizeRecord);
+      console.log("[Staffing Widget] Records after today filter:", records.length);
       hideStateOverlay(); renderAll();
       setTimeout(fitView,100);
     } else setStateMsg("⚠️ Could not load records ("+resp.code+")");
-  }).catch(err=>setStateMsg("⚠️ "+err));
+  }).catch(err=>{ console.error("[Staffing Widget] loadRecords error:", err); setStateMsg("⚠️ "+err); });
 }
 
 function loadEmployees(){
+  console.log("[Staffing Widget] Loading employees from report:", EMP_REPORT_NAME, "app:", APP_NAME);
   ZOHO.CREATOR.API.getAllRecords({
     appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
   }).then(resp=>{
-    if(resp.code===3000 && resp.data){
-      allEmployees=resp.data.map(r=>({
-        id:    r.ID,
-        // Fields from Employee_Info: Employee_ID, First_Name, Last_Name, Full_Name
-        label: r.Employee_ID || r.Full_Name || r.First_Name+" "+r.Last_Name || r.ID,
-      })).sort((a,b)=>a.label.localeCompare(b.label));
+    console.log("[Staffing Widget] Employee API response code:", resp.code);
+    console.log("[Staffing Widget] Employee API full response:", JSON.stringify(resp).substring(0,500));
+    if(resp.code===3000 && resp.data && resp.data.length){
+      console.log("[Staffing Widget] Raw first employee record:", JSON.stringify(resp.data[0]));
+      allEmployees=resp.data.map(r=>{
+        // Log field names from first record so we can see exactly what Zoho returns
+        const label = r.Employee_ID || r.Employee_Id || r.employee_id
+                   || r.Full_Name   || r.full_name
+                   || (r.First_Name && r.Last_Name ? r.First_Name+" "+r.Last_Name : null)
+                   || r.Name || r.ID;
+        return { id: r.ID, label, raw: r };
+      }).sort((a,b)=>a.label.localeCompare(b.label));
+      console.log("[Staffing Widget] Employees loaded:", allEmployees.length, "— first:", allEmployees[0]);
     } else {
-      console.warn("Employee load failed:",resp.code, resp.message);
+      console.warn("[Staffing Widget] Employee load returned no data. code:", resp.code, "message:", resp.message, "data length:", resp.data?.length);
     }
-  }).catch(err=>console.warn("Employee load error:",err));
+  }).catch(err=>{
+    console.error("[Staffing Widget] Employee load EXCEPTION:", err);
+  });
 }
 
 function normalizeRecord(r){
@@ -632,7 +650,10 @@ function renderEmployeePin(s){
   pin.className="pin";
   pin.style.left=s.x+"px";
   pin.style.top =s.y+"px";
+  // Inverse scale so pin stays constant visual size regardless of map zoom
+  pin.style.transform=`translate(-50%,-50%) scale(${1/scale})`;
   pin.dataset.recId=s.id;
+  pin.dataset.zone=s.zone;
 
   pin.addEventListener("pointerdown",e=>e.stopPropagation());
   pin.addEventListener("click",()=>{ if(!didPan) openManageModal(s.id); });
@@ -660,6 +681,8 @@ function renderPlusPin(zoneName,pos){
   pin.className="plus-pin";
   pin.style.left=pos.x+"px";
   pin.style.top =pos.y+"px";
+  // Inverse scale so + stays constant visual size regardless of map zoom
+  pin.style.transform=`translate(-50%,-50%) scale(${1/scale})`;
   pin.innerHTML=`
     <div class="plus-circle">+</div>
     <div class="plus-label">${zoneName}</div>
@@ -757,20 +780,32 @@ function openAssignModal(zoneName){
   };
 
   if(allEmployees.length){
+    console.log("[Staffing Widget] Using cached employees:", allEmployees.length);
     populate();
   } else if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
-    // Try loading fresh
+    console.log("[Staffing Widget] On-demand employee fetch for zone:", zoneName);
     ZOHO.CREATOR.API.getAllRecords({
       appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
     }).then(resp=>{
-      if(resp.code===3000&&resp.data){
-        allEmployees=resp.data.map(r=>({
-          id:    r.ID,
-          label: r.Employee_ID || r.Full_Name || r.First_Name+" "+r.Last_Name || r.ID,
-        })).sort((a,b)=>a.label.localeCompare(b.label));
+      console.log("[Staffing Widget] On-demand emp response code:", resp.code, "data count:", resp.data?.length);
+      if(resp.code===3000&&resp.data&&resp.data.length){
+        console.log("[Staffing Widget] On-demand first record keys:", Object.keys(resp.data[0]));
+        console.log("[Staffing Widget] On-demand first record:", JSON.stringify(resp.data[0]));
+        allEmployees=resp.data.map(r=>{
+          const label = r.Employee_ID || r.Employee_Id || r.employee_id
+                     || r.Full_Name   || r.full_name
+                     || (r.First_Name && r.Last_Name ? r.First_Name+" "+r.Last_Name : null)
+                     || r.Name || r.ID;
+          return { id: r.ID, label, raw: r };
+        }).sort((a,b)=>a.label.localeCompare(b.label));
+      } else {
+        console.warn("[Staffing Widget] On-demand emp load empty. code:",resp.code,"msg:",resp.message);
       }
       populate();
-    }).catch(()=>populate());
+    }).catch(err=>{
+      console.error("[Staffing Widget] On-demand emp fetch error:", err);
+      populate();
+    });
   } else {
     sel.innerHTML="<option value=''>No employee data (dev mode)</option>";
   }
@@ -783,7 +818,7 @@ function closeAssignModal(){
 
 function confirmAssign(){
   const sel=document.getElementById("assign-select");
-  const empId=sel.value;
+  const empId=sel.value;  // This is the Zoho record ID of the selected Employee_Info record
   const empLabel=sel.options[sel.selectedIndex]?.textContent||"";
   if(!empId){ setAssignError("Please select an employee"); return; }
 
@@ -796,27 +831,30 @@ function confirmAssign(){
 
   setAssignError("");
   const now=new Date();
+
+  // Employee_Info is a picklist field — Zoho expects the linked record's ID
   const payload={
-    Employee_Info:  empId,
+    Employee_Info:  empId,   // picklist → stores the Employee_Info record ID
     Zone:           assigningZone,
     Date_Time:      formatForZoho(now),
     Current_Status: "Active",
   };
 
+  console.log("[Staffing Widget] Adding record with payload:", JSON.stringify(payload));
+
   zohoAdd(payload).then(newId=>{
     if(!newId) return;
-    // Build local record
     const emp=allEmployees.find(e=>e.id===empId);
     const label=emp?emp.label:empId;
-    const parts=label.trim().split(/[\s\-]+/);
+    const parts=label.trim().split(/[\s\-\s]+/);
     const initials=parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():label.substring(0,2).toUpperCase();
     const pos=AREA_POSITIONS[assigningZone];
     records.push({
       id:newId, empId:label, empRawId:empId, initials,
       zone:assigningZone, currentStatus:"Active",
-      Break_Type_Start:null,Break_Type_End:null,
-      Lunch_Start:null,Lunch_End:null,
-      Break_2_Start:null,Break_2_End:null,
+      Break_Type_Start:null, Break_Type_End:null,
+      Lunch_Start:null, Lunch_End:null,
+      Break_2_Start:null, Break_2_End:null,
       x:pos?pos.x:null, y:pos?pos.y:null,
     });
     closeAssignModal();
@@ -1026,13 +1064,15 @@ function zohoUpdate(recId, data){
 }
 
 function zohoAdd(data){
+  console.log("[Staffing Widget] zohoAdd payload:", JSON.stringify(data));
   if(DEV_MODE) return new Promise(r=>setTimeout(()=>r("MOCK_"+Date.now()),400));
   return ZOHO.CREATOR.API.addRecord({
-    appName:APP_NAME,formName:FORM_NAME,data:{data}
+    appName:APP_NAME, formName:FORM_NAME, data:{data}
   }).then(resp=>{
-    if(resp.code!==3000){showToast("⚠️ Add failed ("+resp.code+")","#ef4444");return null;}
+    console.log("[Staffing Widget] zohoAdd response:", JSON.stringify(resp).substring(0,300));
+    if(resp.code!==3000){showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""),"#ef4444");return null;}
     return resp.data?.ID||null;
-  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return null;});
+  }).catch(e=>{console.error("[Staffing Widget] zohoAdd error:",e);showToast("⚠️ "+e,"#ef4444");return null;});
 }
 
 function zohoDelete(recId){
