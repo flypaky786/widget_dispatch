@@ -1,3 +1,6 @@
+/* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -560,16 +563,23 @@ function loadRecords(){
 }
 
 function loadEmployees(){
+  // ── Report name: create a report in Zoho called "All_Employee_Infos"
+  //    that exposes your Employee_Info form records with Employee_ID1 visible.
+  //    Alternatively change EMP_REPORT_NAME at the top to match your actual report.
   ZOHO.CREATOR.API.getAllRecords({
-    appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:500
+    appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
   }).then(resp=>{
-    if(resp.code===3000){
+    if(resp.code===3000 && resp.data){
       allEmployees=resp.data.map(r=>({
-        id:   r.ID,
-        label:r.Employee_ID1 || r.ID,
-      }));
+        id:    r.ID,
+        // Employee_ID1 is the display field on your Employee_Info form
+        // Fall back through common field name variations
+        label: r.Employee_ID1 || r.Employee_ID || r.Name || r.ID,
+      })).sort((a,b)=>a.label.localeCompare(b.label));
+    } else {
+      console.warn("Employee load failed:",resp.code, resp.message);
     }
-  });
+  }).catch(err=>console.warn("Employee load error:",err));
 }
 
 function normalizeRecord(r){
@@ -670,22 +680,40 @@ function drawZoneBoxes(){
   Object.entries(AREA_POSITIONS).forEach(([name,pos])=>{
     if(!pos.box) return;
     const b=pos.box;
+
+    // Zone fill rect
     const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
     rect.setAttribute("x",b.x); rect.setAttribute("y",b.y);
     rect.setAttribute("width",b.w); rect.setAttribute("height",b.h);
-    rect.setAttribute("fill","rgba(56,139,253,0.05)");
-    rect.setAttribute("stroke","rgba(56,139,253,0.25)");
-    rect.setAttribute("stroke-width","2");
-    rect.setAttribute("stroke-dasharray","8 4");
-    rect.setAttribute("rx","4");
+    rect.setAttribute("fill","rgba(255,220,0,0.12)");
+    rect.setAttribute("stroke","#FFD700");
+    rect.setAttribute("stroke-width","4");
+    rect.setAttribute("stroke-dasharray","14 6");
+    rect.setAttribute("rx","6");
     svg.appendChild(rect);
 
+    // Label backing pill
+    const labelW = name.length*13+20;
+    const labelH = 28;
+    const lx=b.x+6, ly=b.y+6;
+
+    const pill=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    pill.setAttribute("x",lx); pill.setAttribute("y",ly);
+    pill.setAttribute("width",labelW); pill.setAttribute("height",labelH);
+    pill.setAttribute("fill","rgba(0,0,0,0.72)");
+    pill.setAttribute("rx","5");
+    svg.appendChild(pill);
+
+    // Label text
     const txt=document.createElementNS("http://www.w3.org/2000/svg","text");
-    txt.setAttribute("x",b.x+6); txt.setAttribute("y",b.y+18);
-    txt.setAttribute("fill","rgba(56,139,253,0.45)");
-    txt.setAttribute("font-size","16"); txt.setAttribute("font-weight","700");
-    txt.setAttribute("font-family","Segoe UI,sans-serif");
-    txt.textContent=name; svg.appendChild(txt);
+    txt.setAttribute("x",lx+10); txt.setAttribute("y",ly+20);
+    txt.setAttribute("fill","#FFD700");
+    txt.setAttribute("font-size","17");
+    txt.setAttribute("font-weight","800");
+    txt.setAttribute("font-family","Segoe UI, Arial, sans-serif");
+    txt.setAttribute("letter-spacing","0.5");
+    txt.textContent=name;
+    svg.appendChild(txt);
   });
 }
 
@@ -706,29 +734,51 @@ function openAssignModal(zoneName){
   document.getElementById("assign-error").textContent="";
 
   const sel=document.getElementById("assign-select");
-  sel.innerHTML="";
+  sel.innerHTML="<option value=''>Loading…</option>";
+  document.getElementById("assign-modal").classList.add("open");
 
-  // Already assigned employee IDs (raw) — to exclude or warn
-  const assignedEmpIds=new Set(records.map(r=>r.empRawId));
+  // If employees haven't loaded yet (Zoho slow) — try fetching now
+  const populate=()=>{
+    sel.innerHTML="";
+    const assignedEmpIds=new Set(records.map(r=>r.empRawId));
 
-  if(allEmployees.length){
+    if(!allEmployees.length){
+      sel.innerHTML="<option value=''>⚠️ No employees found — check EMP_REPORT_NAME</option>";
+      return;
+    }
+
     const placeholder=document.createElement("option");
     placeholder.value=""; placeholder.textContent="— Select Employee —";
     sel.appendChild(placeholder);
+
     allEmployees.forEach(emp=>{
       const opt=document.createElement("option");
-      opt.value=emp.id; opt.textContent=emp.label;
-      if(assignedEmpIds.has(emp.id)){
-        opt.textContent+=" (already assigned)";
-        opt.style.color="#f97316";
-      }
+      opt.value=emp.id;
+      const alreadyAssigned=assignedEmpIds.has(emp.id);
+      opt.textContent=emp.label+(alreadyAssigned?" (already assigned)":"");
+      if(alreadyAssigned) opt.style.color="#f97316";
       sel.appendChild(opt);
     });
-  } else {
-    sel.innerHTML='<option value="">No employees loaded</option>';
-  }
+  };
 
-  document.getElementById("assign-modal").classList.add("open");
+  if(allEmployees.length){
+    populate();
+  } else if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
+    // Try loading fresh
+    ZOHO.CREATOR.API.getAllRecords({
+      appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
+    }).then(resp=>{
+      if(resp.code===3000&&resp.data){
+        allEmployees=resp.data.map(r=>({
+          id:    r.ID,
+          label: r.Employee_ID1||r.Employee_ID||r.Name||r.ID,
+        })).sort((a,b)=>a.label.localeCompare(b.label));
+      }
+      populate();
+    }).catch(()=>populate());
+  } else {
+    sel.innerHTML="<option value=''>No employee data (dev mode)</option>";
+  }
 }
 
 function closeAssignModal(){
@@ -1016,43 +1066,10 @@ document.getElementById("assign-modal").addEventListener("click",function(e){if(
 document.getElementById("manage-modal").addEventListener("click",function(e){if(e.target===this)closeManageModal();});
 
 // ═══════════════════════════════════════════════════════
-//  MOCK DATA (dev/preview)
+//  NO MOCK DATA — widget starts empty when not in Zoho
 // ═══════════════════════════════════════════════════════
-function getMockEmployees(){
-  return [
-    {id:"E001",label:"EMP-1042 Marcus T."},
-    {id:"E002",label:"EMP-2081 Priya K."},
-    {id:"E003",label:"EMP-3017 Devon R."},
-    {id:"E004",label:"EMP-4053 Keisha L."},
-    {id:"E005",label:"EMP-5029 Ben S."},
-    {id:"E006",label:"EMP-6074 Tara H."},
-    {id:"E007",label:"EMP-7011 Ricky O."},
-    {id:"E008",label:"EMP-8033 Nina B."},
-  ];
-}
-
-function getMockRecords(){
-  const ago=m=>new Date(Date.now()-m*60000).toISOString();
-  const mkPos=zone=>{ const p=AREA_POSITIONS[zone]; return p?{x:p.x,y:p.y}:{x:null,y:null}; };
-  const mk=(id,emp,ini,zone,b1s,b1e,ls,le,b2s,b2e,empRaw)=>{
-    const pos=mkPos(zone);
-    return {id,empId:emp,empRawId:empRaw||id,initials:ini,zone,currentStatus:"Active",
-      Break_Type_Start:b1s,Break_Type_End:b1e,
-      Lunch_Start:ls,Lunch_End:le,
-      Break_2_Start:b2s,Break_2_End:b2e,
-      x:pos.x,y:pos.y};
-  };
-  return [
-    mk("R001","EMP-1042","MT","Exit 1",       null,       null,null,null,null,null,"E001"),
-    mk("R002","EMP-2081","PK","Dispatch 1",   ago(15),    null,null,null,null,null,"E002"),
-    mk("R003","EMP-3017","DR","Key Ldr 1",    ago(40),ago(25),ago(10),null,null,null,"E003"),
-    mk("R004","EMP-4053","KL","Return 1",     ago(90),ago(75),ago(60),ago(30),null,null,"E004"),
-    mk("R005","EMP-5029","BS","Preferred 1",  null,       null,null,null,null,null,"E005"),
-    mk("R006","EMP-6074","TH","A-CP 1",       ago(120),ago(105),ago(90),ago(60),ago(20),null,"E006"),
-    mk("R007","EMP-7011","RO","Rec Booth 1",  null,       null,null,null,null,null,"E007"),
-    mk("R008","EMP-8033","NB","HS B1",        null,       null,null,null,null,null,"E008"),
-  ];
-}
+function getMockEmployees(){ return []; }
+function getMockRecords()   { return []; }
 
 window.addEventListener("load",init);
 </script>
