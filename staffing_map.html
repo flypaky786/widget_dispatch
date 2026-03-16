@@ -771,7 +771,7 @@ function openAssignModal(zoneName){
       if(resp.code===3000&&resp.data){
         allEmployees=resp.data.map(r=>({
           id:    r.ID,
-          label: r.Employee_ID1||r.Employee_ID||r.Name||r.ID,
+          label: r.Employee_ID1||r.Employee_ID1||r.First_Name||r.ID,
         })).sort((a,b)=>a.label.localeCompare(b.label));
       }
       populate();
