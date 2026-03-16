@@ -5,905 +5,1056 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
 <title>LAX-ABG Staffing Map</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0d1117;
-    font-family: 'Segoe UI', sans-serif;
-    overflow: hidden;
-    height: 100vh; width: 100vw;
-    display: flex; flex-direction: column;
-    touch-action: none;
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #0d1117; font-family: 'Segoe UI', sans-serif;
+  overflow: hidden; height: 100vh; width: 100vw;
+  display: flex; flex-direction: column; touch-action: none;
+}
 
-  /* ── Header ── */
-  #header {
-    background: #161b22;
-    border-bottom: 2px solid #e53935;
-    padding: 9px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-shrink: 0; z-index: 100; gap: 10px; flex-wrap: wrap;
-  }
-  #header-left h1 {
-    font-size: 14px; font-weight: 700; color: #fff; letter-spacing: 0.05em;
-  }
-  #header-left .sub {
-    font-size: 9px; color: #6e7681; margin-top: 1px; letter-spacing: 0.08em;
-  }
-  #header-stats { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .stat-pill {
-    display: flex; align-items: center; gap: 5px;
-    background: #21262d; border-radius: 20px;
-    padding: 4px 11px; font-size: 11px; color: #ccd6e0;
-    white-space: nowrap;
-  }
-  .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* ── Header ── */
+#header {
+  background: #161b22; border-bottom: 2px solid #e53935;
+  padding: 9px 16px; display: flex; align-items: center;
+  justify-content: space-between; flex-shrink: 0; gap: 10px; flex-wrap: wrap;
+}
+#header h1 { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.05em; }
+#header .sub { font-size: 9px; color: #6e7681; margin-top: 1px; letter-spacing: 0.07em; }
+#header-stats { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.stat-pill {
+  display: flex; align-items: center; gap: 5px;
+  background: #21262d; border-radius: 20px;
+  padding: 3px 10px; font-size: 11px; color: #ccd6e0; white-space: nowrap;
+}
+.stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-  /* ── Viewport ── */
-  #map-viewport {
-    flex: 1; overflow: hidden; position: relative;
-    cursor: crosshair; touch-action: none; background: #1a1f2b;
-  }
-  #map-viewport.pan-mode         { cursor: grab; }
-  #map-viewport.pan-mode.panning { cursor: grabbing; }
+/* ── Viewport ── */
+#map-viewport {
+  flex: 1; overflow: hidden; position: relative;
+  cursor: grab; touch-action: none; background: #1a1f2b;
+}
+#map-viewport.panning { cursor: grabbing; }
+#map-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+#floor-img { display: block; max-width: none; height: auto; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+#zone-layer { position: absolute; top: 0; left: 0; pointer-events: none; }
 
-  /* ── Pannable canvas ── */
-  #map-canvas {
-    position: absolute; top: 0; left: 0;
-    transform-origin: 0 0; will-change: transform;
-  }
-  #floor-img {
-    display: block; max-width: none; height: auto;
-    user-select: none; -webkit-user-drag: none; pointer-events: none;
-  }
+/* ── Avatar pins ── */
+.pin {
+  position: absolute; transform: translate(-50%,-50%);
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; z-index: 20; user-select: none; transition: filter 0.15s;
+}
+.pin:hover { filter: brightness(1.25); }
 
-  /* ── Zone overlays (SVG) ── */
-  #zone-layer {
-    position: absolute; top: 0; left: 0; pointer-events: none;
-  }
+/* Plus pin */
+.plus-pin {
+  position: absolute; transform: translate(-50%,-50%);
+  z-index: 20; cursor: pointer; user-select: none;
+}
+.plus-circle {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(56,139,253,0.15);
+  border: 2.5px dashed #388bfd;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #388bfd; font-weight: 300;
+  transition: all 0.2s;
+}
+.plus-pin:hover .plus-circle {
+  background: rgba(56,139,253,0.3); border-style: solid;
+  transform: scale(1.1);
+}
+.plus-label {
+  margin-top: 4px; font-size: 9px; color: #388bfd88;
+  text-align: center; white-space: nowrap; font-weight: 600;
+  letter-spacing: 0.04em;
+}
 
-  /* ── Avatar pins ── */
-  .avatar-pin {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    display: flex; flex-direction: column; align-items: center;
-    cursor: pointer; z-index: 20; user-select: none;
-    transition: filter 0.15s;
-  }
-  .avatar-pin:hover { filter: brightness(1.3); }
+@keyframes ripple { 0%{transform:translate(-50%,-50%) scale(1);opacity:.65} 100%{transform:translate(-50%,-50%) scale(2.4);opacity:0} }
+@keyframes pulse  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.09)} }
+@keyframes fadeIn { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+@keyframes spin   { to{transform:rotate(360deg)} }
 
-  @keyframes ripple {
-    0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.7; }
-    100% { transform: translate(-50%,-50%) scale(2.4); opacity: 0;   }
-  }
-  @keyframes pulse {
-    0%,100% { transform: scale(1); }
-    50%     { transform: scale(1.1); }
-  }
-  @keyframes fadeIn {
-    from { opacity:0; transform:scale(0.92); }
-    to   { opacity:1; transform:scale(1);    }
-  }
+.ripple-ring {
+  position: absolute; top:50%; left:50%;
+  width:50px; height:50px; border-radius:50%;
+  border:2px solid currentColor;
+  animation:ripple 2.2s ease-out infinite; pointer-events:none;
+}
+.avatar-circle {
+  width:48px; height:48px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; position:relative; z-index:2;
+}
+.avatar-label {
+  margin-top:5px; background:rgba(10,14,26,.94);
+  border:1px solid rgba(255,255,255,.1); border-radius:6px;
+  padding:3px 8px; font-size:9px; color:#e8edf5;
+  white-space:nowrap; text-align:center; line-height:1.6;
+  box-shadow:0 2px 8px rgba(0,0,0,.6); z-index:2;
+}
+.avatar-label .emp-id   { font-weight:700; font-size:11px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:9px; }
+.avatar-label .status-nm { font-size:9px; }
+.status-dot { width:7px; height:7px; border-radius:50%; margin-top:3px; z-index:2; }
 
-  .ripple-ring {
-    position: absolute; top: 50%; left: 50%;
-    width: 50px; height: 50px; border-radius: 50%;
-    border: 2px solid currentColor;
-    animation: ripple 2.2s ease-out infinite;
-    pointer-events: none;
-  }
-  .avatar-circle {
-    width: 48px; height: 48px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 800; position: relative; z-index: 2;
-  }
-  .avatar-label {
-    margin-top: 6px;
-    background: rgba(10,14,26,0.94);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px; padding: 4px 9px;
-    font-size: 10px; color: #e8edf5;
-    white-space: nowrap; text-align: center; line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.6); z-index: 2;
-  }
-  .avatar-label .emp-id   { font-weight: 700; font-size: 11px; color: #fff; }
-  .avatar-label .zone-nm  { color: #94a3b8; font-size: 9px; }
-  .avatar-label .loc-nm   { color: #64748b;  font-size: 9px; }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    margin-top: 3px; z-index: 2;
-  }
+/* ── Zoom controls ── */
+#zoom-controls { position:absolute; bottom:16px; right:14px; display:flex; flex-direction:column; gap:5px; z-index:50; }
+.zoom-btn {
+  width:34px; height:34px; background:#161b22; border:1px solid #30363d;
+  border-radius:7px; color:#e6edf3; font-size:18px; font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.5);
+  transition:background .15s; user-select:none;
+}
+.zoom-btn:hover { background:#21262d; }
+#zoom-pct { font-size:10px; color:#6e7681; text-align:center; }
 
-  /* ── Zone highlight boxes ── */
-  .zone-box-rect { transition: opacity 0.2s; }
+/* ── State overlay ── */
+#state-overlay {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(13,17,23,.9); color:#8b949e; font-size:13px;
+  z-index:60; flex-direction:column; gap:12px;
+}
+.spinner { width:28px; height:28px; border:3px solid #21262d; border-top-color:#388bfd; border-radius:50%; animation:spin .75s linear infinite; }
 
-  /* ── Zoom controls ── */
-  #zoom-controls {
-    position: absolute; bottom: 16px; right: 14px;
-    display: flex; flex-direction: column; gap: 5px; z-index: 50;
-  }
-  .zoom-btn {
-    width: 36px; height: 36px; background: #161b22;
-    border: 1px solid #30363d; border-radius: 8px;
-    color: #e6edf3; font-size: 18px; font-weight: 600;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    transition: background 0.15s; user-select: none;
-  }
-  .zoom-btn:hover  { background: #21262d; }
-  .zoom-btn:active { background: #30363d; }
-  #zoom-pct { font-size: 10px; color: #6e7681; text-align: center; }
+/* ── MODALS shared ── */
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.78); backdrop-filter:blur(7px);
+  z-index:1000; align-items:center; justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background:#161b22; border-radius:18px; padding:24px;
+  width:340px; max-width:95vw; max-height:90vh; overflow-y:auto;
+  animation:fadeIn .18s ease; box-shadow:0 28px 70px rgba(0,0,0,.9);
+}
+.modal-title {
+  font-size:15px; font-weight:700; color:#e8edf5; margin-bottom:4px;
+}
+.modal-sub { font-size:11px; color:#6e7681; margin-bottom:16px; }
+.modal-hr  { border:none; border-top:1px solid #21262d; margin:14px 0; }
 
-  /* ── Loading overlay ── */
-  #state-overlay {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(13,17,23,0.9); color: #8b949e; font-size: 13px;
-    z-index: 60; flex-direction: column; gap: 12px;
-  }
-  .spinner {
-    width: 30px; height: 30px;
-    border: 3px solid #21262d; border-top-color: #388bfd;
-    border-radius: 50%; animation: spin 0.75s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* ── Assign modal ── */
+#assign-select {
+  width:100%; background:#21262d; border:1.5px solid #30363d;
+  border-radius:8px; color:#e6edf3; font-size:13px;
+  padding:10px 12px; font-family:inherit; outline:none;
+  appearance:none; cursor:pointer;
+}
+#assign-select:focus { border-color:#388bfd; }
+#assign-error { font-size:11px; color:#ef4444; margin-top:8px; min-height:16px; }
 
-  /* ── Hint ── */
-  #pan-hint {
-    position: absolute; bottom: 16px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(22,27,34,0.92); border: 1px solid #30363d;
-    border-radius: 20px; padding: 5px 14px;
-    font-size: 10px; color: #8b949e; pointer-events: none;
-    transition: opacity 0.5s; z-index: 50; white-space: nowrap;
-  }
-  #pan-hint.hidden { opacity: 0; pointer-events: none; }
+/* ── Manage modal ── */
+.manage-header { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
+#m-avatar { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:800; flex-shrink:0; }
+#m-name   { font-size:15px; font-weight:700; color:#e8edf5; }
+#m-zone   { font-size:11px; color:#94a3b8; margin-top:2px; }
+#m-status { display:inline-block; margin-top:5px; font-size:10px; padding:2px 9px; border-radius:99px; font-weight:600; }
 
-  /* ── Modal ── */
-  #modal-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.78);
-    backdrop-filter: blur(7px);
-    z-index: 1000; align-items: center; justify-content: center;
-  }
-  #modal-overlay.open { display: flex; }
-  #modal {
-    background: #161b22; border-radius: 18px;
-    padding: 26px; width: 320px; max-width: 94vw;
-    animation: fadeIn 0.18s ease;
-    box-shadow: 0 28px 70px rgba(0,0,0,0.9);
-  }
-  .modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-  #m-avatar {
-    width: 58px; height: 58px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 800; flex-shrink: 0;
-  }
-  #m-name  { font-size: 16px; font-weight: 700; color: #e8edf5; }
-  #m-role  { font-size: 11px; color: #64748b; margin-top: 2px; }
-  #m-meta  { font-size: 11px; color: #8b949e; margin-top: 4px; line-height: 1.6; }
-  #m-badge { display: inline-block; margin-top: 6px; font-size: 10px; padding: 3px 10px; border-radius: 99px; font-weight: 600; }
-  #modal hr { border: none; border-top: 1px solid #21262d; margin: 14px 0; }
+/* Break groups */
+.break-group { margin-bottom:10px; }
+.break-group-label {
+  font-size:9px; font-weight:700; color:#6e7681; letter-spacing:.1em;
+  text-transform:uppercase; margin-bottom:6px; padding:0 2px;
+}
+.btn-row { display:flex; gap:8px; }
 
-  .action-btn {
-    width: 100%; display: flex; align-items: center; gap: 11px;
-    padding: 13px 16px; border-radius: 10px; border: none;
-    cursor: pointer; font-size: 13px; font-weight: 600;
-    font-family: inherit; transition: all 0.15s; margin-bottom: 9px;
-  }
-  .action-btn:last-of-type { margin-bottom: 0; }
-  .action-btn:hover   { filter: brightness(1.12); transform: translateY(-1px); }
-  .action-btn:active  { transform: translateY(0); }
-  .action-btn:disabled { opacity: 0.38; cursor: not-allowed !important; transform: none !important; filter: none !important; }
+.action-btn {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:11px 10px; border-radius:9px; border:none;
+  cursor:pointer; font-size:12px; font-weight:600;
+  font-family:inherit; transition:all .15s;
+}
+.action-btn:hover:not(:disabled)   { filter:brightness(1.12); transform:translateY(-1px); }
+.action-btn:active:not(:disabled)  { transform:translateY(0); }
+.action-btn:disabled { opacity:.3; cursor:not-allowed !important; }
 
-  .btn-active { background: #22c55e22; color: #22c55e; border: 1.5px solid #22c55e55; }
-  .btn-break  { background: #f97316;   color: #fff; }
-  .btn-lunch  { background: #ef4444;   color: #fff; }
-  .btn-current { outline: 2px solid currentColor; outline-offset: 2px; }
+.btn-start { background:#22c55e; color:#fff; }
+.btn-end   { background:#21262d; color:#8b949e; border:1.5px solid #30363d; }
+.btn-end.active-end { background:#f9731622; color:#f97316; border:1.5px solid #f9731655; }
+.btn-lunch-start { background:#3b82f6; color:#fff; }
+.btn-lunch-end.active-end { background:#3b82f622; color:#3b82f6; border:1.5px solid #3b82f655; }
 
-  .ts-box {
-    background: #0d1117; border: 1px solid #21262d;
-    border-radius: 8px; padding: 11px 14px;
-    font-size: 11px; color: #64748b; margin-top: 12px; display: none;
-  }
-  .ts-box.show { display: block; }
-  .ts-box .ts-label { margin-bottom: 3px; }
-  .ts-box strong { color: #f97316; font-size: 12px; display: block; margin-top: 2px; }
-  .ts-elapsed { color: #8b949e; font-size: 10px; margin-top: 4px; }
+.ts-mini { font-size:9px; color:#64748b; margin-top:4px; padding-left:2px; font-family:monospace; }
+.ts-mini.active { color:#f97316; }
 
-  #saving-indicator {
-    display: none; text-align: center;
-    font-size: 11px; color: #8b949e; margin-top: 10px;
-    animation: pulse 1s ease-in-out infinite;
-  }
-  #saving-indicator.show { display: block; }
+.btn-unassign {
+  width:100%; padding:9px; border-radius:8px; border:1px solid #30363d;
+  background:none; color:#6e7681; font-size:11px; font-family:inherit;
+  cursor:pointer; margin-top:4px; transition:all .15s;
+}
+.btn-unassign:hover { border-color:#ef4444; color:#ef4444; background:#ef444411; }
 
-  #dismiss-btn {
-    display: block; width: 100%; text-align: center;
-    margin-top: 16px; font-size: 12px; color: #475569;
-    cursor: pointer; background: none; border: none;
-    font-family: inherit; letter-spacing: 0.04em;
-  }
-  #dismiss-btn:hover { color: #94a3b8; }
+#saving-msg { display:none; text-align:center; font-size:11px; color:#8b949e; margin-top:10px; }
+#saving-msg.show { display:block; }
 
-  /* ── Toast ── */
-  #toast {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    padding: 10px 22px; border-radius: 10px;
-    font-size: 12px; font-weight: 600; z-index: 9000;
-    transition: transform 0.3s ease;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    white-space: nowrap; color: #fff;
-  }
-  #toast.show { transform: translateX(-50%) translateY(0); }
+/* shared modal buttons */
+.modal-btn {
+  width:100%; padding:12px; border-radius:10px; border:none;
+  font-size:13px; font-weight:600; font-family:inherit;
+  cursor:pointer; transition:all .15s; margin-top:8px;
+}
+.modal-btn:hover { filter:brightness(1.1); }
+.modal-btn-primary { background:#388bfd; color:#fff; }
+.modal-btn-cancel  { background:#21262d; color:#8b949e; }
+
+#dismiss-btn {
+  display:block; width:100%; text-align:center;
+  margin-top:14px; font-size:11px; color:#475569;
+  cursor:pointer; background:none; border:none; font-family:inherit;
+}
+#dismiss-btn:hover { color:#94a3b8; }
+
+/* ── Pan hint ── */
+#pan-hint {
+  position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+  background:rgba(22,27,34,.92); border:1px solid #30363d;
+  border-radius:20px; padding:5px 14px;
+  font-size:10px; color:#8b949e; pointer-events:none;
+  transition:opacity .5s; z-index:50; white-space:nowrap;
+}
+#pan-hint.hidden { opacity:0; }
+
+/* ── Toast ── */
+#toast {
+  position:fixed; bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(80px);
+  padding:10px 22px; border-radius:10px;
+  font-size:12px; font-weight:600; z-index:9000;
+  transition:transform .3s ease; box-shadow:0 4px 20px rgba(0,0,0,.5);
+  white-space:nowrap; color:#fff;
+}
+#toast.show { transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
+<!-- Header -->
 <div id="header">
-  <div id="header-left">
+  <div>
     <h1>🅿 ODORZX — LAX-ABG STAFFING MAP</h1>
-    <div class="sub">PINCH · DRAG · TAP AVATAR TO MANAGE BREAKS</div>
+    <div class="sub">TAP + TO ASSIGN · TAP AVATAR TO MANAGE BREAKS</div>
   </div>
   <div id="header-stats">
-    <div class="stat-pill"><span class="stat-dot" style="background:#22c55e"></span><span id="cnt-active">—</span>&nbsp;Active</div>
-    <div class="stat-pill"><span class="stat-dot" style="background:#f97316"></span><span id="cnt-break">—</span>&nbsp;On Break</div>
-    <div class="stat-pill"><span class="stat-dot" style="background:#ef4444"></span><span id="cnt-lunch">—</span>&nbsp;At Lunch</div>
-    <div class="stat-pill"><span class="stat-dot" style="background:#6b7280"></span><span id="cnt-unassigned">—</span>&nbsp;Unassigned</div>
+    <div class="stat-pill"><span class="stat-dot" style="background:#22c55e"></span><span id="cnt-active">—</span> Active</div>
+    <div class="stat-pill"><span class="stat-dot" style="background:#f97316"></span><span id="cnt-break">—</span> Break</div>
+    <div class="stat-pill"><span class="stat-dot" style="background:#3b82f6"></span><span id="cnt-lunch">—</span> Lunch</div>
+    <div class="stat-pill"><span class="stat-dot" style="background:#6b7280"></span><span id="cnt-unassigned">—</span> Unassigned</div>
   </div>
 </div>
 
-<!-- ── Viewport ── -->
+<!-- Map viewport -->
 <div id="map-viewport">
   <div id="map-canvas">
     <img id="floor-img" src="" alt="Floor Plan" draggable="false"/>
-    <!-- Zone highlight boxes -->
     <svg id="zone-layer"></svg>
   </div>
-
   <div id="state-overlay">
     <div class="spinner"></div>
     <span id="state-msg">Loading staffing records…</span>
   </div>
-
   <div id="zoom-controls">
-    <div class="zoom-btn" onclick="adjustZoom(0.2)">+</div>
-    <div class="zoom-btn" onclick="adjustZoom(-0.2)">−</div>
-    <div class="zoom-btn" style="font-size:11px;color:#8b949e;" onclick="fitView()">Fit</div>
+    <div class="zoom-btn" onclick="adjustZoom(.2)">+</div>
+    <div class="zoom-btn" onclick="adjustZoom(-.2)">−</div>
+    <div class="zoom-btn" style="font-size:11px;color:#8b949e" onclick="fitView()">Fit</div>
     <div id="zoom-pct">100%</div>
   </div>
-
-  <div id="pan-hint">👆 Drag to pan &nbsp;·&nbsp; Pinch to zoom &nbsp;·&nbsp; Tap avatar to manage</div>
+  <div id="pan-hint">👆 Drag to pan · Pinch to zoom</div>
 </div>
 
-<!-- ── Modal ── -->
-<div id="modal-overlay">
-  <div id="modal">
-    <div class="modal-header">
+<!-- ── ASSIGN MODAL ── -->
+<div class="modal-overlay" id="assign-modal">
+  <div class="modal-box">
+    <div class="modal-title">Assign Employee</div>
+    <div class="modal-sub" id="assign-zone-label">Zone: —</div>
+    <select id="assign-select" size="1">
+      <option value="">Loading employees…</option>
+    </select>
+    <div id="assign-error"></div>
+    <button class="modal-btn modal-btn-primary" onclick="confirmAssign()" style="margin-top:14px">✓ Assign to Zone</button>
+    <button class="modal-btn modal-btn-cancel" onclick="closeAssignModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ── MANAGE MODAL ── -->
+<div class="modal-overlay" id="manage-modal">
+  <div class="modal-box">
+    <div class="manage-header">
       <div id="m-avatar"></div>
       <div>
         <div id="m-name"></div>
-        <div id="m-role"></div>
-        <div id="m-meta"></div>
-        <span id="m-badge"></span>
+        <div id="m-zone"></div>
+        <span id="m-status"></span>
       </div>
     </div>
-    <hr/>
-    <button class="action-btn btn-active" id="btn-active" onclick="setStatus('active')">✅&nbsp; End Break / Set Active</button>
-    <button class="action-btn btn-break"  id="btn-break"  onclick="setStatus('Break')">☕&nbsp; Start Break</button>
-    <button class="action-btn btn-lunch"  id="btn-lunch"  onclick="setStatus('Lunch')">🍽️&nbsp; Start Lunch</button>
+    <hr class="modal-hr"/>
 
-    <div class="ts-box" id="ts-box">
-      <div class="ts-label">Break_Type_Start stamped:</div>
-      <strong id="ts-value"></strong>
-      <div class="ts-elapsed" id="ts-elapsed"></div>
+    <!-- Break 1 -->
+    <div class="break-group">
+      <div class="break-group-label">☕ Break 1</div>
+      <div class="btn-row">
+        <button class="action-btn btn-start" id="btn-b1s" onclick="doAction('b1s')">▶ Start</button>
+        <button class="action-btn btn-end"   id="btn-b1e" onclick="doAction('b1e')">■ End</button>
+      </div>
+      <div class="ts-mini" id="ts-b1"></div>
     </div>
 
-    <div id="saving-indicator">⏳ Saving to Zoho Creator…</div>
-    <button id="dismiss-btn" onclick="closeModal()">— Dismiss —</button>
+    <!-- Lunch -->
+    <div class="break-group">
+      <div class="break-group-label">🍽️ Lunch</div>
+      <div class="btn-row">
+        <button class="action-btn btn-lunch-start" id="btn-ls" onclick="doAction('ls')">▶ Start</button>
+        <button class="action-btn btn-end"          id="btn-le" onclick="doAction('le')">■ End</button>
+      </div>
+      <div class="ts-mini" id="ts-lunch"></div>
+    </div>
+
+    <!-- Break 2 -->
+    <div class="break-group">
+      <div class="break-group-label">☕ Break 2</div>
+      <div class="btn-row">
+        <button class="action-btn btn-start" id="btn-b2s" onclick="doAction('b2s')">▶ Start</button>
+        <button class="action-btn btn-end"   id="btn-b2e" onclick="doAction('b2e')">■ End</button>
+      </div>
+      <div class="ts-mini" id="ts-b2"></div>
+    </div>
+
+    <hr class="modal-hr"/>
+    <div id="saving-msg">⏳ Saving…</div>
+    <button class="btn-unassign" onclick="unassignEmployee()">✕ Remove / Unassign from Zone</button>
+    <button id="dismiss-btn" onclick="closeManageModal()">— Dismiss —</button>
   </div>
 </div>
 
 <div id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
-//  ZOHO CONFIG
-// ═══════════════════════════════════════════════════════════
-const APP_NAME    = "lax-abg";
-const FORM_NAME   = "Staffing_Map";
-const REPORT_NAME = "All_Staffing_Maps";
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+const APP_NAME        = "lax-abg";
+const FORM_NAME       = "Staffing_Map";
+const REPORT_NAME     = "All_Staffing_Maps";
+const EMP_REPORT_NAME = "All_Employee_Infos"; // report exposing Employee_Info records
+const MAP_IMAGE_URL   = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png";
 
-// ═══════════════════════════════════════════════════════════
-//  FLOOR PLAN IMAGE
-//  → Upload your PNG to Zoho Widget assets and reference it here,
-//    or host it on any CDN. Replace the URL below.
-// ═══════════════════════════════════════════════════════════
-const MAP_IMAGE_URL = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png";
-// When deployed in Zoho: use  ZOHO.CREATOR.UTIL.getBaseURL() + "/images/your-image.png"
-// or reference a widget asset path.
-
-// ═══════════════════════════════════════════════════════════
-//  ZONE POSITIONS — generated by Zone Editor
-//  x/y = center of zone on raw image (pixels)
-// ═══════════════════════════════════════════════════════════
-const AREA_POSITIONS = {  
-  "Return 2":     { "x": 1300, "y": 3255, "box": { "x": 1178, "y": 3178, "w": 243, "h": 153 } },
-  "Return 3":     { "x": 1779, "y": 3252, "box": { "x": 1660, "y": 3162, "w": 238, "h": 180 } },
-  "Return 4":     { "x": 1205, "y": 3554, "box": { "x": 1072, "y": 3448, "w": 265, "h": 212 } },
-  "Return 5":     { "x": 1864, "y": 3554, "box": { "x": 1697, "y": 3427, "w": 333, "h": 254 } },
-  "Dispatch 2":   { "x": 1814, "y": 2921, "box": { "x": 1713, "y": 2855, "w": 201, "h": 132 } },
-  "A-LC 1":       { "x": 2986, "y": 3443, "box": { "x": 2861, "y": 3358, "w": 249, "h": 169 } },
-  "A-LC 2":       { "x": 3067, "y": 3183, "box": { "x": 2940, "y": 3093, "w": 254, "h": 180 } },
-  "A-CP 1":       { "x": 2618, "y": 3022, "box": { "x": 2533, "y": 2956, "w": 169, "h": 132 } },
-  "A-CP 2":       { "x": 2374, "y": 3022, "box": { "x": 2284, "y": 2945, "w": 180, "h": 153 } },
-  "A-CP 3":       { "x": 2144, "y": 3014, "box": { "x": 2046, "y": 2940, "w": 196, "h": 148 } },
-  "Exit 1":       { "x": 933,  "y": 1196, "box": { "x": 808,  "y": 1135, "w": 249, "h": 122 } },
-  "Exit 2":       { "x": 932,  "y": 1335, "box": { "x": 813,  "y": 1284, "w": 238, "h": 101 } },
-  "Exit 3":       { "x": 1252, "y": 1268, "box": { "x": 1109, "y": 1194, "w": 286, "h": 148 } },
-  "Rec Booth 1":  { "x": 1524, "y": 2729, "box": { "x": 1432, "y": 2672, "w": 184, "h": 114 } },
-  "Rec Booth 2":  { "x": 1523, "y": 2894, "box": { "x": 1421, "y": 2815, "w": 203, "h": 158 } },
-  "Dispatch 1":   { "x": 1805, "y": 2745, "box": { "x": 1695, "y": 2664, "w": 219, "h": 161 } },
-  "Return 1":     { "x": 2285, "y": 3298, "box": { "x": 2130, "y": 3180, "w": 309, "h": 235 } },
-  "HS-Return E":  { "x": 728,  "y": 3315, "box": { "x": 621,  "y": 3160, "w": 213, "h": 309 } },
-  "HS-South Elev":{ "x": 1584, "y": 2490, "box": { "x": 1448, "y": 2385, "w": 271, "h": 209 } },
-  "Preferred 1":  { "x": 1201, "y": 1464, "box": { "x": 1112, "y": 1399, "w": 177, "h": 129 } },
-  "Preferred 2":  { "x": 1432, "y": 1464, "box": { "x": 1324, "y": 1390, "w": 215, "h": 147 } },
-  "Preferred 3":  { "x": 1714, "y": 1470, "box": { "x": 1607, "y": 1393, "w": 213, "h": 154 } },
-  "Preferred 4":  { "x": 1330, "y": 1640, "box": { "x": 1215, "y": 1549, "w": 230, "h": 181 } },
-  "Preferred 5":  { "x": 1679, "y": 1676, "box": { "x": 1565, "y": 1578, "w": 227, "h": 195 } },
-  "Key Ldr 1":    { "x": 2120, "y": 972,  "box": { "x": 2000, "y": 877,  "w": 239, "h": 190 } },
-  "Key Ldr 2":    { "x": 2520, "y": 971,  "box": { "x": 2400, "y": 872,  "w": 239, "h": 197 } },
-  "Key Ldr 3":    { "x": 2157, "y": 1281, "box": { "x": 2002, "y": 1179, "w": 309, "h": 204 } },
-  "Key Ldr 4":    { "x": 2562, "y": 1296, "box": { "x": 2427, "y": 1170, "w": 269, "h": 251 } },
-  "HS B1":        { "x": 1037, "y": 1730, "box": { "x": 954,  "y": 1665, "w": 165, "h": 130 } },
-  "HS B2":        { "x": 987,  "y": 1513, "box": { "x": 887,  "y": 1438, "w": 200, "h": 149 } },
-  "HS B3":        { "x": 1359, "y": 1851, "box": { "x": 1243, "y": 1768, "w": 232, "h": 165 } }
+// ═══════════════════════════════════════════════════════
+//  ZONE POSITIONS
+// ═══════════════════════════════════════════════════════
+const AREA_POSITIONS = {
+  "Return 2":     { x:1300, y:3255, box:{x:1178,y:3178,w:243,h:153} },
+  "Return 3":     { x:1779, y:3252, box:{x:1660,y:3162,w:238,h:180} },
+  "Return 4":     { x:1205, y:3554, box:{x:1072,y:3448,w:265,h:212} },
+  "Return 5":     { x:1864, y:3554, box:{x:1697,y:3427,w:333,h:254} },
+  "Dispatch 2":   { x:1814, y:2921, box:{x:1713,y:2855,w:201,h:132} },
+  "A-LC 1":       { x:2986, y:3443, box:{x:2861,y:3358,w:249,h:169} },
+  "A-LC 2":       { x:3067, y:3183, box:{x:2940,y:3093,w:254,h:180} },
+  "A-CP 1":       { x:2618, y:3022, box:{x:2533,y:2956,w:169,h:132} },
+  "A-CP 2":       { x:2374, y:3022, box:{x:2284,y:2945,w:180,h:153} },
+  "A-CP 3":       { x:2144, y:3014, box:{x:2046,y:2940,w:196,h:148} },
+  "Exit 1":       { x:933,  y:1196, box:{x:808, y:1135,w:249,h:122} },
+  "Exit 2":       { x:932,  y:1335, box:{x:813, y:1284,w:238,h:101} },
+  "Exit 3":       { x:1252, y:1268, box:{x:1109,y:1194,w:286,h:148} },
+  "Rec Booth 1":  { x:1524, y:2729, box:{x:1432,y:2672,w:184,h:114} },
+  "Rec Booth 2":  { x:1523, y:2894, box:{x:1421,y:2815,w:203,h:158} },
+  "Dispatch 1":   { x:1805, y:2745, box:{x:1695,y:2664,w:219,h:161} },
+  "Return 1":     { x:2285, y:3298, box:{x:2130,y:3180,w:309,h:235} },
+  "HS-Return E":  { x:728,  y:3315, box:{x:621, y:3160,w:213,h:309} },
+  "HS-South Elev":{ x:1584, y:2490, box:{x:1448,y:2385,w:271,h:209} },
+  "Preferred 1":  { x:1201, y:1464, box:{x:1112,y:1399,w:177,h:129} },
+  "Preferred 2":  { x:1432, y:1464, box:{x:1324,y:1390,w:215,h:147} },
+  "Preferred 3":  { x:1714, y:1470, box:{x:1607,y:1393,w:213,h:154} },
+  "Preferred 4":  { x:1330, y:1640, box:{x:1215,y:1549,w:230,h:181} },
+  "Preferred 5":  { x:1679, y:1676, box:{x:1565,y:1578,w:227,h:195} },
+  "Key Ldr 1":    { x:2120, y:972,  box:{x:2000,y:877, w:239,h:190} },
+  "Key Ldr 2":    { x:2520, y:971,  box:{x:2400,y:872, w:239,h:197} },
+  "Key Ldr 3":    { x:2157, y:1281, box:{x:2002,y:1179,w:309,h:204} },
+  "Key Ldr 4":    { x:2562, y:1296, box:{x:2427,y:1170,w:269,h:251} },
+  "HS B1":        { x:1037, y:1730, box:{x:954, y:1665,w:165,h:130} },
+  "HS B2":        { x:987,  y:1513, box:{x:887, y:1438,w:200,h:149} },
+  "HS B3":        { x:1359, y:1851, box:{x:1243,y:1768,w:232,h:165} },
 };
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  STATUS CONFIG
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 const STATUS_CFG = {
-  active:     { color: "#22c55e", bg: "#22c55e1a", label: "Active"     },
-  Break:      { color: "#f97316", bg: "#f973161a", label: "On Break"   },
-  Lunch:      { color: "#ef4444", bg: "#ef44441a", label: "At Lunch"   },
-  unassigned: { color: "#6b7280", bg: "#6b72801a", label: "Unassigned" },
+  "Active":  { color:"#22c55e", bg:"#22c55e1a", label:"Active"  },
+  "Break 1": { color:"#f97316", bg:"#f973161a", label:"Break 1" },
+  "Lunch":   { color:"#3b82f6", bg:"#3b82f61a", label:"Lunch"   },
+  "Break 2": { color:"#f97316", bg:"#f973161a", label:"Break 2" },
 };
 
-// ═══════════════════════════════════════════════════════════
-//  PAN / ZOOM STATE
-// ═══════════════════════════════════════════════════════════
-let scale   = 1, originX = 0, originY = 0;
-let imgW = 0, imgH = 0;
-const MIN_SCALE = 0.05, MAX_SCALE = 5;
+// ═══════════════════════════════════════════════════════
+//  PAN / ZOOM
+// ═══════════════════════════════════════════════════════
+let scale=1, originX=0, originY=0, imgW=0, imgH=0;
+const MIN_SCALE=.05, MAX_SCALE=5;
+let isDragging=false, dragSX=0, dragSY=0, dragOX=0, dragOY=0;
+let didPan=false, hintHidden=false;
+let pinchDist0=0, pinchScale0=1, pinchMX=0, pinchMY=0;
+let lastTap=0;
 
-// Drag state
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragOX = 0, dragOY = 0;
-let didPan = false;
-// Pinch state
-let pinchDist0 = 0, pinchScale0 = 1, pinchMX = 0, pinchMY = 0;
-// Hint
-let hintHidden = false;
+const vp     = ()=>document.getElementById("map-viewport");
+const canvas = ()=>document.getElementById("map-canvas");
 
-const vp       = () => document.getElementById("map-viewport");
-const canvas   = () => document.getElementById("map-canvas");
-const floorImg = () => document.getElementById("floor-img");
-
-function applyTransform() {
-  canvas().style.transform = `translate(${originX}px,${originY}px) scale(${scale})`;
-  document.getElementById("zoom-pct").textContent = Math.round(scale * 100) + "%";
+function applyTransform(){
+  canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
+  document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
 }
-
-function fitView() {
-  const r = vp().getBoundingClientRect();
-  if (!imgW) return;
-  scale   = Math.min(r.width / imgW, r.height / imgH) * 0.97;
-  originX = (r.width  - imgW * scale) / 2;
-  originY = (r.height - imgH * scale) / 2;
+function fitView(){
+  const r=vp().getBoundingClientRect();
+  if(!imgW) return;
+  scale=Math.min(r.width/imgW,r.height/imgH)*.97;
+  originX=(r.width-imgW*scale)/2; originY=(r.height-imgH*scale)/2;
   applyTransform();
 }
-
-function adjustZoom(delta, px, py) {
-  const r  = vp().getBoundingClientRect();
-  px = px ?? r.width / 2;
-  py = py ?? r.height / 2;
-  const prev = scale;
-  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * (1 + delta)));
-  const ratio = scale / prev;
-  originX = px - ratio * (px - originX);
-  originY = py - ratio * (py - originY);
+function adjustZoom(delta,px,py){
+  const r=vp().getBoundingClientRect();
+  px=px??r.width/2; py=py??r.height/2;
+  const prev=scale;
+  scale=Math.min(MAX_SCALE,Math.max(MIN_SCALE,scale*(1+delta)));
+  const ratio=scale/prev;
+  originX=px-ratio*(px-originX); originY=py-ratio*(py-originY);
   applyTransform();
 }
-
-// Client coords → image pixel coords
-function toImg(cx, cy) {
-  const r = vp().getBoundingClientRect();
-  return { x: (cx - r.left - originX) / scale, y: (cy - r.top - originY) / scale };
+function hideHint(){
+  if(hintHidden) return; hintHidden=true;
+  const h=document.getElementById("pan-hint");
+  h.classList.add("hidden"); setTimeout(()=>h.style.display="none",600);
 }
 
-function hideHint() {
-  if (hintHidden) return;
-  hintHidden = true;
-  const h = document.getElementById("pan-hint");
-  h.classList.add("hidden");
-  setTimeout(() => h.style.display = "none", 600);
-}
-
-// ── Mouse ──
-vp().addEventListener("mousedown", e => {
-  if (e.button !== 0) return;
-  isDragging = true; didPan = false;
-  dragStartX = e.clientX; dragStartY = e.clientY;
-  dragOX = originX; dragOY = originY;
-  vp().classList.add("pan-mode","panning");
+// Mouse
+vp().addEventListener("mousedown",e=>{
+  if(e.button!==0) return;
+  isDragging=true; didPan=false;
+  dragSX=e.clientX; dragSY=e.clientY; dragOX=originX; dragOY=originY;
+  vp().classList.add("panning");
 });
-vp().addEventListener("mousemove", e => {
-  if (!isDragging) return;
-  const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
-  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) { didPan = true; hideHint(); }
-  originX = dragOX + dx; originY = dragOY + dy;
-  applyTransform();
+vp().addEventListener("mousemove",e=>{
+  if(!isDragging) return;
+  const dx=e.clientX-dragSX, dy=e.clientY-dragSY;
+  if(Math.abs(dx)>4||Math.abs(dy)>4){didPan=true;hideHint();}
+  originX=dragOX+dx; originY=dragOY+dy; applyTransform();
 });
-vp().addEventListener("mouseup",    () => { isDragging = false; vp().classList.remove("panning"); });
-vp().addEventListener("mouseleave", () => { isDragging = false; vp().classList.remove("panning"); });
-vp().addEventListener("wheel", e => {
+vp().addEventListener("mouseup",()=>{ isDragging=false; vp().classList.remove("panning"); });
+vp().addEventListener("mouseleave",()=>{ isDragging=false; vp().classList.remove("panning"); });
+vp().addEventListener("wheel",e=>{
   e.preventDefault();
-  const r = vp().getBoundingClientRect();
-  adjustZoom(e.deltaY < 0 ? 0.12 : -0.12, e.clientX - r.left, e.clientY - r.top);
-}, { passive: false });
+  const r=vp().getBoundingClientRect();
+  adjustZoom(e.deltaY<0?.12:-.12,e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
 
-// ── Touch ──
-let lastTap = 0;
-vp().addEventListener("touchstart", e => {
+// Touch
+vp().addEventListener("touchstart",e=>{
   e.preventDefault();
-  if (e.touches.length === 1) {
-    isDragging = true; didPan = false;
-    dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY;
-    dragOX = originX; dragOY = originY;
-    // double-tap zoom
-    const now = Date.now();
-    if (now - lastTap < 280) {
-      const r  = vp().getBoundingClientRect();
-      const px = e.touches[0].clientX - r.left;
-      const py = e.touches[0].clientY - r.top;
-      adjustZoom(scale < 1 ? 0.8 : -0.5, px, py);
-      lastTap = 0;
-    } else { lastTap = now; }
-  } else if (e.touches.length === 2) {
-    isDragging = false;
-    const t0 = e.touches[0], t1 = e.touches[1];
-    pinchDist0  = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    pinchScale0 = scale;
-    const r = vp().getBoundingClientRect();
-    pinchMX = (t0.clientX+t1.clientX)/2 - r.left;
-    pinchMY = (t0.clientY+t1.clientY)/2 - r.top;
+  if(e.touches.length===1){
+    isDragging=true; didPan=false;
+    dragSX=e.touches[0].clientX; dragSY=e.touches[0].clientY;
+    dragOX=originX; dragOY=originY;
+    const now=Date.now();
+    if(now-lastTap<280){
+      const r=vp().getBoundingClientRect();
+      adjustZoom(scale<1?.8:-.5,e.touches[0].clientX-r.left,e.touches[0].clientY-r.top);
+      lastTap=0;
+    } else lastTap=now;
+  } else if(e.touches.length===2){
+    isDragging=false;
+    const t0=e.touches[0],t1=e.touches[1];
+    pinchDist0=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    pinchScale0=scale;
+    const r=vp().getBoundingClientRect();
+    pinchMX=(t0.clientX+t1.clientX)/2-r.left;
+    pinchMY=(t0.clientY+t1.clientY)/2-r.top;
   }
-}, { passive: false });
-
-vp().addEventListener("touchmove", e => {
+},{passive:false});
+vp().addEventListener("touchmove",e=>{
   e.preventDefault();
-  if (e.touches.length === 1 && isDragging) {
-    const dx = e.touches[0].clientX - dragStartX, dy = e.touches[0].clientY - dragStartY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) { didPan = true; hideHint(); }
-    originX = dragOX + dx; originY = dragOY + dy;
-    applyTransform();
-  } else if (e.touches.length === 2) {
-    const t0 = e.touches[0], t1 = e.touches[1];
-    const dist = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchScale0 * dist / pinchDist0));
-    const ratio = newScale / scale;
-    scale   = newScale;
-    originX = pinchMX - ratio * (pinchMX - originX);
-    originY = pinchMY - ratio * (pinchMY - originY);
+  if(e.touches.length===1&&isDragging){
+    const dx=e.touches[0].clientX-dragSX,dy=e.touches[0].clientY-dragSY;
+    if(Math.abs(dx)>4||Math.abs(dy)>4){didPan=true;hideHint();}
+    originX=dragOX+dx; originY=dragOY+dy; applyTransform();
+  } else if(e.touches.length===2){
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const ns=Math.min(MAX_SCALE,Math.max(MIN_SCALE,pinchScale0*(dist/pinchDist0)));
+    const r=ns/scale; scale=ns;
+    originX=pinchMX-r*(pinchMX-originX); originY=pinchMY-r*(pinchMY-originY);
     applyTransform();
   }
-}, { passive: false });
+},{passive:false});
+vp().addEventListener("touchend",e=>{
+  if(e.touches.length===0) isDragging=false;
+},{passive:false});
 
-vp().addEventListener("touchend", e => {
-  if (e.touches.length === 0) isDragging = false;
-}, { passive: false });
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+let records    = [];  // today's Staffing_Map records
+let allEmployees = []; // all Employee_Info rows
+let assigningZone = null; // zone name currently in assign modal
+let managingId    = null; // record ID in manage modal
 
-// ═══════════════════════════════════════════════════════════
-//  DATA & STATE
-// ═══════════════════════════════════════════════════════════
-let records    = [];
-let selectedId = null;
-let elapsedTimer = null;
+// Derive status from field values
+function deriveStatus(r){
+  if(r.Break_Type_Start && !r.Break_Type_End)  return "Break 1";
+  if(r.Lunch_Start      && !r.Lunch_End)        return "Lunch";
+  if(r.Break_2_Start    && !r.Break_2_End)      return "Break 2";
+  return "Active";
+}
 
-function init() {
-  // Load image
-  const img = floorImg();
-  img.onload = () => {
-    imgW = img.naturalWidth;
-    imgH = img.naturalHeight;
-    document.getElementById("zone-layer").setAttribute("width",  imgW);
-    document.getElementById("zone-layer").setAttribute("height", imgH);
-    document.getElementById("zone-layer").style.width  = imgW + "px";
-    document.getElementById("zone-layer").style.height = imgH + "px";
-    drawZoneBoxes();
-    fitView();
+// Is anything currently active (blocking other starts)?
+function anyActive(r){
+  return (r.Break_Type_Start && !r.Break_Type_End)
+      || (r.Lunch_Start      && !r.Lunch_End)
+      || (r.Break_2_Start    && !r.Break_2_End);
+}
+
+// Overnight window: yesterday noon → now (covers overnight shifts)
+function todayFilter(dateStr){
+  if(!dateStr) return false;
+  const d   = new Date(dateStr);
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setHours(cutoff.getHours()-28);
+  return d >= cutoff && d <= now;
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+function init(){
+  const img=document.getElementById("floor-img");
+  img.onload=()=>{
+    imgW=img.naturalWidth; imgH=img.naturalHeight;
+    const svg=document.getElementById("zone-layer");
+    svg.setAttribute("width",imgW); svg.setAttribute("height",imgH);
+    svg.style.width=imgW+"px"; svg.style.height=imgH+"px";
+    drawZoneBoxes(); fitView();
   };
-  img.onerror = () => setStateMsg("⚠️ Floor plan image not found — check MAP_IMAGE_URL");
-  img.src = MAP_IMAGE_URL;
+  img.src=MAP_IMAGE_URL;
 
-  if (typeof ZOHO !== "undefined" && ZOHO.CREATOR) {
-    ZOHO.CREATOR.init().then(loadRecords);
+  if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
+    ZOHO.CREATOR.init().then(()=>{ loadEmployees(); loadRecords(); });
   } else {
-    // Dev/preview mode
-    setTimeout(() => {
-      records = getMockRecords();
-      hideStateOverlay();
-      renderPins();
-    }, 600);
+    records=getMockRecords(); allEmployees=getMockEmployees();
+    hideStateOverlay(); renderAll();
+    setTimeout(fitView,100);
   }
 }
 
-// ── Draw semi-transparent zone boxes on SVG layer ──
-function drawZoneBoxes() {
-  const svg = document.getElementById("zone-layer");
-  svg.innerHTML = "";
-  Object.entries(AREA_POSITIONS).forEach(([name, pos]) => {
-    if (!pos.box) return;
-    const b = pos.box;
-    const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
-    rect.setAttribute("x", b.x); rect.setAttribute("y", b.y);
-    rect.setAttribute("width", b.w); rect.setAttribute("height", b.h);
-    rect.setAttribute("fill",   "rgba(56,139,253,0.06)");
-    rect.setAttribute("stroke", "rgba(56,139,253,0.3)");
+// ═══════════════════════════════════════════════════════
+//  ZOHO LOADS
+// ═══════════════════════════════════════════════════════
+function loadRecords(){
+  ZOHO.CREATOR.API.getAllRecords({
+    appName:APP_NAME, reportName:REPORT_NAME, page:1, pageSize:500
+  }).then(resp=>{
+    if(resp.code===3000){
+      // Filter to today / overnight window
+      records=resp.data.filter(r=>todayFilter(r.Date_Time)).map(normalizeRecord);
+      hideStateOverlay(); renderAll();
+      setTimeout(fitView,100);
+    } else setStateMsg("⚠️ Could not load records ("+resp.code+")");
+  }).catch(err=>setStateMsg("⚠️ "+err));
+}
+
+function loadEmployees(){
+  ZOHO.CREATOR.API.getAllRecords({
+    appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:500
+  }).then(resp=>{
+    if(resp.code===3000){
+      allEmployees=resp.data.map(r=>({
+        id:   r.ID,
+        label:r.Employee_ID1 || r.ID,
+      }));
+    }
+  });
+}
+
+function normalizeRecord(r){
+  const empDisplay = r.Employee_Info_display || r.Employee_Info || "—";
+  const parts=empDisplay.trim().split(/[\s\-]+/);
+  const initials=parts.length>=2
+    ?(parts[0][0]+parts[parts.length-1][0]).toUpperCase()
+    :empDisplay.substring(0,2).toUpperCase();
+  const pos=AREA_POSITIONS[r.Zone]||null;
+  return {
+    id:              r.ID,
+    empId:           empDisplay,
+    empRawId:        r.Employee_Info,
+    initials,
+    zone:            r.Zone||"",
+    currentStatus:   r.Current_Status||"Active",
+    Break_Type_Start:r.Break_Type_Start||null,
+    Break_Type_End:  r.Break_Type_End  ||null,
+    Lunch_Start:     r.Lunch_Start     ||null,
+    Lunch_End:       r.Lunch_End       ||null,
+    Break_2_Start:   r.Break_2_Start   ||null,
+    Break_2_End:     r.Break_2_End     ||null,
+    x: pos?pos.x:null,
+    y: pos?pos.y:null,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════
+function renderAll(){
+  // Remove old pins
+  canvas().querySelectorAll(".pin,.plus-pin").forEach(el=>el.remove());
+
+  const assignedZones=new Set(records.map(r=>r.zone));
+
+  // For each zone: show employee pin or + pin
+  Object.entries(AREA_POSITIONS).forEach(([zoneName,pos])=>{
+    const rec=records.find(r=>r.zone===zoneName);
+    if(rec){
+      renderEmployeePin(rec);
+    } else {
+      renderPlusPin(zoneName,pos);
+    }
+  });
+
+  updateCounts(assignedZones);
+}
+
+function renderEmployeePin(s){
+  const status=deriveStatus(s);
+  const cfg=STATUS_CFG[status]||STATUS_CFG["Active"];
+
+  const pin=document.createElement("div");
+  pin.className="pin";
+  pin.style.left=s.x+"px";
+  pin.style.top =s.y+"px";
+  pin.dataset.recId=s.id;
+
+  pin.addEventListener("pointerdown",e=>e.stopPropagation());
+  pin.addEventListener("click",()=>{ if(!didPan) openManageModal(s.id); });
+
+  pin.innerHTML=`
+    ${status==="Active"?`<div class="ripple-ring" style="color:${cfg.color}"></div>`:""}
+    <div class="avatar-circle" style="
+      background:radial-gradient(circle at 35% 35%,${cfg.color}55,${cfg.color}18);
+      border:3px solid ${cfg.color}; color:${cfg.color};
+      box-shadow:0 0 16px ${cfg.color}77,0 3px 10px rgba(0,0,0,.8);
+      animation:${status==="Active"?"pulse 2.8s ease-in-out infinite":"none"};
+    ">${s.initials}</div>
+    <div class="avatar-label">
+      <div class="emp-id">${s.empId}</div>
+      <div class="zone-nm">${s.zone}</div>
+      <div class="status-nm" style="color:${cfg.color}">${cfg.label}</div>
+    </div>
+    <div class="status-dot" style="background:${cfg.color};box-shadow:0 0 6px ${cfg.color}"></div>
+  `;
+  canvas().appendChild(pin);
+}
+
+function renderPlusPin(zoneName,pos){
+  const pin=document.createElement("div");
+  pin.className="plus-pin";
+  pin.style.left=pos.x+"px";
+  pin.style.top =pos.y+"px";
+  pin.innerHTML=`
+    <div class="plus-circle">+</div>
+    <div class="plus-label">${zoneName}</div>
+  `;
+  pin.addEventListener("pointerdown",e=>e.stopPropagation());
+  pin.addEventListener("click",()=>{ if(!didPan) openAssignModal(zoneName); });
+  canvas().appendChild(pin);
+}
+
+function drawZoneBoxes(){
+  const svg=document.getElementById("zone-layer");
+  svg.innerHTML="";
+  Object.entries(AREA_POSITIONS).forEach(([name,pos])=>{
+    if(!pos.box) return;
+    const b=pos.box;
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("x",b.x); rect.setAttribute("y",b.y);
+    rect.setAttribute("width",b.w); rect.setAttribute("height",b.h);
+    rect.setAttribute("fill","rgba(56,139,253,0.05)");
+    rect.setAttribute("stroke","rgba(56,139,253,0.25)");
     rect.setAttribute("stroke-width","2");
     rect.setAttribute("stroke-dasharray","8 4");
     rect.setAttribute("rx","4");
     svg.appendChild(rect);
 
-    // Zone label on map
-    const text = document.createElementNS("http://www.w3.org/2000/svg","text");
-    text.setAttribute("x", b.x + 8);
-    text.setAttribute("y", b.y + 20);
-    text.setAttribute("fill","rgba(56,139,253,0.55)");
-    text.setAttribute("font-size","18");
-    text.setAttribute("font-weight","700");
-    text.setAttribute("font-family","Segoe UI, sans-serif");
-    text.textContent = name;
-    svg.appendChild(text);
+    const txt=document.createElementNS("http://www.w3.org/2000/svg","text");
+    txt.setAttribute("x",b.x+6); txt.setAttribute("y",b.y+18);
+    txt.setAttribute("fill","rgba(56,139,253,0.45)");
+    txt.setAttribute("font-size","16"); txt.setAttribute("font-weight","700");
+    txt.setAttribute("font-family","Segoe UI,sans-serif");
+    txt.textContent=name; svg.appendChild(txt);
   });
 }
 
-// ─────────────────────────────────────────────
-//  ZOHO — Load records
-// ─────────────────────────────────────────────
-function loadRecords() {
-  ZOHO.CREATOR.API.getAllRecords({
-    appName: APP_NAME, reportName: REPORT_NAME,
-    page: 1, pageSize: 500,
-  }).then(resp => {
-    if (resp.code === 3000) {
-      records = resp.data.map(normalizeRecord);
-      hideStateOverlay();
-      renderPins();
-    } else {
-      setStateMsg("⚠️ Could not load records (code " + resp.code + ")");
-    }
-  }).catch(err => setStateMsg("⚠️ Error: " + err));
+function updateCounts(assignedZones){
+  const totalZones=Object.keys(AREA_POSITIONS).length;
+  document.getElementById("cnt-active").textContent    =records.filter(r=>deriveStatus(r)==="Active").length;
+  document.getElementById("cnt-break").textContent     =records.filter(r=>deriveStatus(r)==="Break 1"||deriveStatus(r)==="Break 2").length;
+  document.getElementById("cnt-lunch").textContent     =records.filter(r=>deriveStatus(r)==="Lunch").length;
+  document.getElementById("cnt-unassigned").textContent=totalZones-(assignedZones||new Set(records.map(r=>r.zone))).size;
 }
 
-function normalizeRecord(r) {
-  // Derive status
-  let status = "active";
-  if (!r.Employee_Info || r.Employee_Info === "") {
-    status = "unassigned";
-  } else if (r.Break_Type && r.Break_Type_Start && !r.Break_Type_End) {
-    status = r.Break_Type; // "Break" or "Lunch"
+// ═══════════════════════════════════════════════════════
+//  ASSIGN MODAL
+// ═══════════════════════════════════════════════════════
+function openAssignModal(zoneName){
+  assigningZone=zoneName;
+  document.getElementById("assign-zone-label").textContent="Zone: "+zoneName;
+  document.getElementById("assign-error").textContent="";
+
+  const sel=document.getElementById("assign-select");
+  sel.innerHTML="";
+
+  // Already assigned employee IDs (raw) — to exclude or warn
+  const assignedEmpIds=new Set(records.map(r=>r.empRawId));
+
+  if(allEmployees.length){
+    const placeholder=document.createElement("option");
+    placeholder.value=""; placeholder.textContent="— Select Employee —";
+    sel.appendChild(placeholder);
+    allEmployees.forEach(emp=>{
+      const opt=document.createElement("option");
+      opt.value=emp.id; opt.textContent=emp.label;
+      if(assignedEmpIds.has(emp.id)){
+        opt.textContent+=" (already assigned)";
+        opt.style.color="#f97316";
+      }
+      sel.appendChild(opt);
+    });
+  } else {
+    sel.innerHTML='<option value="">No employees loaded</option>';
   }
 
-  // Employee_ID.ID display value
-  const empId = r.Employee_Info_display || r.Employee_Info || "—";
+  document.getElementById("assign-modal").classList.add("open");
+}
 
-  // Initials from display name
-  const parts    = empId.trim().split(/[\s\-]+/);
-  const initials = parts.length >= 2
-    ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase()
-    : empId.substring(0,2).toUpperCase();
+function closeAssignModal(){
+  document.getElementById("assign-modal").classList.remove("open");
+  assigningZone=null;
+}
 
-  // Zone lookup
-  const areaName = r.Staffing_Area_display     || r.Staffing_Area     || "";
-  const locName  = r.Staffing_Location_display || r.Staffing_Location || "";
-  const pos      = AREA_POSITIONS[areaName] || null;
+function confirmAssign(){
+  const sel=document.getElementById("assign-select");
+  const empId=sel.value;
+  const empLabel=sel.options[sel.selectedIndex]?.textContent||"";
+  if(!empId){ setAssignError("Please select an employee"); return; }
 
-  return {
-    id:         r.ID,
-    empId,
-    initials,
-    status,
-    area:       areaName,
-    location:   locName,
-    breakType:  r.Break_Type        || "",
-    breakStart: r.Break_Type_Start  || null,
-    breakEnd:   r.Break_Type_End    || null,
-    dateField:  r.Date_field        || null,
-    // pin position from zone map, fallback to center
-    x: pos ? pos.x : 500,
-    y: pos ? pos.y : 400,
+  // Client-side duplicate check
+  const existing=records.find(r=>r.empRawId===empId);
+  if(existing){
+    setAssignError(`⚠️ ${empLabel.split(" (")[0]} is already assigned to "${existing.zone}"`);
+    return;
+  }
+
+  setAssignError("");
+  const now=new Date();
+  const payload={
+    Employee_Info:  empId,
+    Zone:           assigningZone,
+    Date_Time:      formatForZoho(now),
+    Current_Status: "Active",
   };
-}
 
-// ─────────────────────────────────────────────
-//  RENDER AVATAR PINS
-// ─────────────────────────────────────────────
-function renderPins() {
-  // Remove old pins
-  canvas().querySelectorAll(".avatar-pin").forEach(el => el.remove());
-
-  records.forEach(s => {
-    if (!s.x || !s.y) return; // skip if no position
-    const cfg = STATUS_CFG[s.status] || STATUS_CFG.unassigned;
-    const pin = document.createElement("div");
-    pin.className  = "avatar-pin";
-    pin.style.left = s.x + "px";
-    pin.style.top  = s.y + "px";
-    pin.dataset.id = s.id;
-    pin.title      = s.empId + " · " + s.area;
-
-    // Prevent accidental open when panning
-    pin.addEventListener("pointerdown", e => e.stopPropagation());
-    pin.addEventListener("click", () => { if (!didPan) openModal(s.id); });
-
-    pin.innerHTML = `
-      ${s.status === "active"
-        ? `<div class="ripple-ring" style="color:${cfg.color}"></div>`
-        : ""}
-      <div class="avatar-circle" style="
-        background: radial-gradient(circle at 35% 35%, ${cfg.color}55, ${cfg.color}18);
-        border: 3px solid ${cfg.color};
-        color: ${cfg.color};
-        box-shadow: 0 0 16px ${cfg.color}77, 0 3px 10px rgba(0,0,0,0.8);
-        animation: ${s.status === "active" ? "pulse 2.8s ease-in-out infinite" : "none"};
-      ">${s.initials}</div>
-      <div class="avatar-label">
-        <div class="emp-id">${s.empId}</div>
-        <div class="zone-nm">${s.area}</div>
-        <div class="loc-nm">${s.location}</div>
-      </div>
-      <div class="status-dot" style="background:${cfg.color};box-shadow:0 0 6px ${cfg.color};"></div>
-    `;
-
-    canvas().appendChild(pin);
+  zohoAdd(payload).then(newId=>{
+    if(!newId) return;
+    // Build local record
+    const emp=allEmployees.find(e=>e.id===empId);
+    const label=emp?emp.label:empId;
+    const parts=label.trim().split(/[\s\-]+/);
+    const initials=parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():label.substring(0,2).toUpperCase();
+    const pos=AREA_POSITIONS[assigningZone];
+    records.push({
+      id:newId, empId:label, empRawId:empId, initials,
+      zone:assigningZone, currentStatus:"Active",
+      Break_Type_Start:null,Break_Type_End:null,
+      Lunch_Start:null,Lunch_End:null,
+      Break_2_Start:null,Break_2_End:null,
+      x:pos?pos.x:null, y:pos?pos.y:null,
+    });
+    closeAssignModal();
+    renderAll();
+    showToast("✅ "+label+" assigned to "+assigningZone,"#22c55e");
   });
-
-  updateCounts();
 }
 
-// ─────────────────────────────────────────────
-//  MODAL
-// ─────────────────────────────────────────────
-function openModal(id) {
-  selectedId = id;
-  const s   = records.find(r => r.id === id);
-  if (!s) return;
-  const cfg = STATUS_CFG[s.status] || STATUS_CFG.unassigned;
+function setAssignError(msg){ document.getElementById("assign-error").textContent=msg; }
+
+// ═══════════════════════════════════════════════════════
+//  MANAGE MODAL
+// ═══════════════════════════════════════════════════════
+function openManageModal(recId){
+  managingId=recId;
+  const s=records.find(r=>r.id===recId);
+  if(!s) return;
+  refreshManageModal(s);
+  document.getElementById("manage-modal").classList.add("open");
+}
+
+function refreshManageModal(s){
+  if(!s) s=records.find(r=>r.id===managingId);
+  if(!s) return;
+
+  const status=deriveStatus(s);
+  const cfg=STATUS_CFG[status]||STATUS_CFG["Active"];
 
   // Avatar
-  const av = document.getElementById("m-avatar");
-  av.textContent   = s.initials;
-  av.style.cssText = `width:58px;height:58px;border-radius:50%;
+  const av=document.getElementById("m-avatar");
+  av.textContent=s.initials;
+  av.style.cssText=`width:56px;height:56px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;
-    font-size:20px;font-weight:800;flex-shrink:0;
+    font-size:19px;font-weight:800;flex-shrink:0;
     background:${cfg.bg};border:3px solid ${cfg.color};color:${cfg.color};
     box-shadow:0 0 20px ${cfg.color}55;`;
 
-  document.getElementById("m-name").textContent = s.empId;
-  document.getElementById("m-role").textContent = s.area;
-  document.getElementById("m-meta").textContent = s.location;
+  document.getElementById("m-name").textContent=s.empId;
+  document.getElementById("m-zone").textContent=s.zone;
 
-  const badge = document.getElementById("m-badge");
-  badge.textContent   = cfg.label;
-  badge.style.cssText = `display:inline-block;margin-top:6px;font-size:10px;
+  const badge=document.getElementById("m-status");
+  badge.textContent=cfg.label;
+  badge.style.cssText=`display:inline-block;margin-top:5px;font-size:10px;
     padding:3px 10px;border-radius:99px;font-weight:600;
     background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}55;`;
 
-  // Button highlights
-  const btnMap = { active: "btn-active", Break: "btn-break", Lunch: "btn-lunch" };
-  Object.entries(btnMap).forEach(([st, btnId]) => {
-    document.getElementById(btnId)?.classList.toggle("btn-current", s.status === st);
+  const active=anyActive(s);
+
+  // ── Break 1 ──
+  const b1Started = !!s.Break_Type_Start;
+  const b1Ended   = !!s.Break_Type_End;
+  const b1Active  = b1Started && !b1Ended;
+
+  setBtn("btn-b1s", !b1Started && !active,          "▶ Start");
+  setBtn("btn-b1e", b1Active,                        "■ End", b1Active?"active-end":"");
+  setTs("ts-b1",
+    b1Started ? "Started: "+fmtTs(s.Break_Type_Start) : "",
+    b1Ended   ? "  Ended: "+fmtTs(s.Break_Type_End)   : "",
+    b1Active
+  );
+
+  // ── Lunch ──
+  const lStarted = !!s.Lunch_Start;
+  const lEnded   = !!s.Lunch_End;
+  const lActive  = lStarted && !lEnded;
+
+  setBtn("btn-ls", !lStarted && !active,   "▶ Start");
+  setBtn("btn-le", lActive,                "■ End",  lActive?"active-end":"");
+  document.getElementById("btn-ls").classList.add("btn-lunch-start");
+  document.getElementById("btn-le").classList.toggle("btn-lunch-end",true);
+  setTs("ts-lunch",
+    lStarted ? "Started: "+fmtTs(s.Lunch_Start) : "",
+    lEnded   ? "  Ended: "+fmtTs(s.Lunch_End)   : "",
+    lActive
+  );
+
+  // ── Break 2 (requires lunch completed) ──
+  const b2Started = !!s.Break_2_Start;
+  const b2Ended   = !!s.Break_2_End;
+  const b2Active  = b2Started && !b2Ended;
+  const lunchDone = lStarted && lEnded;
+
+  setBtn("btn-b2s", !b2Started && lunchDone && !active, "▶ Start");
+  setBtn("btn-b2e", b2Active,                           "■ End", b2Active?"active-end":"");
+  setTs("ts-b2",
+    b2Started ? "Started: "+fmtTs(s.Break_2_Start) : "",
+    b2Ended   ? "  Ended: "+fmtTs(s.Break_2_End)   : "",
+    b2Active
+  );
+
+  document.getElementById("saving-msg").classList.remove("show");
+}
+
+function setBtn(id, enabled, label, extraClass=""){
+  const btn=document.getElementById(id);
+  btn.disabled=!enabled;
+  btn.textContent=(id.endsWith("s")?"▶ ":"■ ")+label.replace(/^[▶■] /,"");
+  // clean extra classes
+  btn.classList.remove("active-end","btn-lunch-end");
+  if(extraClass) btn.classList.add(extraClass);
+}
+
+function setTs(id, line1, line2, isActive){
+  const el=document.getElementById(id);
+  el.innerHTML=(line1?"<div>"+line1+"</div>":"")+(line2?"<div>"+line2+"</div>":"");
+  el.className="ts-mini"+(isActive?" active":"");
+}
+
+function closeManageModal(){
+  document.getElementById("manage-modal").classList.remove("open");
+  managingId=null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ACTION HANDLER
+// ═══════════════════════════════════════════════════════
+const ACTION_MAP={
+  b1s:{ field:"Break_Type_Start", status:"Break 1", startField:true  },
+  b1e:{ field:"Break_Type_End",   status:"Active",  startField:false },
+  ls: { field:"Lunch_Start",      status:"Lunch",   startField:true  },
+  le: { field:"Lunch_End",        status:"Active",  startField:false },
+  b2s:{ field:"Break_2_Start",    status:"Break 2", startField:true  },
+  b2e:{ field:"Break_2_End",      status:"Active",  startField:false },
+};
+
+function doAction(actionKey){
+  const s=records.find(r=>r.id===managingId);
+  if(!s) return;
+  const act=ACTION_MAP[actionKey];
+  if(!act) return;
+
+  const now=new Date();
+  const nowZoho=formatForZoho(now);
+  const nowISO=now.toISOString();
+
+  setSaving(true);
+
+  const payload={ [act.field]: nowZoho, Current_Status: act.status };
+
+  zohoUpdate(s.id,payload).then(ok=>{
+    if(!ok){ setSaving(false); return; }
+    s[act.field]=nowISO;
+    s.currentStatus=act.status;
+    setSaving(false);
+    renderAll();
+    refreshManageModal(s);
+
+    const icons={ b1s:"☕",b1e:"✅",ls:"🍽️",le:"✅",b2s:"☕",b2e:"✅" };
+    const labels={ b1s:"Break 1 started",b1e:"Break 1 ended",ls:"Lunch started",le:"Lunch ended",b2s:"Break 2 started",b2e:"Break 2 ended" };
+    showToast(icons[actionKey]+" "+s.empId+" — "+labels[actionKey],
+      actionKey.endsWith("e")?"#22c55e":"#f97316");
   });
-
-  // Timestamp box
-  const tsBox = document.getElementById("ts-box");
-  if (s.breakStart && s.status !== "active") {
-    document.getElementById("ts-value").textContent = formatDisplay(s.breakStart);
-    updateElapsed(s.breakStart);
-    tsBox.classList.add("show");
-    if (elapsedTimer) clearInterval(elapsedTimer);
-    elapsedTimer = setInterval(() => updateElapsed(s.breakStart), 10000);
-  } else {
-    tsBox.classList.remove("show");
-    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
-  }
-
-  document.getElementById("saving-indicator").classList.remove("show");
-  setModalButtons(false);
-  document.getElementById("modal-overlay").classList.add("open");
 }
 
-function updateElapsed(startISO) {
-  if (!startISO) return;
-  const ms  = Date.now() - new Date(startISO).getTime();
-  const min = Math.floor(ms / 60000);
-  const sec = Math.floor((ms % 60000) / 1000);
-  document.getElementById("ts-elapsed").textContent =
-    `⏱ ${min}m ${sec}s elapsed`;
+// ═══════════════════════════════════════════════════════
+//  UNASSIGN
+// ═══════════════════════════════════════════════════════
+function unassignEmployee(){
+  const s=records.find(r=>r.id===managingId);
+  if(!s) return;
+  if(!confirm(`Remove ${s.empId} from "${s.zone}"? This will delete the staffing record.`)) return;
+  setSaving(true);
+  zohoDelete(s.id).then(ok=>{
+    if(!ok){ setSaving(false); return; }
+    records=records.filter(r=>r.id!==s.id);
+    closeManageModal();
+    renderAll();
+    showToast("🗑 "+s.empId+" removed from "+s.zone,"#6b7280");
+  });
 }
 
-function closeModal() {
-  document.getElementById("modal-overlay").classList.remove("open");
-  if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
-  selectedId = null;
-}
+// ═══════════════════════════════════════════════════════
+//  ZOHO API
+// ═══════════════════════════════════════════════════════
+const DEV_MODE=typeof ZOHO==="undefined"||!ZOHO.CREATOR;
 
-// ─────────────────────────────────────────────
-//  STATUS CHANGE → Zoho API
-// ─────────────────────────────────────────────
-function setStatus(newStatus) {
-  if (!selectedId) return;
-  const s = records.find(r => r.id === selectedId);
-  if (!s) return;
-
-  const now      = new Date();
-  const nowZoho  = formatForZoho(now);
-  const nowISO   = now.toISOString();
-
-  setModalButtons(true);
-  document.getElementById("saving-indicator").classList.add("show");
-
-  if (newStatus === "active") {
-    // End break — stamp Break_Type_End
-    zohoUpdate(s.id, { Break_Type_End: nowZoho }).then(ok => {
-      if (!ok) return;
-      s.status   = "active";
-      s.breakEnd = nowISO;
-      afterSave(s, "✅ " + s.empId + " — back on the floor");
-    });
-  } else {
-    // Start Break or Lunch
-    zohoUpdate(s.id, {
-      Break_Type:       newStatus,
-      Break_Type_Start: nowZoho,
-      Break_Type_End:   "",
-    }).then(ok => {
-      if (!ok) return;
-      s.status     = newStatus;
-      s.breakType  = newStatus;
-      s.breakStart = nowISO;
-      s.breakEnd   = null;
-      const icon   = newStatus === "Break" ? "☕" : "🍽️";
-      afterSave(s, icon + " " + s.empId + " — " + newStatus + " started " + formatDisplay(nowISO));
-    });
-  }
-}
-
-function afterSave(s, toastMsg) {
-  document.getElementById("saving-indicator").classList.remove("show");
-  renderPins();
-  openModal(s.id); // refresh modal state
-  showToast(toastMsg, s.status === "active" ? "#22c55e" : "#f97316");
-}
-
-// ─────────────────────────────────────────────
-//  ZOHO API WRAPPER
-// ─────────────────────────────────────────────
-function zohoUpdate(recordId, dataObj) {
-  if (typeof ZOHO === "undefined" || !ZOHO.CREATOR) {
-    // Dev mock
-    return new Promise(res => setTimeout(() => res(true), 550));
-  }
+function zohoUpdate(recId,data){
+  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r(true),400));
   return ZOHO.CREATOR.API.updateRecord({
-    appName:  APP_NAME,
-    formName: FORM_NAME,
-    id:       recordId,
-    data:     { data: dataObj },
-  }).then(resp => {
-    if (resp.code !== 3000) {
-      showToast("⚠️ Save failed (code " + resp.code + ")", "#ef4444");
-      setModalButtons(false);
-      document.getElementById("saving-indicator").classList.remove("show");
-      return false;
-    }
+    appName:APP_NAME,formName:FORM_NAME,id:recId,data:{data}
+  }).then(resp=>{
+    if(resp.code!==3000){showToast("⚠️ Save failed ("+resp.code+")","#ef4444");return false;}
     return true;
-  }).catch(err => {
-    showToast("⚠️ Network error: " + err, "#ef4444");
-    setModalButtons(false);
-    document.getElementById("saving-indicator").classList.remove("show");
-    return false;
-  });
+  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return false;});
 }
 
-// ─────────────────────────────────────────────
+function zohoAdd(data){
+  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r("MOCK_"+Date.now()),400));
+  return ZOHO.CREATOR.API.addRecord({
+    appName:APP_NAME,formName:FORM_NAME,data:{data}
+  }).then(resp=>{
+    if(resp.code!==3000){showToast("⚠️ Add failed ("+resp.code+")","#ef4444");return null;}
+    return resp.data?.ID||null;
+  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return null;});
+}
+
+function zohoDelete(recId){
+  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r(true),400));
+  return ZOHO.CREATOR.API.deleteRecord({
+    appName:APP_NAME,reportName:REPORT_NAME,id:recId
+  }).then(resp=>{
+    if(resp.code!==3000){showToast("⚠️ Delete failed ("+resp.code+")","#ef4444");return false;}
+    return true;
+  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return false;});
+}
+
+// ═══════════════════════════════════════════════════════
 //  HELPERS
-// ─────────────────────────────────────────────
-function setModalButtons(disabled) {
-  ["btn-active","btn-break","btn-lunch"].forEach(id => {
-    const b = document.getElementById(id);
-    if (b) b.disabled = disabled;
+// ═══════════════════════════════════════════════════════
+function setSaving(on){
+  document.getElementById("saving-msg").classList.toggle("show",on);
+  ["btn-b1s","btn-b1e","btn-ls","btn-le","btn-b2s","btn-b2e"].forEach(id=>{
+    const b=document.getElementById(id); if(b) b.disabled=on||b.disabled;
   });
 }
 
-function updateCounts() {
-  document.getElementById("cnt-active").textContent     = records.filter(s => s.status === "active").length;
-  document.getElementById("cnt-break").textContent      = records.filter(s => s.status === "Break").length;
-  document.getElementById("cnt-lunch").textContent      = records.filter(s => s.status === "Lunch").length;
-  document.getElementById("cnt-unassigned").textContent = records.filter(s => s.status === "unassigned").length;
+function fmtTs(iso){
+  if(!iso) return "";
+  try{
+    return new Date(iso).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+  } catch(e){ return iso; }
 }
 
-function formatDisplay(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString("en-US", {
-      month:"short", day:"numeric", year:"numeric",
-      hour:"2-digit", minute:"2-digit", second:"2-digit",
-    });
-  } catch(e) { return iso; }
-}
-
-function formatForZoho(d) {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const p = n => String(n).padStart(2,"0");
+function formatForZoho(d){
+  const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const p=n=>String(n).padStart(2,"0");
   return `${p(d.getDate())}-${months[d.getMonth()]}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function showToast(msg, color="#22c55e") {
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.style.background = color;
-  t.style.boxShadow = `0 4px 20px ${color}55`;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 3500);
+function showToast(msg,color="#22c55e"){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.style.background=color;
+  t.style.boxShadow=`0 4px 20px ${color}55`;
+  t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3500);
 }
 
-function hideStateOverlay() {
-  const el = document.getElementById("state-overlay");
-  if (el) el.style.display = "none";
-}
+function hideStateOverlay(){ const el=document.getElementById("state-overlay"); if(el) el.style.display="none"; }
+function setStateMsg(msg){ const el=document.getElementById("state-msg"); if(el){el.innerHTML=msg;el.style.color=msg.startsWith("⚠️")?"#ef4444":"#8b949e";} const sp=document.querySelector(".spinner"); if(sp&&msg.startsWith("⚠️")) sp.style.display="none"; }
 
-function setStateMsg(msg) {
-  const el = document.getElementById("state-msg");
-  if (el) { el.innerHTML = msg; el.style.color = msg.startsWith("⚠️") ? "#ef4444" : "#8b949e"; }
-  const spinner = document.querySelector(".spinner");
-  if (spinner && msg.startsWith("⚠️")) spinner.style.display = "none";
-}
+// Close modals on backdrop click
+document.getElementById("assign-modal").addEventListener("click",function(e){if(e.target===this)closeAssignModal();});
+document.getElementById("manage-modal").addEventListener("click",function(e){if(e.target===this)closeManageModal();});
 
-// Close modal on backdrop
-document.getElementById("modal-overlay").addEventListener("click", function(e) {
-  if (e.target === this) closeModal();
-});
-
-// ─────────────────────────────────────────────
-//  MOCK DATA (dev/preview only)
-// ─────────────────────────────────────────────
-function getMockRecords() {
-  const r = (id,emp,ini,status,area,loc,bType,bStart) => {
-    const pos = AREA_POSITIONS[area] || { x:500, y:500 };
-    return { id, empId:emp, initials:ini, status, area, location:loc,
-      breakType:bType||"", breakStart:bStart||null, breakEnd:null,
-      x:pos.x, y:pos.y };
-  };
+// ═══════════════════════════════════════════════════════
+//  MOCK DATA (dev/preview)
+// ═══════════════════════════════════════════════════════
+function getMockEmployees(){
   return [
-    r("R001","EMP-1042","MT","active",    "Exit 1",      "LAX-ABG Exit Lane"),
-    r("R002","EMP-2081","PK","Break",     "Dispatch 1",  "LAX-ABG Dispatch","Break", new Date(Date.now()-9*60000).toISOString()),
-    r("R003","EMP-3017","DR","active",    "Key Ldr 1",   "LAX-ABG Key Leadership"),
-    r("R004","EMP-4053","KL","Lunch",     "Return 1",    "LAX-ABG Return Lane","Lunch", new Date(Date.now()-22*60000).toISOString()),
-    r("R005","EMP-5029","BS","active",    "Preferred 1", "LAX-ABG Preferred"),
-    r("R006","EMP-6074","TH","Break",     "A-CP 1",      "LAX-ABG Car Park","Break", new Date(Date.now()-4*60000).toISOString()),
-    r("R007","EMP-7011","RO","active",    "Rec Booth 1", "LAX-ABG Rec Booth"),
-    r("R008","EMP-8033","NB","active",    "HS B1",       "LAX-ABG HS Bay"),
-    r("R009","EMP-9002","JF","unassigned","A-LC 1",      ""),
-    r("R010","EMP-1099","SW","active",    "HS-Return E", "LAX-ABG HS Return East"),
+    {id:"E001",label:"EMP-1042 Marcus T."},
+    {id:"E002",label:"EMP-2081 Priya K."},
+    {id:"E003",label:"EMP-3017 Devon R."},
+    {id:"E004",label:"EMP-4053 Keisha L."},
+    {id:"E005",label:"EMP-5029 Ben S."},
+    {id:"E006",label:"EMP-6074 Tara H."},
+    {id:"E007",label:"EMP-7011 Ricky O."},
+    {id:"E008",label:"EMP-8033 Nina B."},
   ];
 }
 
-// ─────────────────────────────────────────────
-//  BOOT
-// ─────────────────────────────────────────────
-window.addEventListener("load", init);
+function getMockRecords(){
+  const ago=m=>new Date(Date.now()-m*60000).toISOString();
+  const mkPos=zone=>{ const p=AREA_POSITIONS[zone]; return p?{x:p.x,y:p.y}:{x:null,y:null}; };
+  const mk=(id,emp,ini,zone,b1s,b1e,ls,le,b2s,b2e,empRaw)=>{
+    const pos=mkPos(zone);
+    return {id,empId:emp,empRawId:empRaw||id,initials:ini,zone,currentStatus:"Active",
+      Break_Type_Start:b1s,Break_Type_End:b1e,
+      Lunch_Start:ls,Lunch_End:le,
+      Break_2_Start:b2s,Break_2_End:b2e,
+      x:pos.x,y:pos.y};
+  };
+  return [
+    mk("R001","EMP-1042","MT","Exit 1",       null,       null,null,null,null,null,"E001"),
+    mk("R002","EMP-2081","PK","Dispatch 1",   ago(15),    null,null,null,null,null,"E002"),
+    mk("R003","EMP-3017","DR","Key Ldr 1",    ago(40),ago(25),ago(10),null,null,null,"E003"),
+    mk("R004","EMP-4053","KL","Return 1",     ago(90),ago(75),ago(60),ago(30),null,null,"E004"),
+    mk("R005","EMP-5029","BS","Preferred 1",  null,       null,null,null,null,null,"E005"),
+    mk("R006","EMP-6074","TH","A-CP 1",       ago(120),ago(105),ago(90),ago(60),ago(20),null,"E006"),
+    mk("R007","EMP-7011","RO","Rec Booth 1",  null,       null,null,null,null,null,"E007"),
+    mk("R008","EMP-8033","NB","HS B1",        null,       null,null,null,null,null,"E008"),
+  ];
+}
+
+window.addEventListener("load",init);
 </script>
 </body>
 </html>
