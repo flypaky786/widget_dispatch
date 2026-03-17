@@ -536,8 +536,8 @@ function loadRecords(){
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: REPORT_NAME,
-    page:        1,
-    max_records: 500,
+    from:        1,
+    max_records: 200,
   }).then(function(resp){
     console.log("[Staffing Widget] Staffing records code:", resp.code, "count:", resp.data ? resp.data.length : 0);
     if(resp.code === 3000){
@@ -562,7 +562,7 @@ function loadEmployees(){
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: EMP_REPORT_NAME,
-    page:        1,
+    from:        1,
     max_records: 1000,
   }).then(function(resp){
     console.log("[Staffing Widget] Employee response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
@@ -776,7 +776,7 @@ function openAssignModal(zoneName){
     ZOHO.CREATOR.DATA.getRecords({
       app_name:    APP_NAME,
       report_name: EMP_REPORT_NAME,
-      page:        1,
+      from:        1,
       max_records: 1000,
     }).then(function(resp){
       console.log("[Staffing Widget] On-demand emp response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
@@ -1049,28 +1049,16 @@ function zohoUpdate(recId, data){
 }
 
 function zohoAdd(data){
-  console.log("[Staffing Widget] zohoAdd via fetch:", JSON.stringify(data));
-  // ZOHO.CREATOR.DATA has no create method in this SDK version.
-  // Use the Creator REST API v2.1 directly — widgets run in the same origin so no extra auth needed.
-  var url = "/creator/v2.1/data/autoflowx/" + APP_NAME + "/form/" + FORM_NAME;
-  return fetch(url, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ data: data }),
-  }).then(function(res){
-    return res.json();
+  console.log("[Staffing Widget] zohoAdd:", JSON.stringify(data));
+  return ZOHO.CREATOR.DATA.addRecords({
+    app_name:  APP_NAME,
+    form_name: FORM_NAME,
+    payload:   { data: [data] },
   }).then(function(resp){
-    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0, 300));
-    if(resp.code !== 3000){
-      showToast("⚠️ Add failed (" + resp.code + "): " + (resp.message || ""), "#ef4444");
-      return null;
-    }
-    return resp.data ? resp.data.ID : null;
-  }).catch(function(e){
-    console.error("[Staffing Widget] zohoAdd fetch error:", e);
-    showToast("⚠️ " + e, "#ef4444");
-    return null;
-  });
+    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,300));
+    if(resp.code !== 3000){ showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""), "#ef4444"); return null; }
+    return resp.data && resp.data[0] ? resp.data[0].ID : null;
+  }).catch(function(e){ console.error("[Staffing Widget] zohoAdd err:", e); showToast("⚠️ "+e, "#ef4444"); return null; });
 }
 
 function zohoDelete(recId){
