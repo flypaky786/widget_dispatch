@@ -1,5 +1,6 @@
 /* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1118,7 +1119,7 @@ function getMockEmployees(){ return []; }
 function getMockRecords()   { return []; }
 
 // ═══════════════════════════════════════════════════════
-//  BOOT — matches working dispatch widget pattern exactly
+//  BOOT
 // ═══════════════════════════════════════════════════════
 function startImageLoad(){
   var img = document.getElementById("floor-img");
@@ -1139,21 +1140,28 @@ function startImageLoad(){
   img.src = MAP_IMAGE_URL;
 }
 
-// Start image load immediately on script parse
+// Start image load right away — doesn't need Zoho
 startImageLoad();
 
-// Init via ZOHO.CREATOR.UTIL.getInitParams() — same pattern as dispatch widget
-ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
-  console.log("[Staffing Widget] getInitParams resolved:", JSON.stringify(params));
-  loadEmployees();
-  loadRecords();
-  hideStateOverlay();
-  renderAll();
-}).catch(function(err){
-  console.error("[Staffing Widget] getInitParams failed:", err);
-  hideStateOverlay();
-  renderAll();
-});
+// Wait for full page load before touching ZOHO (matches dispatch widget)
+window.onload = function(){
+  console.log("[Staffing Widget] ── INIT START ──");
+  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
+  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
+  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
+
+  ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
+    console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
+    loadEmployees();
+    loadRecords();
+    hideStateOverlay();
+    renderAll();
+  }).catch(function(err){
+    console.error("[Staffing Widget] getInitParams failed:", err);
+    hideStateOverlay();
+    renderAll();
+  });
+};
 </script>
 </body>
 </html>
