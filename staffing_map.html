@@ -1119,12 +1119,12 @@ function getMockEmployees(){ return []; }
 function getMockRecords()   { return []; }
 
 // ═══════════════════════════════════════════════════════
-//  BOOT
+//  BOOT — exact same pattern as working dispatch widget
 // ═══════════════════════════════════════════════════════
 function startImageLoad(){
   var img = document.getElementById("floor-img");
   img.onerror = function(){ console.error("[Staffing Widget] Image failed:", MAP_IMAGE_URL); };
-  img.onload  = function(){
+  img.onload = function(){
     imgW = img.naturalWidth;
     imgH = img.naturalHeight;
     console.log("[Staffing Widget] Image loaded:", imgW, "x", imgH);
@@ -1140,28 +1140,20 @@ function startImageLoad(){
   img.src = MAP_IMAGE_URL;
 }
 
-// Start image load right away — doesn't need Zoho
 startImageLoad();
 
-// Wait for full page load before touching ZOHO (matches dispatch widget)
-window.onload = function(){
-  console.log("[Staffing Widget] ── INIT START ──");
-  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
-  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
-  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
-
-  ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
-    console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
-    loadEmployees();
-    loadRecords();
-    hideStateOverlay();
-    renderAll();
-  }).catch(function(err){
-    console.error("[Staffing Widget] getInitParams failed:", err);
-    hideStateOverlay();
-    renderAll();
-  });
-};
+// Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
+  console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
+  loadEmployees();
+  loadRecords();
+  hideStateOverlay();
+  renderAll();
+}).catch(function(err){
+  console.error("[Staffing Widget] getInitParams failed:", err);
+  hideStateOverlay();
+  renderAll();
+});
 </script>
 </body>
 </html>
