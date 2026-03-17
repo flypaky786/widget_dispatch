@@ -1051,7 +1051,7 @@ function zohoUpdate(recId, data){
 
 function zohoAdd(data){
   console.log("[Staffing Widget] zohoAdd:", JSON.stringify(data));
-  return ZOHO.CREATOR.DATA.addRecord({
+  return ZOHO.CREATOR.DATA.createRecord({
     app_name:  APP_NAME,
     form_name: FORM_NAME,
     payload:   { data: data },
