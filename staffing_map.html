@@ -1,12 +1,12 @@
 /* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
 <title>LAX-ABG Staffing Map</title>
+<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -532,60 +532,55 @@ function todayFilter(dateStr){
 //  ZOHO LOADS
 // ═══════════════════════════════════════════════════════
 function loadRecords(){
-  console.log("[Staffing Widget] ── loadRecords START ──");
-  ZOHO.CREATOR.API.getAllRecords({
-    appName:APP_NAME, reportName:REPORT_NAME, page:1, pageSize:500
-  }).then(resp=>{
-    console.log("[Staffing Widget] Staffing records response:", resp.code, "| count:", resp.data?.length ?? "null");
-    if(resp.data?.length) {
-      console.log("[Staffing Widget] First staffing record keys:", Object.keys(resp.data[0]));
-      console.log("[Staffing Widget] First staffing record full:", JSON.stringify(resp.data[0]));
-    }
-    if(resp.code===3000){
-      const all = resp.data || [];
-      const filtered = all.filter(r => todayFilter(r.Date_Time));
-      console.log("[Staffing Widget] Total records:", all.length, "| After 28hr filter:", filtered.length);
+  console.log("[Staffing Widget] loadRecords — report:", REPORT_NAME);
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name:    APP_NAME,
+    report_name: REPORT_NAME,
+    page:        1,
+    max_records: 500,
+  }).then(function(resp){
+    console.log("[Staffing Widget] Staffing records code:", resp.code, "count:", resp.data ? resp.data.length : 0);
+    if(resp.code === 3000){
+      if(resp.data && resp.data.length) console.log("[Staffing Widget] First staffing record:", JSON.stringify(resp.data[0]));
+      var all      = resp.data || [];
+      var filtered = all.filter(function(r){ return todayFilter(r.Date_Time); });
+      console.log("[Staffing Widget] After 28hr filter:", filtered.length);
       records = filtered.map(normalizeRecord);
-      hideStateOverlay();
       renderAll();
-      setTimeout(fitView, 150);
     } else {
-      console.error("[Staffing Widget] loadRecords failed — code:", resp.code, "message:", resp.message);
-      setStateMsg("⚠️ Could not load records ("+resp.code+"): "+(resp.message||""));
-      hideStateOverlay();
-      renderAll(); // still render zones with all + pins
+      console.error("[Staffing Widget] loadRecords failed code:", resp.code, resp.message);
+      renderAll();
     }
-  }).catch(err=>{
-    console.error("[Staffing Widget] loadRecords EXCEPTION:", err);
-    setStateMsg("⚠️ "+err);
-    hideStateOverlay();
+  }).catch(function(err){
+    console.error("[Staffing Widget] loadRecords exception:", err);
     renderAll();
   });
 }
 
 function loadEmployees(){
-  console.log("[Staffing Widget] Loading employees from report:", EMP_REPORT_NAME, "app:", APP_NAME);
-  ZOHO.CREATOR.API.getAllRecords({
-    appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
-  }).then(resp=>{
-    console.log("[Staffing Widget] Employee API response code:", resp.code);
-    console.log("[Staffing Widget] Employee API full response:", JSON.stringify(resp).substring(0,500));
-    if(resp.code===3000 && resp.data && resp.data.length){
-      console.log("[Staffing Widget] Raw first employee record:", JSON.stringify(resp.data[0]));
-      allEmployees=resp.data.map(r=>{
-        // Log field names from first record so we can see exactly what Zoho returns
-        const label = r.Employee_ID || r.Employee_Id || r.employee_id
-                   || r.Full_Name   || r.full_name
-                   || (r.First_Name && r.Last_Name ? r.First_Name+" "+r.Last_Name : null)
-                   || r.Name || r.ID;
-        return { id: r.ID, label, raw: r };
-      }).sort((a,b)=>a.label.localeCompare(b.label));
-      console.log("[Staffing Widget] Employees loaded:", allEmployees.length, "— first:", allEmployees[0]);
+  console.log("[Staffing Widget] loadEmployees — report:", EMP_REPORT_NAME);
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name:    APP_NAME,
+    report_name: EMP_REPORT_NAME,
+    page:        1,
+    max_records: 1000,
+  }).then(function(resp){
+    console.log("[Staffing Widget] Employee response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
+    if(resp.code === 3000 && resp.data && resp.data.length){
+      console.log("[Staffing Widget] First employee record keys:", Object.keys(resp.data[0]));
+      console.log("[Staffing Widget] First employee record:", JSON.stringify(resp.data[0]));
+      allEmployees = resp.data.map(function(r){
+        var label = r.Employee_ID || r.Employee_Id || r.Full_Name
+                 || (r.First_Name ? r.First_Name + " " + (r.Last_Name||"") : null)
+                 || r.Name || r.ID;
+        return { id: r.ID, label: label.trim() };
+      }).sort(function(a,b){ return a.label.localeCompare(b.label); });
+      console.log("[Staffing Widget] Employees ready:", allEmployees.length, "first:", JSON.stringify(allEmployees[0]));
     } else {
-      console.warn("[Staffing Widget] Employee load returned no data. code:", resp.code, "message:", resp.message, "data length:", resp.data?.length);
+      console.warn("[Staffing Widget] No employee data. code:", resp.code, "msg:", resp.message);
     }
-  }).catch(err=>{
-    console.error("[Staffing Widget] Employee load EXCEPTION:", err);
+  }).catch(function(err){
+    console.error("[Staffing Widget] loadEmployees exception:", err);
   });
 }
 
@@ -778,26 +773,27 @@ function openAssignModal(zoneName){
     populate();
   } else if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
     console.log("[Staffing Widget] On-demand employee fetch for zone:", zoneName);
-    ZOHO.CREATOR.API.getAllRecords({
-      appName:APP_NAME, reportName:EMP_REPORT_NAME, page:1, pageSize:1000
-    }).then(resp=>{
-      console.log("[Staffing Widget] On-demand emp response code:", resp.code, "data count:", resp.data?.length);
-      if(resp.code===3000&&resp.data&&resp.data.length){
-        console.log("[Staffing Widget] On-demand first record keys:", Object.keys(resp.data[0]));
+    ZOHO.CREATOR.DATA.getRecords({
+      app_name:    APP_NAME,
+      report_name: EMP_REPORT_NAME,
+      page:        1,
+      max_records: 1000,
+    }).then(function(resp){
+      console.log("[Staffing Widget] On-demand emp response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
+      if(resp.code===3000 && resp.data && resp.data.length){
         console.log("[Staffing Widget] On-demand first record:", JSON.stringify(resp.data[0]));
-        allEmployees=resp.data.map(r=>{
-          const label = r.Employee_ID || r.Employee_Id || r.employee_id
-                     || r.Full_Name   || r.full_name
-                     || (r.First_Name && r.Last_Name ? r.First_Name+" "+r.Last_Name : null)
-                     || r.Name || r.ID;
-          return { id: r.ID, label, raw: r };
-        }).sort((a,b)=>a.label.localeCompare(b.label));
+        allEmployees = resp.data.map(function(r){
+          var label = r.Employee_ID || r.Employee_Id || r.Full_Name
+                   || (r.First_Name ? r.First_Name+" "+(r.Last_Name||"") : null)
+                   || r.Name || r.ID;
+          return { id: r.ID, label: label.trim() };
+        }).sort(function(a,b){ return a.label.localeCompare(b.label); });
       } else {
-        console.warn("[Staffing Widget] On-demand emp load empty. code:",resp.code,"msg:",resp.message);
+        console.warn("[Staffing Widget] On-demand emp empty. code:", resp.code, "msg:", resp.message);
       }
       populate();
-    }).catch(err=>{
-      console.error("[Staffing Widget] On-demand emp fetch error:", err);
+    }).catch(function(err){
+      console.error("[Staffing Widget] On-demand emp error:", err);
       populate();
     });
   } else {
@@ -1036,47 +1032,46 @@ function unassignEmployee(){
 }
 
 // ═══════════════════════════════════════════════════════
-//  ZOHO API
+//  ZOHO API — uses ZOHO.CREATOR.DATA matching dispatch widget
 // ═══════════════════════════════════════════════════════
-const DEV_MODE=typeof ZOHO==="undefined"||!ZOHO.CREATOR;
-
 function zohoUpdate(recId, data){
-  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r(true),400));
-  return ZOHO.CREATOR.API.updateRecord({
-    appName:  APP_NAME,
-    formName: FORM_NAME,
-    id:       recId,
-    data:     { data: data },   // Zoho Creator expects { data: { field: value } }
-  }).then(resp=>{
-    if(resp.code!==3000){
-      console.error("Zoho update failed:",resp);
-      showToast("⚠️ Save failed ("+resp.code+"): "+(resp.message||""),"#ef4444");
-      return false;
-    }
+  console.log("[Staffing Widget] zohoUpdate id:", recId, "data:", JSON.stringify(data));
+  return ZOHO.CREATOR.DATA.updateRecordById({
+    app_name:    APP_NAME,
+    report_name: REPORT_NAME,
+    id:          recId,
+    payload:     { data: data },
+  }).then(function(resp){
+    console.log("[Staffing Widget] zohoUpdate resp:", resp.code, resp.message||"");
+    if(resp.code !== 3000){ showToast("⚠️ Save failed ("+resp.code+"): "+(resp.message||""), "#ef4444"); return false; }
     return true;
-  }).catch(e=>{ showToast("⚠️ "+e,"#ef4444"); return false; });
+  }).catch(function(e){ console.error("[Staffing Widget] zohoUpdate err:", e); showToast("⚠️ "+e, "#ef4444"); return false; });
 }
 
 function zohoAdd(data){
-  console.log("[Staffing Widget] zohoAdd payload:", JSON.stringify(data));
-  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r("MOCK_"+Date.now()),400));
-  return ZOHO.CREATOR.API.addRecord({
-    appName:APP_NAME, formName:FORM_NAME, data:{data}
-  }).then(resp=>{
-    console.log("[Staffing Widget] zohoAdd response:", JSON.stringify(resp).substring(0,300));
-    if(resp.code!==3000){showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""),"#ef4444");return null;}
-    return resp.data?.ID||null;
-  }).catch(e=>{console.error("[Staffing Widget] zohoAdd error:",e);showToast("⚠️ "+e,"#ef4444");return null;});
+  console.log("[Staffing Widget] zohoAdd:", JSON.stringify(data));
+  return ZOHO.CREATOR.DATA.addRecord({
+    app_name:  APP_NAME,
+    form_name: FORM_NAME,
+    payload:   { data: data },
+  }).then(function(resp){
+    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,200));
+    if(resp.code !== 3000){ showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""), "#ef4444"); return null; }
+    return resp.data ? resp.data.ID : null;
+  }).catch(function(e){ console.error("[Staffing Widget] zohoAdd err:", e); showToast("⚠️ "+e, "#ef4444"); return null; });
 }
 
 function zohoDelete(recId){
-  if(DEV_MODE) return new Promise(r=>setTimeout(()=>r(true),400));
-  return ZOHO.CREATOR.API.deleteRecord({
-    appName:APP_NAME,reportName:REPORT_NAME,id:recId
-  }).then(resp=>{
-    if(resp.code!==3000){showToast("⚠️ Delete failed ("+resp.code+")","#ef4444");return false;}
+  console.log("[Staffing Widget] zohoDelete id:", recId);
+  return ZOHO.CREATOR.DATA.deleteRecordById({
+    app_name:    APP_NAME,
+    report_name: REPORT_NAME,
+    id:          recId,
+  }).then(function(resp){
+    console.log("[Staffing Widget] zohoDelete resp:", resp.code);
+    if(resp.code !== 3000){ showToast("⚠️ Delete failed ("+resp.code+")", "#ef4444"); return false; }
     return true;
-  }).catch(e=>{showToast("⚠️ "+e,"#ef4444");return false;});
+  }).catch(function(e){ console.error("[Staffing Widget] zohoDelete err:", e); showToast("⚠️ "+e, "#ef4444"); return false; });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1123,23 +1118,17 @@ function getMockEmployees(){ return []; }
 function getMockRecords()   { return []; }
 
 // ═══════════════════════════════════════════════════════
-//  BOOT — Zoho Creator widget correct pattern
-//  In a Zoho widget, ZOHO is injected by the framework
-//  but may not exist at script parse time. We use a
-//  deferred approach: start image load immediately,
-//  then call ZOHO.CREATOR.init() once DOM is ready.
+//  BOOT — matches working dispatch widget pattern exactly
 // ═══════════════════════════════════════════════════════
 function startImageLoad(){
-  const img = document.getElementById("floor-img");
-  img.onerror = () => {
-    console.error("[Staffing Widget] Floor plan image failed to load:", MAP_IMAGE_URL);
-  };
-  img.onload = () => {
+  var img = document.getElementById("floor-img");
+  img.onerror = function(){ console.error("[Staffing Widget] Image failed:", MAP_IMAGE_URL); };
+  img.onload  = function(){
     imgW = img.naturalWidth;
     imgH = img.naturalHeight;
     console.log("[Staffing Widget] Image loaded:", imgW, "x", imgH);
-    const svg = document.getElementById("zone-layer");
-    svg.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
+    var svg = document.getElementById("zone-layer");
+    svg.setAttribute("viewBox", "0 0 " + imgW + " " + imgH);
     svg.setAttribute("width",  imgW);
     svg.setAttribute("height", imgH);
     svg.style.width  = imgW + "px";
@@ -1150,37 +1139,21 @@ function startImageLoad(){
   img.src = MAP_IMAGE_URL;
 }
 
-function init(){
-  console.log("[Staffing Widget] ── INIT START ──");
-  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
-  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
-  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
+// Start image load immediately on script parse
+startImageLoad();
 
-  startImageLoad();
-
-  // Zoho Creator guarantees ZOHO exists in widget scope.
-  // We call init() directly — no typeof check needed.
-  try {
-    console.log("[Staffing Widget] Calling ZOHO.CREATOR.init()...");
-    ZOHO.CREATOR.init().then(function(){
-      console.log("[Staffing Widget] ZOHO.CREATOR.init() resolved ✓");
-      loadEmployees();
-      loadRecords();
-    }).catch(function(err){
-      console.error("[Staffing Widget] ZOHO.CREATOR.init() rejected:", err);
-      hideStateOverlay();
-      renderAll();
-    });
-  } catch(e) {
-    // Not inside Zoho (local dev preview) — render empty map
-    console.warn("[Staffing Widget] ZOHO not available (dev mode):", e.message);
-    hideStateOverlay();
-    renderAll();
-    setTimeout(fitView, 200);
-  }
-}
-
-window.addEventListener("load", init);
+// Init via ZOHO.CREATOR.UTIL.getInitParams() — same pattern as dispatch widget
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
+  console.log("[Staffing Widget] getInitParams resolved:", JSON.stringify(params));
+  loadEmployees();
+  loadRecords();
+  hideStateOverlay();
+  renderAll();
+}).catch(function(err){
+  console.error("[Staffing Widget] getInitParams failed:", err);
+  hideStateOverlay();
+  renderAll();
+});
 </script>
 </body>
 </html>
