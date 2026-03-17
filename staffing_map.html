@@ -1,6 +1,5 @@
 /* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1050,16 +1049,28 @@ function zohoUpdate(recId, data){
 }
 
 function zohoAdd(data){
-  console.log("[Staffing Widget] zohoAdd:", JSON.stringify(data));
-  return ZOHO.CREATOR.DATA.createRecord({
-    app_name:  APP_NAME,
-    form_name: FORM_NAME,
-    payload:   { data: data },
+  console.log("[Staffing Widget] zohoAdd via fetch:", JSON.stringify(data));
+  // ZOHO.CREATOR.DATA has no create method in this SDK version.
+  // Use the Creator REST API v2.1 directly — widgets run in the same origin so no extra auth needed.
+  var url = "/creator/v2.1/data/autoflowx/" + APP_NAME + "/form/" + FORM_NAME;
+  return fetch(url, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ data: data }),
+  }).then(function(res){
+    return res.json();
   }).then(function(resp){
-    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,200));
-    if(resp.code !== 3000){ showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""), "#ef4444"); return null; }
+    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0, 300));
+    if(resp.code !== 3000){
+      showToast("⚠️ Add failed (" + resp.code + "): " + (resp.message || ""), "#ef4444");
+      return null;
+    }
     return resp.data ? resp.data.ID : null;
-  }).catch(function(e){ console.error("[Staffing Widget] zohoAdd err:", e); showToast("⚠️ "+e, "#ef4444"); return null; });
+  }).catch(function(e){
+    console.error("[Staffing Widget] zohoAdd fetch error:", e);
+    showToast("⚠️ " + e, "#ef4444");
+    return null;
+  });
 }
 
 function zohoDelete(recId){
@@ -1145,7 +1156,6 @@ startImageLoad();
 // Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
-  console.log("[Staffing Widget] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA));
   loadEmployees();
   loadRecords();
   hideStateOverlay();
