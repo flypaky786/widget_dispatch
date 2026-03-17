@@ -1145,6 +1145,7 @@ startImageLoad();
 // Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
+  console.log("[Staffing Widget] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA));
   loadEmployees();
   loadRecords();
   hideStateOverlay();
