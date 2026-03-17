@@ -7,7 +7,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
 <title>LAX-ABG Staffing Map</title>
-<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetSDK.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -527,61 +526,6 @@ function todayFilter(dateStr){
   const now = new Date();
   const cutoff = new Date(now); cutoff.setHours(cutoff.getHours()-28);
   return d >= cutoff && d <= now;
-}
-
-// ═══════════════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════════════
-function init(){
-  console.log("[Staffing Widget] ── INIT START ──");
-  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
-  console.log("[Staffing Widget] FORM_NAME:", FORM_NAME);
-  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
-  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
-  console.log("[Staffing Widget] MAP_IMAGE_URL:", MAP_IMAGE_URL);
-  console.log("[Staffing Widget] ZOHO defined:", typeof ZOHO !== "undefined");
-  console.log("[Staffing Widget] ZOHO.CREATOR defined:", typeof ZOHO !== "undefined" && !!ZOHO.CREATOR);
-
-  // Load floor plan image
-  const img = document.getElementById("floor-img");
-  img.onerror = () => {
-    console.error("[Staffing Widget] Floor plan image failed to load:", MAP_IMAGE_URL);
-    setStateMsg("⚠️ Floor plan image not found — update MAP_IMAGE_URL");
-  };
-  img.onload = () => {
-    imgW = img.naturalWidth;
-    imgH = img.naturalHeight;
-    console.log("[Staffing Widget] Image loaded — natural size:", imgW, "x", imgH);
-    // Set SVG to exact image pixel dimensions
-    const svg = document.getElementById("zone-layer");
-    svg.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
-    svg.setAttribute("width",  imgW);
-    svg.setAttribute("height", imgH);
-    svg.style.width  = imgW + "px";
-    svg.style.height = imgH + "px";
-    drawZoneBoxes();
-    fitView();
-  };
-  img.src = MAP_IMAGE_URL;
-
-  if(typeof ZOHO !== "undefined" && ZOHO.CREATOR){
-    console.log("[Staffing Widget] Running inside Zoho Creator — calling ZOHO.CREATOR.init()");
-    ZOHO.CREATOR.init().then(() => {
-      console.log("[Staffing Widget] ZOHO.CREATOR.init() resolved — loading data");
-      loadEmployees();
-      loadRecords();
-    }).catch(err => {
-      console.error("[Staffing Widget] ZOHO.CREATOR.init() failed:", err);
-      setStateMsg("⚠️ Zoho init failed: " + err);
-    });
-  } else {
-    console.warn("[Staffing Widget] ZOHO SDK not found — running in dev/preview mode with empty data");
-    records = getMockRecords();
-    allEmployees = getMockEmployees();
-    hideStateOverlay();
-    renderAll();
-    setTimeout(fitView, 150);
-  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1178,7 +1122,65 @@ document.getElementById("manage-modal").addEventListener("click",function(e){if(
 function getMockEmployees(){ return []; }
 function getMockRecords()   { return []; }
 
-window.addEventListener("load",init);
+// ═══════════════════════════════════════════════════════
+//  BOOT — Zoho Creator widget correct pattern
+//  In a Zoho widget, ZOHO is injected by the framework
+//  but may not exist at script parse time. We use a
+//  deferred approach: start image load immediately,
+//  then call ZOHO.CREATOR.init() once DOM is ready.
+// ═══════════════════════════════════════════════════════
+function startImageLoad(){
+  const img = document.getElementById("floor-img");
+  img.onerror = () => {
+    console.error("[Staffing Widget] Floor plan image failed to load:", MAP_IMAGE_URL);
+  };
+  img.onload = () => {
+    imgW = img.naturalWidth;
+    imgH = img.naturalHeight;
+    console.log("[Staffing Widget] Image loaded:", imgW, "x", imgH);
+    const svg = document.getElementById("zone-layer");
+    svg.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
+    svg.setAttribute("width",  imgW);
+    svg.setAttribute("height", imgH);
+    svg.style.width  = imgW + "px";
+    svg.style.height = imgH + "px";
+    drawZoneBoxes();
+    fitView();
+  };
+  img.src = MAP_IMAGE_URL;
+}
+
+function init(){
+  console.log("[Staffing Widget] ── INIT START ──");
+  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
+  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
+  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
+
+  startImageLoad();
+
+  // Zoho Creator guarantees ZOHO exists in widget scope.
+  // We call init() directly — no typeof check needed.
+  try {
+    console.log("[Staffing Widget] Calling ZOHO.CREATOR.init()...");
+    ZOHO.CREATOR.init().then(function(){
+      console.log("[Staffing Widget] ZOHO.CREATOR.init() resolved ✓");
+      loadEmployees();
+      loadRecords();
+    }).catch(function(err){
+      console.error("[Staffing Widget] ZOHO.CREATOR.init() rejected:", err);
+      hideStateOverlay();
+      renderAll();
+    });
+  } catch(e) {
+    // Not inside Zoho (local dev preview) — render empty map
+    console.warn("[Staffing Widget] ZOHO not available (dev mode):", e.message);
+    hideStateOverlay();
+    renderAll();
+    setTimeout(fitView, 200);
+  }
+}
+
+window.addEventListener("load", init);
 </script>
 </body>
 </html>
