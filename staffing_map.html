@@ -1,5 +1,6 @@
 /* https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates_v3_lighter.png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -250,7 +251,7 @@ body {
 <div id="map-viewport">
   <div id="map-canvas">
     <img id="floor-img" src="" alt="Floor Plan" draggable="false"/>
-    <svg id="zone-layer"></svg>
+    <svg id="zone-layer" viewBox="0 0 1 1" width="1" height="1" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible"></svg>
   </div>
   <div id="state-overlay">
     <div class="spinner"></div>
@@ -531,22 +532,54 @@ function todayFilter(dateStr){
 //  INIT
 // ═══════════════════════════════════════════════════════
 function init(){
-  const img=document.getElementById("floor-img");
-  img.onload=()=>{
-    imgW=img.naturalWidth; imgH=img.naturalHeight;
-    const svg=document.getElementById("zone-layer");
-    svg.setAttribute("width",imgW); svg.setAttribute("height",imgH);
-    svg.style.width=imgW+"px"; svg.style.height=imgH+"px";
-    drawZoneBoxes(); fitView();
-  };
-  img.src=MAP_IMAGE_URL;
+  console.log("[Staffing Widget] ── INIT START ──");
+  console.log("[Staffing Widget] APP_NAME:", APP_NAME);
+  console.log("[Staffing Widget] FORM_NAME:", FORM_NAME);
+  console.log("[Staffing Widget] REPORT_NAME:", REPORT_NAME);
+  console.log("[Staffing Widget] EMP_REPORT_NAME:", EMP_REPORT_NAME);
+  console.log("[Staffing Widget] MAP_IMAGE_URL:", MAP_IMAGE_URL);
+  console.log("[Staffing Widget] ZOHO defined:", typeof ZOHO !== "undefined");
+  console.log("[Staffing Widget] ZOHO.CREATOR defined:", typeof ZOHO !== "undefined" && !!ZOHO.CREATOR);
 
-  if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
-    ZOHO.CREATOR.init().then(()=>{ loadEmployees(); loadRecords(); });
+  // Load floor plan image
+  const img = document.getElementById("floor-img");
+  img.onerror = () => {
+    console.error("[Staffing Widget] Floor plan image failed to load:", MAP_IMAGE_URL);
+    setStateMsg("⚠️ Floor plan image not found — update MAP_IMAGE_URL");
+  };
+  img.onload = () => {
+    imgW = img.naturalWidth;
+    imgH = img.naturalHeight;
+    console.log("[Staffing Widget] Image loaded — natural size:", imgW, "x", imgH);
+    // Set SVG to exact image pixel dimensions
+    const svg = document.getElementById("zone-layer");
+    svg.setAttribute("viewBox", `0 0 ${imgW} ${imgH}`);
+    svg.setAttribute("width",  imgW);
+    svg.setAttribute("height", imgH);
+    svg.style.width  = imgW + "px";
+    svg.style.height = imgH + "px";
+    drawZoneBoxes();
+    fitView();
+  };
+  img.src = MAP_IMAGE_URL;
+
+  if(typeof ZOHO !== "undefined" && ZOHO.CREATOR){
+    console.log("[Staffing Widget] Running inside Zoho Creator — calling ZOHO.CREATOR.init()");
+    ZOHO.CREATOR.init().then(() => {
+      console.log("[Staffing Widget] ZOHO.CREATOR.init() resolved — loading data");
+      loadEmployees();
+      loadRecords();
+    }).catch(err => {
+      console.error("[Staffing Widget] ZOHO.CREATOR.init() failed:", err);
+      setStateMsg("⚠️ Zoho init failed: " + err);
+    });
   } else {
-    records=getMockRecords(); allEmployees=getMockEmployees();
-    hideStateOverlay(); renderAll();
-    setTimeout(fitView,100);
+    console.warn("[Staffing Widget] ZOHO SDK not found — running in dev/preview mode with empty data");
+    records = getMockRecords();
+    allEmployees = getMockEmployees();
+    hideStateOverlay();
+    renderAll();
+    setTimeout(fitView, 150);
   }
 }
 
@@ -554,19 +587,35 @@ function init(){
 //  ZOHO LOADS
 // ═══════════════════════════════════════════════════════
 function loadRecords(){
-  console.log("[Staffing Widget] Loading records from report:", REPORT_NAME);
+  console.log("[Staffing Widget] ── loadRecords START ──");
   ZOHO.CREATOR.API.getAllRecords({
     appName:APP_NAME, reportName:REPORT_NAME, page:1, pageSize:500
   }).then(resp=>{
-    console.log("[Staffing Widget] Staffing records response code:", resp.code, "count:", resp.data?.length);
+    console.log("[Staffing Widget] Staffing records response:", resp.code, "| count:", resp.data?.length ?? "null");
+    if(resp.data?.length) {
+      console.log("[Staffing Widget] First staffing record keys:", Object.keys(resp.data[0]));
+      console.log("[Staffing Widget] First staffing record full:", JSON.stringify(resp.data[0]));
+    }
     if(resp.code===3000){
-      if(resp.data?.length) console.log("[Staffing Widget] First staffing record:", JSON.stringify(resp.data[0]));
-      records=resp.data.filter(r=>todayFilter(r.Date_Time)).map(normalizeRecord);
-      console.log("[Staffing Widget] Records after today filter:", records.length);
-      hideStateOverlay(); renderAll();
-      setTimeout(fitView,100);
-    } else setStateMsg("⚠️ Could not load records ("+resp.code+")");
-  }).catch(err=>{ console.error("[Staffing Widget] loadRecords error:", err); setStateMsg("⚠️ "+err); });
+      const all = resp.data || [];
+      const filtered = all.filter(r => todayFilter(r.Date_Time));
+      console.log("[Staffing Widget] Total records:", all.length, "| After 28hr filter:", filtered.length);
+      records = filtered.map(normalizeRecord);
+      hideStateOverlay();
+      renderAll();
+      setTimeout(fitView, 150);
+    } else {
+      console.error("[Staffing Widget] loadRecords failed — code:", resp.code, "message:", resp.message);
+      setStateMsg("⚠️ Could not load records ("+resp.code+"): "+(resp.message||""));
+      hideStateOverlay();
+      renderAll(); // still render zones with all + pins
+    }
+  }).catch(err=>{
+    console.error("[Staffing Widget] loadRecords EXCEPTION:", err);
+    setStateMsg("⚠️ "+err);
+    hideStateOverlay();
+    renderAll();
+  });
 }
 
 function loadEmployees(){
