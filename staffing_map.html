@@ -237,7 +237,11 @@ body {
 <div id="header">
   <div>
     <h1>🅿 ODORZX — LAX-ABG STAFFING MAP</h1>
-    <div class="sub">TAP + TO ASSIGN · TAP AVATAR TO MANAGE BREAKS</div>
+    <div class="sub" style="display:flex;align-items:center;gap:6px;">
+      <span id="live-dot" style="width:7px;height:7px;border-radius:50%;background:#6b7280;flex-shrink:0;display:inline-block;"></span>
+      <span id="last-updated">Connecting…</span>
+      &nbsp;·&nbsp; TAP + TO ASSIGN · TAP AVATAR TO MANAGE BREAKS
+    </div>
   </div>
   <div id="header-stats">
     <div class="stat-pill"><span class="stat-dot" style="background:#22c55e"></span><span id="cnt-active">—</span> Active</div>
@@ -503,109 +507,149 @@ let allEmployees = []; // all Employee_Info rows
 let assigningZone = null; // zone name currently in assign modal
 let managingId    = null; // record ID in manage modal
 
+// Helper — treat Zoho empty string "" same as null/falsy
+function hasVal(v){ return v && v !== ""; }
+
 // Derive status from field values
 function deriveStatus(r){
-  if(r.Break_Type_Start && !r.Break_Type_End)  return "Break 1";
-  if(r.Lunch_Start      && !r.Lunch_End)        return "Lunch";
-  if(r.Break_2_Start    && !r.Break_2_End)      return "Break 2";
+  if(hasVal(r.Break_Type_Start) && !hasVal(r.Break_Type_End)) return "Break 1";
+  if(hasVal(r.Lunch_Start)      && !hasVal(r.Lunch_End))      return "Lunch";
+  if(hasVal(r.Break_2_Start)    && !hasVal(r.Break_2_End))    return "Break 2";
   return "Active";
 }
 
 // Is anything currently active (blocking other starts)?
 function anyActive(r){
-  return (r.Break_Type_Start && !r.Break_Type_End)
-      || (r.Lunch_Start      && !r.Lunch_End)
-      || (r.Break_2_Start    && !r.Break_2_End);
+  return (hasVal(r.Break_Type_Start) && !hasVal(r.Break_Type_End))
+      || (hasVal(r.Lunch_Start)      && !hasVal(r.Lunch_End))
+      || (hasVal(r.Break_2_Start)    && !hasVal(r.Break_2_End));
 }
 
-// Overnight window: yesterday noon → now (covers overnight shifts)
+// Parse Zoho datetime string: "20-Mar-2026 12:29:36 PM"
+function parseZohoDate(d){
+  if(!d || d === "") return null;
+  try {
+    // Try direct parse first
+    var dt = new Date(d);
+    if(!isNaN(dt.getTime())) return dt;
+    // Zoho format: "dd-MMM-yyyy HH:mm:ss" or "dd-MMM-yyyy hh:mm:ss AM/PM"
+    var p = d.toString().trim().split(" ");
+    if(p.length < 2) return null;
+    var dp = p[0].split("-");
+    if(dp.length < 3) return null;
+    var rebuilt = dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");
+    dt = new Date(rebuilt);
+    return isNaN(dt.getTime()) ? null : dt;
+  } catch(e){ return null; }
+}
+
+// Overnight window: 28hr lookback
 function todayFilter(dateStr){
-  if(!dateStr) return false;
-  const d   = new Date(dateStr);
-  const now = new Date();
-  const cutoff = new Date(now); cutoff.setHours(cutoff.getHours()-28);
+  if(!dateStr || dateStr === "") return true; // include records with no date
+  var d = parseZohoDate(dateStr);
+  if(!d) return true; // can't parse — include it
+  var now = new Date();
+  var cutoff = new Date(now.getTime() - 28*60*60*1000);
   return d >= cutoff && d <= now;
 }
 
+function normalizeRecord(r){
+  // Employee_Info comes back as an object: {Employee_ID:"1508", ID:"...", zc_display_value:"1508"}
+  var empObj     = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
+  var empDisplay = empObj ? (empObj.Employee_ID || empObj.zc_display_value || empObj.ID)
+                          : (r["Employee_Info.Employee_ID"] || r.Employee_ID || r.Employee_Info || "—");
+  var empRawId   = empObj ? empObj.ID : (r.Employee_Info || "");
+
+  var parts    = String(empDisplay).trim().split(/[\s\-]+/);
+  var initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase()
+    : String(empDisplay).substring(0,2).toUpperCase();
+
+  var pos = AREA_POSITIONS[r.Zone] || null;
+
+  // Treat empty strings as null for datetime fields
+  function clean(v){ return (v && v !== "") ? v : null; }
+
+  return {
+    id:              r.ID,
+    empId:           empDisplay,
+    empRawId:        empRawId,
+    initials:        initials,
+    zone:            r.Zone  || "",
+    currentStatus:   r.Current_Status || "Active",
+    Break_Type_Start: clean(r.Break_Type_Start),
+    Break_Type_End:   clean(r.Break_Type_End),
+    Lunch_Start:      clean(r.Lunch_Start),
+    Lunch_End:        clean(r.Lunch_End),
+    Break_2_Start:    clean(r.Break_2_Start),
+    Break_2_End:      clean(r.Break_2_End),
+    x: pos ? pos.x : null,
+    y: pos ? pos.y : null,
+  };
+}
+
 // ═══════════════════════════════════════════════════════
-//  ZOHO LOADS
+//  ZOHO LOADS + POLLING
 // ═══════════════════════════════════════════════════════
 function loadRecords(){
-  console.log("[Staffing Widget] loadRecords — report:", REPORT_NAME);
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: REPORT_NAME,
     from:        1,
     max_records: 200,
   }).then(function(resp){
-    console.log("[Staffing Widget] Staffing records code:", resp.code, "count:", resp.data ? resp.data.length : 0);
     if(resp.code === 3000){
-      if(resp.data && resp.data.length) console.log("[Staffing Widget] First staffing record:", JSON.stringify(resp.data[0]));
       var all      = resp.data || [];
       var filtered = all.filter(function(r){ return todayFilter(r.Date_Time); });
-      console.log("[Staffing Widget] After 28hr filter:", filtered.length);
       records = filtered.map(normalizeRecord);
       renderAll();
+      // If manage modal is open, refresh it in-place with latest data
+      if(managingId){
+        var updated = records.find(function(r){ return r.id === managingId; });
+        if(updated) refreshManageModal(updated);
+      }
+      setLiveStatus(true);
     } else {
-      console.error("[Staffing Widget] loadRecords failed code:", resp.code, resp.message);
-      renderAll();
+      console.error("[Staffing Widget] loadRecords failed:", resp.code, resp.message);
+      setLiveStatus(false);
     }
   }).catch(function(err){
     console.error("[Staffing Widget] loadRecords exception:", err);
-    renderAll();
+    setLiveStatus(false);
   });
 }
 
 function loadEmployees(){
-  console.log("[Staffing Widget] loadEmployees — report:", EMP_REPORT_NAME);
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: EMP_REPORT_NAME,
     from:        1,
     max_records: 1000,
   }).then(function(resp){
-    console.log("[Staffing Widget] Employee response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
     if(resp.code === 3000 && resp.data && resp.data.length){
-      console.log("[Staffing Widget] First employee record keys:", Object.keys(resp.data[0]));
-      console.log("[Staffing Widget] First employee record:", JSON.stringify(resp.data[0]));
       allEmployees = resp.data.map(function(r){
-        var label = r.Employee_ID || r.Employee_Id || r.Full_Name
-                 || (r.First_Name ? r.First_Name + " " + (r.Last_Name||"") : null)
-                 || r.Name || r.ID;
-        return { id: r.ID, label: label.trim() };
+        var label = r.Employee_ID || r.Full_Name
+                 || (r.First_Name ? r.First_Name+" "+(r.Last_Name||"") : null)
+                 || r.ID;
+        return { id: r.ID, label: String(label).trim() };
       }).sort(function(a,b){ return a.label.localeCompare(b.label); });
-      console.log("[Staffing Widget] Employees ready:", allEmployees.length, "first:", JSON.stringify(allEmployees[0]));
+      console.log("[Staffing Widget] Employees ready:", allEmployees.length);
     } else {
-      console.warn("[Staffing Widget] No employee data. code:", resp.code, "msg:", resp.message);
+      console.warn("[Staffing Widget] No employee data:", resp.code, resp.message);
     }
   }).catch(function(err){
     console.error("[Staffing Widget] loadEmployees exception:", err);
   });
 }
 
-function normalizeRecord(r){
-  const empDisplay = r.Employee_Info_display || r.Employee_ID || r.Employee_Info || "—";
-  const parts=empDisplay.trim().split(/[\s\-]+/);
-  const initials=parts.length>=2
-    ?(parts[0][0]+parts[parts.length-1][0]).toUpperCase()
-    :empDisplay.substring(0,2).toUpperCase();
-  const pos=AREA_POSITIONS[r.Zone]||null;
-  return {
-    id:              r.ID,
-    empId:           empDisplay,
-    empRawId:        r.Employee_Info,
-    initials,
-    zone:            r.Zone||"",
-    currentStatus:   r.Current_Status||"Active",
-    Break_Type_Start:r.Break_Type_Start||null,
-    Break_Type_End:  r.Break_Type_End  ||null,
-    Lunch_Start:     r.Lunch_Start     ||null,
-    Lunch_End:       r.Lunch_End       ||null,
-    Break_2_Start:   r.Break_2_Start   ||null,
-    Break_2_End:     r.Break_2_End     ||null,
-    x: pos?pos.x:null,
-    y: pos?pos.y:null,
-  };
+function setLiveStatus(ok){
+  var dot = document.getElementById("live-dot");
+  var ts  = document.getElementById("last-updated");
+  if(dot) dot.style.background = ok ? "#22c55e" : "#ef4444";
+  if(dot) dot.style.boxShadow  = ok ? "0 0 6px rgba(34,197,94,.7)" : "0 0 6px rgba(239,68,68,.7)";
+  if(ts)  ts.textContent = ok
+    ? "Updated "+new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
+    : "⚠️ Connection error";
 }
 
 // ═══════════════════════════════════════════════════════
@@ -668,10 +712,9 @@ function renderEmployeePin(s){
 
 function buildStatusLine(s, status, cfg){
   if(status === "Active"){
-    return `<div class="status-nm" style="color:${cfg.color};font-weight:700">● Active</div>`;
+    return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
   }
 
-  // Find the relevant start time
   var startISO = null;
   if(status === "Break 1") startISO = s.Break_Type_Start;
   else if(status === "Lunch")   startISO = s.Lunch_Start;
@@ -679,13 +722,15 @@ function buildStatusLine(s, status, cfg){
 
   var elapsed = "";
   if(startISO){
-    var mins = Math.floor((Date.now() - new Date(startISO).getTime()) / 60000);
-    elapsed = mins < 1 ? "just started" : mins + " min ago";
+    var startDt = parseZohoDate(startISO);
+    if(startDt){
+      var mins = Math.floor((Date.now() - startDt.getTime()) / 60000);
+      elapsed = mins < 1 ? "just started" : mins + " min ago";
+    }
   }
 
-  var label = cfg.label;
-  return `<div class="status-nm" style="color:${cfg.color};font-weight:700">● ${label}</div>`
-       + (elapsed ? `<div class="status-elapsed" style="color:${cfg.color};font-size:8px;opacity:0.85">(${elapsed})</div>` : "");
+  return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● '+cfg.label+'</div>'
+       + (elapsed ? '<div class="status-elapsed" style="color:'+cfg.color+';font-size:8px;opacity:0.85">('+elapsed+')</div>' : '');
 }
 
 function renderPlusPin(zoneName,pos){
@@ -944,8 +989,8 @@ function refreshManageModal(s){
   const active=anyActive(s);
 
   // ── Break 1 ──
-  const b1Started = !!s.Break_Type_Start;
-  const b1Ended   = !!s.Break_Type_End;
+  const b1Started = hasVal(s.Break_Type_Start);
+  const b1Ended   = hasVal(s.Break_Type_End);
   const b1Active  = b1Started && !b1Ended;
 
   setBtn("btn-b1s", !b1Started && !active,          "▶ Start");
@@ -957,8 +1002,8 @@ function refreshManageModal(s){
   );
 
   // ── Lunch ──
-  const lStarted = !!s.Lunch_Start;
-  const lEnded   = !!s.Lunch_End;
+  const lStarted = hasVal(s.Lunch_Start);
+  const lEnded   = hasVal(s.Lunch_End);
   const lActive  = lStarted && !lEnded;
 
   setBtn("btn-ls", !lStarted && !active,   "▶ Start");
@@ -972,8 +1017,8 @@ function refreshManageModal(s){
   );
 
   // ── Break 2 (requires lunch completed) ──
-  const b2Started = !!s.Break_2_Start;
-  const b2Ended   = !!s.Break_2_End;
+  const b2Started = hasVal(s.Break_2_Start);
+  const b2Ended   = hasVal(s.Break_2_End);
   const b2Active  = b2Started && !b2Ended;
   const lunchDone = lStarted && lEnded;
 
@@ -1179,11 +1224,13 @@ function setSaving(on){
   });
 }
 
-function fmtTs(iso){
-  if(!iso) return "";
+function fmtTs(v){
+  if(!v || v === "") return "";
   try{
-    return new Date(iso).toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
-  } catch(e){ return iso; }
+    var dt = parseZohoDate(v) || new Date(v);
+    if(isNaN(dt.getTime())) return v;
+    return dt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+  } catch(e){ return v; }
 }
 
 function formatForZoho(d){
@@ -1239,10 +1286,14 @@ function startImageLoad(){
 
 startImageLoad();
 
-// Auto-refresh pins every 60s to update elapsed times
-setInterval(function(){
-  if(records.length) renderAll();
-}, 60000);
+// Auto-refresh every 15s — same pattern as dispatch/CSR widgets
+var POLL_INTERVAL = 15000;
+var pollTimer = null;
+
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(loadRecords, POLL_INTERVAL);
+}
 
 // Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
@@ -1251,6 +1302,7 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   loadRecords();
   hideStateOverlay();
   renderAll();
+  startPolling(); // 15s poll — same pattern as dispatch/CSR widgets
 }).catch(function(err){
   console.error("[Staffing Widget] getInitParams failed:", err);
   hideStateOverlay();
