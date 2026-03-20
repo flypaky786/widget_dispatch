@@ -405,18 +405,17 @@ const canvas = ()=>document.getElementById("map-canvas");
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
-  // Keep pins at constant visual size by inverse-scaling them
-  const inv=1/scale;
-  canvas().querySelectorAll(".pin,.plus-pin").forEach(pin=>{
-    pin.style.transform=`translate(-50%,-50%) scale(${inv})`;
-  });
 }
 function fitView(){
-  const r=vp().getBoundingClientRect();
-  if(!imgW) return;
-  scale=Math.min(r.width/imgW,r.height/imgH)*.97;
-  originX=(r.width-imgW*scale)/2; originY=(r.height-imgH*scale)/2;
-  applyTransform();
+  // Use requestAnimationFrame to ensure layout is fully settled (fixes iPad Safari)
+  requestAnimationFrame(function(){
+    const r=vp().getBoundingClientRect();
+    if(!imgW||!r.width||!r.height) return;
+    scale=Math.min(r.width/imgW,r.height/imgH)*.97;
+    originX=(r.width-imgW*scale)/2;
+    originY=(r.height-imgH*scale)/2;
+    applyTransform();
+  });
 }
 function adjustZoom(delta,px,py){
   const r=vp().getBoundingClientRect();
@@ -639,8 +638,7 @@ function renderEmployeePin(s){
   pin.className="pin";
   pin.style.left=s.x+"px";
   pin.style.top =s.y+"px";
-  // Inverse scale so pin stays constant visual size regardless of map zoom
-  pin.style.transform=`translate(-50%,-50%) scale(${1/scale})`;
+  pin.style.transform="translate(-50%,-50%)";
   pin.dataset.recId=s.id;
   pin.dataset.zone=s.zone;
 
@@ -670,8 +668,7 @@ function renderPlusPin(zoneName,pos){
   pin.className="plus-pin";
   pin.style.left=pos.x+"px";
   pin.style.top =pos.y+"px";
-  // Inverse scale so + stays constant visual size regardless of map zoom
-  pin.style.transform=`translate(-50%,-50%) scale(${1/scale})`;
+  pin.style.transform="translate(-50%,-50%)";
   pin.innerHTML=`
     <div class="plus-circle">+</div>
     <div class="plus-label">${zoneName}</div>
@@ -808,35 +805,44 @@ function closeAssignModal(){
 
 function confirmAssign(){
   const sel=document.getElementById("assign-select");
-  const empId=sel.value;  // This is the Zoho record ID of the selected Employee_Info record
+  const empId=sel.value;
   const empLabel=sel.options[sel.selectedIndex]?.textContent||"";
   if(!empId){ setAssignError("Please select an employee"); return; }
 
   // Client-side duplicate check
   const existing=records.find(r=>r.empRawId===empId);
   if(existing){
-    setAssignError(`⚠️ ${empLabel.split(" (")[0]} is already assigned to "${existing.zone}"`);
+    setAssignError("⚠️ "+empLabel.split(" (")[0]+" is already assigned to \""+existing.zone+"\"");
     return;
   }
 
   setAssignError("");
-  const now=new Date();
 
-  // Employee_Info is a picklist field — Zoho expects the linked record's ID
+  // Disable button + show saving state
+  const btn=document.querySelector("#assign-modal .modal-btn-primary");
+  const originalText=btn.textContent;
+  btn.textContent="⏳ Saving…";
+  btn.disabled=true;
+
+  const now=new Date();
   const payload={
-    Employee_Info:  empId,   // picklist → stores the Employee_Info record ID
+    Employee_Info:  empId,
     Zone:           assigningZone,
     Date_Time:      formatForZoho(now),
     Current_Status: "Active",
   };
-
   console.log("[Staffing Widget] Adding record with payload:", JSON.stringify(payload));
 
   zohoAdd(payload).then(newId=>{
-    if(!newId) return;
+    btn.textContent=originalText;
+    btn.disabled=false;
+
+    if(!newId) return; // zohoAdd already showed error toast
+
+    // Success — build local record and render immediately
     const emp=allEmployees.find(e=>e.id===empId);
     const label=emp?emp.label:empId;
-    const parts=label.trim().split(/[\s\-\s]+/);
+    const parts=label.trim().split(/[\s\-]+/);
     const initials=parts.length>=2?(parts[0][0]+parts[parts.length-1][0]).toUpperCase():label.substring(0,2).toUpperCase();
     const pos=AREA_POSITIONS[assigningZone];
     records.push({
@@ -847,9 +853,17 @@ function confirmAssign(){
       Break_2_Start:null, Break_2_End:null,
       x:pos?pos.x:null, y:pos?pos.y:null,
     });
-    closeAssignModal();
-    renderAll();
-    showToast("✅ "+label+" assigned to "+assigningZone,"#22c55e");
+
+    // Show success state in modal briefly, then close
+    btn.textContent="✅ Assigned!";
+    btn.style.background="#22c55e";
+    setTimeout(function(){
+      btn.textContent=originalText;
+      btn.style.background="";
+      closeAssignModal();
+      renderAll();
+      showToast("✅ "+label+" assigned to "+assigningZone,"#22c55e");
+    }, 900);
   });
 }
 
@@ -1056,9 +1070,18 @@ function zohoAdd(data){
     payload:   { data: [data] },
   }).then(function(resp){
     console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,300));
-    if(resp.code !== 3000){ showToast("⚠️ Add failed ("+resp.code+"): "+(resp.message||""), "#ef4444"); return null; }
+    if(resp.code !== 3000){
+      // Surface Zoho form validation errors (e.g. Deluge alert() messages) visibly
+      var msg = resp.message || resp.error || ("Add failed (code "+resp.code+")");
+      alert(msg);
+      return null;
+    }
     return resp.data && resp.data[0] ? resp.data[0].ID : null;
-  }).catch(function(e){ console.error("[Staffing Widget] zohoAdd err:", e); showToast("⚠️ "+e, "#ef4444"); return null; });
+  }).catch(function(e){
+    console.error("[Staffing Widget] zohoAdd err:", e);
+    alert("Save error: " + e);
+    return null;
+  });
 }
 
 function zohoDelete(recId){
@@ -1135,6 +1158,9 @@ function startImageLoad(){
     svg.style.height = imgH + "px";
     drawZoneBoxes();
     fitView();
+    // Second call after short delay — catches iPad Safari late layout settle
+    setTimeout(fitView, 300);
+    setTimeout(fitView, 800);
   };
   img.src = MAP_IMAGE_URL;
 }
