@@ -634,6 +634,9 @@ function renderEmployeePin(s){
   const status=deriveStatus(s);
   const cfg=STATUS_CFG[status]||STATUS_CFG["Active"];
 
+  // Build status line with elapsed time
+  const statusLine = buildStatusLine(s, status, cfg);
+
   const pin=document.createElement("div");
   pin.className="pin";
   pin.style.left=s.x+"px";
@@ -653,14 +656,36 @@ function renderEmployeePin(s){
       box-shadow:0 0 16px ${cfg.color}77,0 3px 10px rgba(0,0,0,.8);
       animation:${status==="Active"?"pulse 2.8s ease-in-out infinite":"none"};
     ">${s.initials}</div>
-    <div class="avatar-label">
+    <div class="avatar-label" style="border-color:${cfg.color}44">
       <div class="emp-id">${s.empId}</div>
       <div class="zone-nm">${s.zone}</div>
-      <div class="status-nm" style="color:${cfg.color}">${cfg.label}</div>
+      ${statusLine}
     </div>
     <div class="status-dot" style="background:${cfg.color};box-shadow:0 0 6px ${cfg.color}"></div>
   `;
   canvas().appendChild(pin);
+}
+
+function buildStatusLine(s, status, cfg){
+  if(status === "Active"){
+    return `<div class="status-nm" style="color:${cfg.color};font-weight:700">● Active</div>`;
+  }
+
+  // Find the relevant start time
+  var startISO = null;
+  if(status === "Break 1") startISO = s.Break_Type_Start;
+  else if(status === "Lunch")   startISO = s.Lunch_Start;
+  else if(status === "Break 2") startISO = s.Break_2_Start;
+
+  var elapsed = "";
+  if(startISO){
+    var mins = Math.floor((Date.now() - new Date(startISO).getTime()) / 60000);
+    elapsed = mins < 1 ? "just started" : mins + " min ago";
+  }
+
+  var label = cfg.label;
+  return `<div class="status-nm" style="color:${cfg.color};font-weight:700">● ${label}</div>`
+       + (elapsed ? `<div class="status-elapsed" style="color:${cfg.color};font-size:8px;opacity:0.85">(${elapsed})</div>` : "");
 }
 
 function renderPlusPin(zoneName,pos){
@@ -901,7 +926,17 @@ function refreshManageModal(s){
   document.getElementById("m-zone").textContent=s.zone;
 
   const badge=document.getElementById("m-status");
-  badge.textContent=cfg.label;
+  var badgeText = cfg.label;
+  // Add elapsed time for active breaks
+  var activeStart = null;
+  if(status === "Break 1") activeStart = s.Break_Type_Start;
+  else if(status === "Lunch")   activeStart = s.Lunch_Start;
+  else if(status === "Break 2") activeStart = s.Break_2_Start;
+  if(activeStart){
+    var mins = Math.floor((Date.now() - new Date(activeStart).getTime()) / 60000);
+    badgeText += " · " + (mins < 1 ? "just started" : mins + " min");
+  }
+  badge.textContent=badgeText;
   badge.style.cssText=`display:inline-block;margin-top:5px;font-size:10px;
     padding:3px 10px;border-radius:99px;font-weight:600;
     background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}55;`;
@@ -1070,19 +1105,19 @@ function zohoAdd(data){
     form_name: FORM_NAME,
     payload:   { data: [data] },
   }).then(function(resp){
-    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,400));
+    console.log("[Staffing Widget] zohoAdd FULL resp:", JSON.stringify(resp));
 
     // Zoho returns code:3000 at top level even for validation failures.
-    // Real errors are nested: result[0].code === 3001 with alert_message inside.
+    // Check result[0] for nested errors or success data.
     if(resp.code === 3000 && resp.result && resp.result[0]){
       var result = resp.result[0];
+
+      // Validation error from Deluge alert()
       if(result.code === 3001){
-        // Extract Deluge alert() message
         var msg = "Validation error";
         if(result.error && result.error.length){
           var alertErr = result.error.find(function(e){ return e.task === "alert"; });
           if(alertErr && alertErr.alert_message && alertErr.alert_message.length){
-            // Decode HTML entities (e.g. &#x28; → ()
             var raw = alertErr.alert_message[0];
             var txt = document.createElement("textarea");
             txt.innerHTML = raw;
@@ -1092,8 +1127,20 @@ function zohoAdd(data){
         alert(msg);
         return null;
       }
-      // Success — return the new record ID
-      return result.ID || (resp.data && resp.data[0] ? resp.data[0].ID : null);
+
+      // Success — ID may be in result.data, result.ID, or data array
+      var newId = null;
+      if(result.data && result.data.ID)       newId = result.data.ID;
+      else if(result.ID)                       newId = result.ID;
+      else if(resp.data && resp.data[0])       newId = resp.data[0].ID;
+      else if(result.data && result.data[0])   newId = result.data[0].ID;
+
+      // If we still don't have an ID, use a timestamp fallback so modal closes
+      if(!newId){
+        console.warn("[Staffing Widget] Could not extract ID from resp — using fallback. Full resp:", JSON.stringify(resp));
+        newId = "LOCAL_" + Date.now();
+      }
+      return newId;
     }
 
     if(resp.code !== 3000){
@@ -1101,7 +1148,7 @@ function zohoAdd(data){
       return null;
     }
 
-    return resp.data && resp.data[0] ? resp.data[0].ID : null;
+    return resp.data && resp.data[0] ? resp.data[0].ID : ("LOCAL_"+Date.now());
   }).catch(function(e){
     console.error("[Staffing Widget] zohoAdd err:", e);
     alert("Save error: " + e);
@@ -1191,6 +1238,11 @@ function startImageLoad(){
 }
 
 startImageLoad();
+
+// Auto-refresh pins every 60s to update elapsed times
+setInterval(function(){
+  if(records.length) renderAll();
+}, 60000);
 
 // Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
