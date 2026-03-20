@@ -834,10 +834,12 @@ function confirmAssign(){
   console.log("[Staffing Widget] Adding record with payload:", JSON.stringify(payload));
 
   zohoAdd(payload).then(newId=>{
+    // Always reset button first
     btn.textContent=originalText;
+    btn.style.background="";
     btn.disabled=false;
 
-    if(!newId) return; // zohoAdd already showed error toast
+    if(!newId) return; // validation error — alert() already shown by zohoAdd
 
     // Success — build local record and render immediately
     const emp=allEmployees.find(e=>e.id===empId);
@@ -854,12 +856,11 @@ function confirmAssign(){
       x:pos?pos.x:null, y:pos?pos.y:null,
     });
 
-    // Show success state in modal briefly, then close
+    // Flash success then close
     btn.textContent="✅ Assigned!";
     btn.style.background="#22c55e";
+    btn.disabled=true;
     setTimeout(function(){
-      btn.textContent=originalText;
-      btn.style.background="";
       closeAssignModal();
       renderAll();
       showToast("✅ "+label+" assigned to "+assigningZone,"#22c55e");
@@ -1069,13 +1070,37 @@ function zohoAdd(data){
     form_name: FORM_NAME,
     payload:   { data: [data] },
   }).then(function(resp){
-    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,300));
+    console.log("[Staffing Widget] zohoAdd resp:", JSON.stringify(resp).substring(0,400));
+
+    // Zoho returns code:3000 at top level even for validation failures.
+    // Real errors are nested: result[0].code === 3001 with alert_message inside.
+    if(resp.code === 3000 && resp.result && resp.result[0]){
+      var result = resp.result[0];
+      if(result.code === 3001){
+        // Extract Deluge alert() message
+        var msg = "Validation error";
+        if(result.error && result.error.length){
+          var alertErr = result.error.find(function(e){ return e.task === "alert"; });
+          if(alertErr && alertErr.alert_message && alertErr.alert_message.length){
+            // Decode HTML entities (e.g. &#x28; → ()
+            var raw = alertErr.alert_message[0];
+            var txt = document.createElement("textarea");
+            txt.innerHTML = raw;
+            msg = txt.value;
+          }
+        }
+        alert(msg);
+        return null;
+      }
+      // Success — return the new record ID
+      return result.ID || (resp.data && resp.data[0] ? resp.data[0].ID : null);
+    }
+
     if(resp.code !== 3000){
-      // Surface Zoho form validation errors (e.g. Deluge alert() messages) visibly
-      var msg = resp.message || resp.error || ("Add failed (code "+resp.code+")");
-      alert(msg);
+      alert("Add failed ("+resp.code+"): "+(resp.message||""));
       return null;
     }
+
     return resp.data && resp.data[0] ? resp.data[0].ID : null;
   }).catch(function(e){
     console.error("[Staffing Widget] zohoAdd err:", e);
