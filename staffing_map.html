@@ -55,11 +55,11 @@ body {
   z-index: 20; cursor: pointer; user-select: none;
 }
 .plus-circle {
-  width: 42px; height: 42px; border-radius: 50%;
+  width: 56px; height: 56px; border-radius: 50%;
   background: rgba(56,139,253,0.15);
   border: 2.5px dashed #388bfd;
   display: flex; align-items: center; justify-content: center;
-  font-size: 22px; color: #388bfd; font-weight: 300;
+  font-size: 26px; color: #388bfd; font-weight: 300;
   transition: all 0.2s;
 }
 .plus-pin:hover .plus-circle {
@@ -543,14 +543,26 @@ function parseZohoDate(d){
   } catch(e){ return null; }
 }
 
-// Overnight window: 28hr lookback
+// Filter: Date_Time must be today's calendar date (matches zoho.currentdate)
+// Also allow overnight: include if Date_Time was yesterday but within 28hr window
 function todayFilter(dateStr){
-  if(!dateStr || dateStr === "") return true; // include records with no date
+  if(!dateStr || dateStr === "") return false; // exclude records with no date
   var d = parseZohoDate(dateStr);
-  if(!d) return true; // can't parse — include it
-  var now = new Date();
-  var cutoff = new Date(now.getTime() - 28*60*60*1000);
+  if(!d) return false; // can't parse — exclude
+  var now     = new Date();
+  var cutoff  = new Date(now.getTime() - 28*60*60*1000); // 28hr back for overnight
   return d >= cutoff && d <= now;
+}
+
+// Is a record from today's calendar date specifically (for Active count)
+function isToday(dateStr){
+  if(!dateStr || dateStr === "") return false;
+  var d = parseZohoDate(dateStr);
+  if(!d) return false;
+  var now = new Date();
+  return d.getFullYear()===now.getFullYear()
+      && d.getMonth()===now.getMonth()
+      && d.getDate()===now.getDate();
 }
 
 function normalizeRecord(r){
@@ -576,6 +588,7 @@ function normalizeRecord(r){
     empRawId:        empRawId,
     initials:        initials,
     zone:            r.Zone  || "",
+    dateTime:        r.Date_Time || "",
     currentStatus:   r.Current_Status || "Active",
     Break_Type_Start: clean(r.Break_Type_Start),
     Break_Type_End:   clean(r.Break_Type_End),
@@ -689,8 +702,10 @@ function renderEmployeePin(s){
   pin.dataset.recId=s.id;
   pin.dataset.zone=s.zone;
 
-  pin.addEventListener("pointerdown",e=>e.stopPropagation());
-  pin.addEventListener("click",()=>{ if(!didPan) openManageModal(s.id); });
+  // Travel-distance tap — works reliably on iPad Safari where click can be swallowed
+  var epDownX=0, epDownY=0;
+  pin.addEventListener("pointerdown", function(e){ epDownX=e.clientX; epDownY=e.clientY; e.stopPropagation(); });
+  pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-epDownX)<8 && Math.abs(e.clientY-epDownY)<8) openManageModal(s.id); });
 
   pin.innerHTML=`
     ${status==="Active"?`<div class="ripple-ring" style="color:${cfg.color}"></div>`:""}
@@ -714,12 +729,7 @@ function buildStatusLine(s, status, cfg){
   if(status === "Active"){
     return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
   }
-
-  var startISO = null;
-  if(status === "Break 1") startISO = s.Break_Type_Start;
-  else if(status === "Lunch")   startISO = s.Lunch_Start;
-  else if(status === "Break 2") startISO = s.Break_2_Start;
-
+  var startISO = status==="Break 1" ? s.Break_Type_Start : status==="Lunch" ? s.Lunch_Start : s.Break_2_Start;
   var elapsed = "";
   if(startISO){
     var startDt = parseZohoDate(startISO);
@@ -728,7 +738,6 @@ function buildStatusLine(s, status, cfg){
       elapsed = mins < 1 ? "just started" : mins + " min ago";
     }
   }
-
   return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● '+cfg.label+'</div>'
        + (elapsed ? '<div class="status-elapsed" style="color:'+cfg.color+';font-size:8px;opacity:0.85">('+elapsed+')</div>' : '');
 }
@@ -739,12 +748,12 @@ function renderPlusPin(zoneName,pos){
   pin.style.left=pos.x+"px";
   pin.style.top =pos.y+"px";
   pin.style.transform="translate(-50%,-50%)";
-  pin.innerHTML=`
-    <div class="plus-circle">+</div>
-    <div class="plus-label">${zoneName}</div>
-  `;
-  pin.addEventListener("pointerdown",e=>e.stopPropagation());
-  pin.addEventListener("click",()=>{ if(!didPan) openAssignModal(zoneName); });
+  pin.innerHTML=`<div class="plus-circle">+</div><div class="plus-label">${zoneName}</div>`;
+
+  // Same travel-distance tap detection for iPad Safari
+  var ppDownX=0, ppDownY=0;
+  pin.addEventListener("pointerdown", function(e){ ppDownX=e.clientX; ppDownY=e.clientY; e.stopPropagation(); });
+  pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-ppDownX)<8 && Math.abs(e.clientY-ppDownY)<8) openAssignModal(zoneName); });
   canvas().appendChild(pin);
 }
 
@@ -792,11 +801,16 @@ function drawZoneBoxes(){
 }
 
 function updateCounts(assignedZones){
-  const totalZones=Object.keys(AREA_POSITIONS).length;
-  document.getElementById("cnt-active").textContent    =records.filter(r=>deriveStatus(r)==="Active").length;
-  document.getElementById("cnt-break").textContent     =records.filter(r=>deriveStatus(r)==="Break 1"||deriveStatus(r)==="Break 2").length;
-  document.getElementById("cnt-lunch").textContent     =records.filter(r=>deriveStatus(r)==="Lunch").length;
-  document.getElementById("cnt-unassigned").textContent=totalZones-(assignedZones||new Set(records.map(r=>r.zone))).size;
+  const totalZones = Object.keys(AREA_POSITIONS).length;
+  // Active = on shift today (Date_Time is today's date) and not on break/lunch
+  document.getElementById("cnt-active").textContent =
+    records.filter(r => isToday(r.dateTime) && deriveStatus(r)==="Active").length;
+  document.getElementById("cnt-break").textContent =
+    records.filter(r => deriveStatus(r)==="Break 1" || deriveStatus(r)==="Break 2").length;
+  document.getElementById("cnt-lunch").textContent =
+    records.filter(r => deriveStatus(r)==="Lunch").length;
+  document.getElementById("cnt-unassigned").textContent =
+    totalZones - (assignedZones || new Set(records.map(r=>r.zone))).size;
 }
 
 // ═══════════════════════════════════════════════════════
