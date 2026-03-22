@@ -231,10 +231,10 @@ function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseT
 
 /* === FETCH with server-side criteria: exclude Completed, Assigned>20min, Cancelled>20min === */
 function fetchLatestRecords(){
-  var cutoff=buildZohoTimestamp(new Date(Date.now()-20*60*1000)); // 20 min ago
-  var criteria='(Dispatch_Status != "Completed")'
-    +' && !(Dispatch_Status == "Assigned" && Assignment_Time < "'+cutoff+'")'
-    +' && !(Dispatch_Status == "Cancelled" && Modified_Time < "'+cutoff+'")';
+  var cutoff=buildZohoTimestamp(new Date(Date.now()-20*60*1000));
+  var criteria='(Dispatch_Status == "New" || Dispatch_Status == "In Progress"'
+    +' || (Dispatch_Status == "Assigned" && Assignment_Time >= "'+cutoff+'")'
+    +' || (Dispatch_Status == "Cancelled" && Modified_Time >= "'+cutoff+'"))';
   return ZOHO.CREATOR.DATA.getRecords({app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200,criteria:criteria});
 }
 
