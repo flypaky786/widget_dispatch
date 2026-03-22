@@ -237,7 +237,7 @@ function autoDeleteExpired(all){var now=Date.now();for(var i=0;i<all.length;i++)
 function markInProgress(id){if(!loggedInUser){alert("Could not determine identity.");return;}ZOHO.CREATOR.DATA.updateRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id,payload:{data:{Dispatch_Status:"In Progress",Claimed_By_Email:loggedInUser}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else{var msg="Operation failed.";try{if(resp.error)for(var i=0;i<resp.error.length;i++)if(resp.error[i].alert_message){msg=resp.error[i].alert_message;break;}}catch(e){}alert("Mark IP failed: "+msg);}}).catch(function(){alert("Failed to mark In Progress.");});}
 
 /* === UNCLAIM === */
-function unclaimRecord(id){ZOHO.CREATOR.DATA.updateRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id,payload:{data:{Dispatch_Status:"New",Claimed_By_Email:""}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));}).catch(function(){alert("Failed to unclaim.");});}
+function unclaimRecord(id){ZOHO.CREATOR.DATA.updateRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id,payload:{data:{Dispatch_Status:"In Progress",Claimed_By_Email:""}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));}).catch(function(){alert("Failed to unclaim.");});}
 
 /* === ACTION BUTTONS PER ROW === */
 function buildActionButtons(rec){
