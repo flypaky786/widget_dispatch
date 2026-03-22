@@ -5,25 +5,24 @@
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
-  - Added clickable column header sorting (same as dispatcher)
+  - Parameterized CONFIG block for all tunable values
+  - Added clickable column header sorting
   - Default sort: New → In Progress → Assigned → Cancelled (each oldest-first)
-  - Upsell displays as "Upsell (99)", Walk-up as "Walk Up (49)"
-  - Font size 15px in table (th + td + badges all same size)
+  - Upsell/Walk-up/One-Way labels configurable via CONFIG
+  - Font size 15px in table (th + td + badges)
   - Sub_Acceptable column removed
-  - Vehicle cell: Vehicle Type + Specific Request + Upsell/Walk-up/One-Way stacked
-  - MVA + Stall merged into "Assignment" column (MVA / Stall)
+  - Vehicle cell: Vehicle Type + Specific + Upsell/Walk-up/One-Way stacked
+  - MVA + Stall merged into "Assignment" column
   - Cancel button hidden when status is Assigned
-  - Cancel sets Dispatch_Status="Cancelled" + Cancelled_Time=timestamp
-  - Audio ding on assignment transition
+  - Audio ding when status transitions to Assigned
   - Server-side criteria filter by User_Email
 
-  TIMEOUT PERIODS:
-  - Unassigned (New/In Progress): hidden after 120 min (2 hrs)
-  - Assigned: hidden after 20 min
+  TIMEOUT PERIODS (configurable in CONFIG):
+  - Unassigned (New/In Progress): hidden after UNASSIGNED_HIDE_MS (default 120 min)
+  - Assigned: hidden after ASSIGNED_HIDE_MS (default 20 min)
   - Completed/Cancelled: always hidden
 
-  SORT ORDER (default): New oldest-first → In Progress oldest-first → Assigned oldest-first → Cancelled oldest-first
-  Column headers clickable to override sort.
+  SORT ORDER: New → In Progress → Assigned → Cancelled (each oldest-first)
 -->
 <html>
 <head>
@@ -100,7 +99,37 @@
 </div></div>
 
 <script>
-var POLL_INTERVAL=4000,previousData={},previousStatuses={},cancelRecordId=null,loggedInUser="",firstLoadComplete=false;
+/* ============================================================
+   CONFIG — Change these values to tune behavior without
+   modifying any code below.
+   ============================================================ */
+var CONFIG = {
+  // Zoho app/report
+  APP_NAME: "lax-abg",
+  REPORT_NAME: "All_Vehicle_Requests",
+
+  // Polling
+  POLL_INTERVAL: 4000,              // ms between fetches (4s)
+  MAX_RECORDS: 200,                 // Zoho API max per fetch
+
+  // Timeout periods
+  UNASSIGNED_HIDE_MS: 120 * 60 * 1000,  // hide unassigned New/IP after 120 min (2 hrs)
+  ASSIGNED_HIDE_MS: 20 * 60 * 1000,     // hide assigned after 20 min
+
+  // Labels (vehicle cell)
+  UPSELL_LABEL: "Upsell (99)",
+  WALKUP_LABEL: "Walk Up (49)",
+  ONEWAY_LABEL: "One-Way Rental",
+
+  // Audio ding (plays when status transitions to Assigned)
+  DING_FREQ_1: 880,                 // first tone Hz
+  DING_FREQ_2: 1175                 // second tone Hz
+};
+
+/* ============================================================
+   STATE — Internal variables (do not change)
+   ============================================================ */
+var previousData={},previousStatuses={},cancelRecordId=null,loggedInUser="",firstLoadComplete=false;
 var audioCtx=null,audioUnlocked=false;
 var sortCol=null,sortDir="desc";
 var currentRecords=[];
@@ -110,9 +139,9 @@ function unlockAudio(){if(audioUnlocked)return;try{audioCtx=new(window.AudioCont
 document.addEventListener("click",unlockAudio,{once:true});
 document.addEventListener("touchstart",unlockAudio,{once:true});
 document.addEventListener("keydown",unlockAudio,{once:true});
-function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=880;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=1175;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
+function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=CONFIG.DING_FREQ_1;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=CONFIG.DING_FREQ_2;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
 
-/* === ASSIGNMENT DETECTION (ding) === */
+/* === DING: fires once when any record transitions to Assigned === */
 function checkForNewAssignments(recs){if(!firstLoadComplete)return;var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var cs=(rec.Dispatch_Status||"").toLowerCase(),ps=previousStatuses[id]||"";var na=cs.indexOf("assign")>=0||cs.indexOf("dispatch")>=0;var wa=ps.indexOf("assign")>=0||ps.indexOf("dispatch")>=0;if(na&&!wa&&!dinged){playDing();dinged=true;}}for(var j=0;j<recs.length;j++){var r=recs[j],rid=r.ID?r.ID.toString():"";if(rid)previousStatuses[rid]=(r.Dispatch_Status||"").toLowerCase();}}
 
 /* === STATUS HELPERS === */
@@ -131,9 +160,9 @@ function buildVehicleCell(rec){
   lines.push('<strong>'+(rec.Vehicle_Type||'—')+'</strong>');
   var spec=rec.Specific_Make_Model_optional||'';
   if(spec)lines.push('<span class="spec-tag">'+spec+'</span>');
-  if(isBool(rec.Upsell))lines.push('<span class="priority-tag">Upsell (99)</span>');
-  if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">Walk Up (49)</span>');
-  if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">One-Way Rental</span>');
+  if(isBool(rec.Upsell))lines.push('<span class="priority-tag">'+CONFIG.UPSELL_LABEL+'</span>');
+  if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">'+CONFIG.WALKUP_LABEL+'</span>');
+  if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">'+CONFIG.ONEWAY_LABEL+'</span>');
   return lines.join('<br>');
 }
 function buildAssignCell(rec){var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';if(mva&&stall)return mva+' / '+stall;return mva||stall||'';}
@@ -198,36 +227,34 @@ function confirmCancel(){
   var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
   var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
   var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
-  ZOHO.CREATOR.DATA.updateRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:cancelRecordId,payload:{data:{Dispatch_Status:"Cancelled",Cancelled_Time:ts}}})
+  ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:cancelRecordId,payload:{data:{Dispatch_Status:"Cancelled",Cancelled_Time:ts}}})
   .then(function(resp){closeCancelDialog();btn.textContent="Yes, cancel it";btn.disabled=false;if(resp.code===3000)fetchDispatches();else alert("Cancel failed.");})
   .catch(function(){alert("Cancel failed.");btn.textContent="Yes, cancel it";btn.disabled=false;});
 }
 
 /* === POLLING + FILTER === */
 function fetchDispatches(){
-  var config={app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200};
+  var config={app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,page:1,max_records:CONFIG.MAX_RECORDS};
   if(loggedInUser)config.criteria='(User_Email == "'+loggedInUser+'")';
   ZOHO.CREATOR.DATA.getRecords(config).then(function(response){
     if(response.code===3000){
       var all=response.data||[],now=Date.now();
 
-      /* === FILTER: apply timeout periods === */
+      /* === FILTER: apply timeout periods from CONFIG === */
       var filtered=all.filter(function(rec){
         var s=(rec.Dispatch_Status||"").toLowerCase();
         if(s.indexOf("complet")>=0||s.indexOf("cancel")>=0)return false;
         if(!isAssignedStatus(rec.Dispatch_Status)){
-          var ad=parseZohoDate(rec.Added_Time);if(ad&&(now-ad.getTime())>120*60*1000)return false;
+          var ad=parseZohoDate(rec.Added_Time);if(ad&&(now-ad.getTime())>CONFIG.UNASSIGNED_HIDE_MS)return false;
         }else{
-          var md=parseZohoDate(rec.Modified_Time);if(md&&(now-md.getTime())>20*60*1000)return false;
+          var md=parseZohoDate(rec.Modified_Time);if(md&&(now-md.getTime())>CONFIG.ASSIGNED_HIDE_MS)return false;
         }
         return true;
       });
 
-      /* === SORT: New → In Progress → Assigned → Cancelled (each oldest-first) === */
       currentRecords=filtered;
       var sorted=sortCol?columnSort(filtered,sortCol,sortDir):defaultSort(filtered);
       updateSortHeaders();
-
       checkForNewAssignments(sorted);renderTable(sorted);firstLoadComplete=true;
       document.getElementById("statusDot").className="status-dot live";
       document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();
@@ -239,10 +266,10 @@ function fetchDispatches(){
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   loggedInUser=params.loginUser||"";
   document.getElementById("headerTitle").textContent="Active Requests for "+loggedInUser.split("@")[0];
-  fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);
+  fetchDispatches();setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
 }).catch(function(){
   document.getElementById("headerTitle").textContent="Active Requests";
-  fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);
+  fetchDispatches();setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
 });
 </script>
 </body>
