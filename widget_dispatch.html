@@ -5,6 +5,8 @@
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
+  - Server-side criteria: excludes Completed, Assigned>20min, Cancelled>20min
+  - Unassigned delete timeout changed to 3 hrs
   - Upsell displays as "Upsell (99)", Walk-up as "Walk Up (49)"
   - If loginUser email contains "pump", Stall auto-fills "LZ" in assign popup
   - Font size 15px in table (th + td + badges)
@@ -13,19 +15,17 @@
   - MVA + Stall merged into "Assignment" column (MVA / Stall)
   - Claimed_By_Email for Mark IP / Unclaim
   - Priority sort: Upsell/Walk-up New records at top
-  - Cancelled status: red badge, no action buttons
   - Barcode scanner: camera stays alive between scans (iOS permission fix)
   - Audio ding on new unassigned record appearing
 
   TIMEOUT PERIODS:
-  - Assigned records: hidden after 5 min (ASSIGNED_HIDE_MS = 5*60*1000)
-  - Cancelled records: hidden after 5 min (same ASSIGNED_HIDE_MS)
-  - Unassigned New records: auto-deleted after 4 hrs (UNASSIGNED_DELETE_MS = 4*60*60*1000)
+  - Assigned records: hidden after 5 min client-side (ASSIGNED_HIDE_MS), excluded server-side after 20 min
+  - Cancelled records: hidden after 5 min client-side, excluded server-side after 20 min
+  - Unassigned New records: auto-deleted after 3 hrs (UNASSIGNED_DELETE_MS = 3*60*60*1000)
   - In Progress records: never auto-hidden (stay until unclaimed or assigned)
+  - Completed: excluded server-side always
 
   SORT ORDER: Priority New → Normal New → In Progress → Assigned → Cancelled
-  (each group oldest-first except Assigned which is newest-first by Assignment_Time)
-
   VALIDATION: MVA must be exactly 8 digits. Stall required. Duplicate MVA check.
 -->
 <html>
@@ -55,7 +55,6 @@
     .table-container{background:var(--card);border-radius:var(--radius);overflow:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-md);max-height:80vh}
     table{width:100%;border-collapse:collapse;min-width:640px}
     thead{position:sticky;top:0;z-index:10}
-    /* th and td same font size (15px) */
     th{background:var(--th-bg);color:var(--th-text);padding:12px 10px;text-align:left;font-size:15px;font-weight:600;letter-spacing:.3px;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid #e2e8f0;transition:background var(--transition)}
     th:hover{background:#e2e8f0}th.no-sort{cursor:default}th.no-sort:hover{background:var(--th-bg)}
     .sort-arrow{font-size:10px;margin-left:3px;opacity:.35}
@@ -66,7 +65,6 @@
     tr.row-assigned td{background:rgba(59,130,246,.03)}tr.row-assigned:hover td{background:rgba(59,130,246,.06)}
     tr.row-cancelled td{background:rgba(239,68,68,.03);opacity:.7}tr.row-cancelled:hover td{background:rgba(239,68,68,.06)}
     tr.group-divider td{border-top:2px solid var(--border);padding-top:16px}
-    /* badges same size as table text */
     .badge{padding:4px 10px;border-radius:6px;font-size:15px;font-weight:700;letter-spacing:.3px;display:inline-block}
     .badge.new{background:#fef3c7;color:#92400e}.badge.pending{background:#fef3c7;color:#92400e}
     .badge.in-progress{background:#ede9fe;color:#6d28d9}.badge.assigned{background:#dbeafe;color:#1e40af}
@@ -122,7 +120,6 @@
 <tbody id="dispatchBody"><tr><td colspan="8" class="no-results">Loading...</td></tr></tbody>
 </table></div></div>
 
-<!-- Assign popup -->
 <div class="overlay" id="assignOverlay"><div class="popup">
 <h3 id="popupTitle">Assign Vehicle</h3>
 <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
@@ -144,9 +141,10 @@ var deletingIds={},previousRecordIds={},loggedInUser="",sdkReady=false;
 var sortCol=null,sortDir="desc";
 
 /* === TIMEOUT PERIODS === */
-var ASSIGNED_HIDE_MS=5*60*1000;       // Assigned + Cancelled: hide after 5 min
-var UNASSIGNED_DELETE_MS=4*60*60*1000; // New unassigned: auto-delete after 4 hrs
+var ASSIGNED_HIDE_MS=5*60*1000;       // Assigned + Cancelled: hide from UI after 5 min
+var UNASSIGNED_DELETE_MS=3*60*60*1000; // New unassigned: auto-delete after 3 hrs (CHANGED from 4hrs)
 // In Progress: never auto-hidden
+// Server-side: Completed excluded always, Assigned>20min excluded, Cancelled>20min excluded
 
 var audioCtx=null,audioUnlocked=false;
 
@@ -174,6 +172,8 @@ function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
 function parseZohoDate(d){if(!d)return null;try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;}}
 function formatTime(d){var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a;}
 function getAge(d){var dt=parseZohoDate(d);if(!dt)return{text:"—",cls:"age-ok",minutes:0};var m=Math.floor((Date.now()-dt.getTime())/60000);if(m<0)m=0;var c="age-ok";if(m>=10)c="age-warn";if(m>=20)c="age-urgent";return{text:m+"m",cls:c,minutes:m};}
+/* Zoho criteria timestamp: "dd-MMM-yyyy HH:mm:ss" (24hr, no AM/PM) */
+function buildZohoTimestamp(d){var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];return("0"+d.getDate()).slice(-2)+"-"+months[d.getMonth()]+"-"+d.getFullYear()+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)+":"+("0"+d.getSeconds()).slice(-2);}
 function showPopupError(m){var e=document.getElementById("popupError");e.textContent=m;e.classList.add("active");}
 function clearPopupError(){document.getElementById("popupError").classList.remove("active");}
 
@@ -228,9 +228,17 @@ function refreshTable(){
 /* === VALIDATION === */
 function validateAssignment(mva,stall,rid,live,reass){if(!mva||!mva.length)return"MVA number is required.";if(!/^\d{8}$/.test(mva))return"MVA must be exactly 8 digits.";if(!stall||!stall.length)return"Stall is required.";var target=null;for(var t=0;t<live.length;t++){if(live[t].ID&&live[t].ID.toString()===rid.toString()){target=live[t];break;}}if(!target)return"Request deleted or completed. Refreshing...";if(!reass){var ts=(target.Dispatch_Status||"").toLowerCase();if(ts.indexOf("assigned")>=0||ts.indexOf("dispatch")>=0||ts.indexOf("complet")>=0)return"Updated by another dispatcher. Refreshing...";}for(var i=0;i<live.length;i++){var r=live[i],ri=r.ID?r.ID.toString():"",rm=r.Assigned_MVA?r.Assigned_MVA.toString().trim():"",rs=r.Dispatch_Status?r.Dispatch_Status.toString().toLowerCase():"";if(ri===rid.toString())continue;if(rm===mva&&rs.indexOf("assigned")>=0)return"MVA "+mva+" already assigned.";}return null;}
 function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseText);if(p.alert_message)return p.alert_message;if(p.message&&p.message!=="error")return p.message;}if(r.message&&r.message!=="error")return r.message;}catch(e){}return"Operation failed.";}
-function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200});}
 
-/* === AUTO-DELETE: removes New records older than 4 hrs === */
+/* === FETCH with server-side criteria: exclude Completed, Assigned>20min, Cancelled>20min === */
+function fetchLatestRecords(){
+  var cutoff=buildZohoTimestamp(new Date(Date.now()-20*60*1000)); // 20 min ago
+  var criteria='(Dispatch_Status != "Completed")'
+    +' && !(Dispatch_Status == "Assigned" && Assignment_Time < "'+cutoff+'")'
+    +' && !(Dispatch_Status == "Cancelled" && Modified_Time < "'+cutoff+'")';
+  return ZOHO.CREATOR.DATA.getRecords({app_name:"lax-abg",report_name:"All_Vehicle_Requests",page:1,max_records:200,criteria:criteria});
+}
+
+/* === AUTO-DELETE: removes New records older than 3 hrs === */
 function autoDeleteExpired(all){var now=Date.now();for(var i=0;i<all.length;i++){var r=all[i],id=r.ID?r.ID.toString():"";if(!id||deletingIds[id])continue;if(isAssignedStatus(r.Dispatch_Status)||isInProgressStatus(r.Dispatch_Status)||isCancelledStatus(r.Dispatch_Status))continue;if((r.Dispatch_Status||"").toLowerCase().indexOf("complet")>=0)continue;var ad=parseZohoDate(r.Added_Time);if(!ad||(now-ad.getTime())<=UNASSIGNED_DELETE_MS)continue;deletingIds[id]=true;ZOHO.CREATOR.DATA.deleteRecordById({app_name:"lax-abg",report_name:"All_Vehicle_Requests",id:id}).then(function(){delete deletingIds[id];}).catch(function(){delete deletingIds[id];});break;}}
 
 /* === MARK IN PROGRESS === */
@@ -290,7 +298,6 @@ function openAssignPopup(id,v){
   document.getElementById("popupTitle").textContent="Assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value="";
-  // Auto-fill stall for pump users
   document.getElementById("inputStall").value=loggedInUser.toLowerCase().indexOf("pump")>=0?"LZ":"";
   document.getElementById("btnSubmitAssign").textContent="Assign";
   clearPopupError();document.getElementById("assignOverlay").classList.add("active");
@@ -325,12 +332,12 @@ document.getElementById("inputMva").addEventListener("input",clearPopupError);
 document.getElementById("inputStall").addEventListener("input",clearPopupError);
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeAssignPopup();if(e.key==="Enter"&&assignRecordId)submitAssign();});
 
-/* === FILTER: applies timeout periods === */
+/* === CLIENT-SIDE FILTER: additional filtering after server-side criteria === */
 function applyFilter(all){var now=Date.now();return all.filter(function(r){var s=(r.Dispatch_Status||"").toLowerCase();
-  if(s.indexOf("complet")>=0)return false; // completed: always hidden
-  if(isAssignedStatus(r.Dispatch_Status)){var md=parseZohoDate(r.Modified_Time);if(md&&(now-md.getTime())>ASSIGNED_HIDE_MS)return false;} // assigned: 5 min
-  if(isCancelledStatus(r.Dispatch_Status)){var cd=parseZohoDate(r.Modified_Time);if(cd&&(now-cd.getTime())>ASSIGNED_HIDE_MS)return false;} // cancelled: 5 min
-  if(isNewStatus(r.Dispatch_Status)){var ad=parseZohoDate(r.Added_Time);if(ad&&(now-ad.getTime())>UNASSIGNED_DELETE_MS)return false;} // new: 4 hrs
+  if(s.indexOf("complet")>=0)return false;
+  if(isAssignedStatus(r.Dispatch_Status)){var md=parseZohoDate(r.Modified_Time);if(md&&(now-md.getTime())>ASSIGNED_HIDE_MS)return false;}
+  if(isCancelledStatus(r.Dispatch_Status)){var cd=parseZohoDate(r.Modified_Time);if(cd&&(now-cd.getTime())>ASSIGNED_HIDE_MS)return false;}
+  if(isNewStatus(r.Dispatch_Status)){var ad=parseZohoDate(r.Added_Time);if(ad&&(now-ad.getTime())>UNASSIGNED_DELETE_MS)return false;}
   return true;});}
 
 /* === POLLING === */
@@ -340,7 +347,6 @@ function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(functio
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){loggedInUser=params.loginUser||"";sdkReady=true;fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);}).catch(function(){sdkReady=true;fetchDispatches();setInterval(fetchDispatches,POLL_INTERVAL);});
 </script>
 
-<!-- Barcode scanner: camera stays alive between scans -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
 var html5QrCode=null,scannerActive=false,scannerPaused=false;
