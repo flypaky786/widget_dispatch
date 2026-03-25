@@ -494,7 +494,7 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
-  console.log("[Uniform] *** VERSION v8 — NO Full_Name in payload ***");
+  console.log("[Uniform] *** VERSION v9 — date fix ***");
   console.log("[Uniform] DATA methods:", JSON.stringify(Object.keys(ZOHO.CREATOR.DATA || {})));
 
   addRow(); // seed one empty row
@@ -840,8 +840,10 @@
     var rows  = collectRows();
     var dept  = document.getElementById("fDept").value;
     var notes = document.getElementById("fNotes").value.trim();
-    var today = new Date().toLocaleDateString("en-US",
-      { month:"2-digit", day:"2-digit", year:"numeric" });
+    // Zoho Creator date format: DD-MMM-YYYY
+    var _d = new Date();
+    var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var today = String(_d.getDate()).padStart(2,"0") + "-" + months[_d.getMonth()] + "-" + _d.getFullYear();
 
     var payload = { data: {} };
     payload.data.Employee_ID  = selectedEmp.zohoId;  // Lookup field needs internal Zoho record ID, not display value
