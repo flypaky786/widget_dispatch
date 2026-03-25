@@ -10,7 +10,7 @@
   ADD these fields to Uniform_Order:
     Employee_ID_Text   Single Line   required  (was lookup)
     Employee_Name      Single Line   required  (plain text, NOT a Name field type)
-    Employee_Signature Multi Line              (stores base64 PNG string)
+    Employee_Signature Multi Line   required  (stores base64 PNG — must be Multi Line, NOT Signature field type)
 
   KEEP all existing fields:
     Department, Full_or_Part_Time, Gender, Order_Date,
@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10f — f.fields fix ***");
+console.log("[Uniform] *** VERSION v10g — sorted dropdowns ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -394,7 +394,8 @@ function populateDeptDropdown() {
   sel.innerHTML = "";
   var blank = document.createElement("option"); blank.value = ""; blank.textContent = "\u2014 Select \u2014";
   sel.appendChild(blank);
-  choices.forEach(function(v){
+  var sortedDept = choices.slice().sort(function(a,b){ return a.localeCompare(b); });
+  sortedDept.forEach(function(v){
     var op = document.createElement("option"); op.value = v; op.textContent = v; sel.appendChild(op);
   });
   sel.disabled = false;
@@ -474,10 +475,10 @@ function addRow(sec) {
       // Get choices from META — fall back to empty if not loaded yet
       var choices = (fieldChoices[sec.key] && fieldChoices[sec.key][col.k]) || [];
       if (!choices.length) {
-        // If META returned nothing for this field, add a placeholder
         var ph = document.createElement("option"); ph.value = ""; ph.textContent = "N/A"; sel.appendChild(ph);
       } else {
-        choices.forEach(function(v){
+        var sorted = choices.slice().sort(function(a,b){ return a.localeCompare(b); });
+        sorted.forEach(function(v){
           var op = document.createElement("option"); op.value = v; op.textContent = v; sel.appendChild(op);
         });
       }
@@ -680,7 +681,9 @@ function doSubmit() {
     Submitted_By:      loginUser,
     Notes:             document.getElementById("fNotes").value.trim(),
     Employee_Signature: getSigDataURL() || ""
-    // NOTE: Employee_Signature must be Multi Line (Long Text) in Creator, NOT Image/File Upload
+    // NOTE: Employee_Signature must be Multi Line (Long Text) in Creator.
+    // Zoho's native Signature field type cannot be set via addRecords API (platform limitation).
+    // Change the field type to Multi Line to store base64 PNG as text.
   };
 
   Object.keys(d.sf).forEach(function(k){ rec[k] = d.sf[k]; });
