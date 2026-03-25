@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10j — getSigFile fixed ***");
+console.log("[Uniform] *** VERSION v10k — sig coords + white bg ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -519,17 +519,25 @@ function initSignature() {
   sigCanvas = document.getElementById("sigCanvas");
   sigCtx    = sigCanvas.getContext("2d");
 
-  // Fixed canvas size — keeps base64 output small enough for Creator's field limits.
-  // 600x150 gives good signature quality without bloating the stored string.
+  // Size canvas to match its CSS display size so drawing coords are accurate.
+  // We do NOT scale by devicePixelRatio — keeps file size manageable.
   function resizeCanvas() {
-    sigCanvas.width  = 600;
-    sigCanvas.height = 150;
+    var rect = sigCanvas.getBoundingClientRect();
+    sigCanvas.width  = Math.round(rect.width)  || 600;
+    sigCanvas.height = Math.round(rect.height) || 150;
+    // Fill white so JPEG export has white background (not black)
+    sigCtx.fillStyle = "#ffffff";
+    sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
     sigCtx.strokeStyle = "#1e293b";
     sigCtx.lineWidth   = 2;
     sigCtx.lineCap     = "round";
     sigCtx.lineJoin    = "round";
   }
   resizeCanvas();
+  // Re-size if window resizes
+  window.addEventListener("resize", function() {
+    if (!sigDirty) resizeCanvas();
+  });
 
   function getPos(e) {
     var rect = sigCanvas.getBoundingClientRect();
@@ -568,8 +576,8 @@ function initSignature() {
 
 function clearSig() {
   if (!sigCtx) return;
-  var rect = sigCanvas.getBoundingClientRect();
-  sigCtx.clearRect(0, 0, rect.width, rect.height);
+  sigCtx.fillStyle = "#ffffff";
+  sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
   sigDirty = false;
   document.getElementById("sigPlaceholder").style.display = "flex";
 }
