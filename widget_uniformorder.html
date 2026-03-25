@@ -494,7 +494,7 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
-  console.log("[Uniform] *** VERSION v7 ***");
+  console.log("[Uniform] *** VERSION v8 — NO Full_Name in payload ***");
   console.log("[Uniform] DATA methods:", JSON.stringify(Object.keys(ZOHO.CREATOR.DATA || {})));
 
   addRow(); // seed one empty row
@@ -859,6 +859,11 @@
     var recordData = payload.data;
     recordData[SUBFORM] = rows;
 
+    // Sanity check — Full_Name must NOT be in payload (it's a lookup field)
+    if (recordData.Full_Name !== undefined) {
+      console.error("[Uniform] BUG: Full_Name is in payload — removing it now");
+      delete recordData.Full_Name;
+    }
     console.log("[Uniform] addRecords payload:", JSON.stringify({ data: [recordData] }));
 
     ZOHO.CREATOR.DATA.addRecords({
