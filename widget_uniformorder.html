@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10d — single META call + type21 subform parse ***");
+console.log("[Uniform] *** VERSION v10e — raw META dump ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -364,6 +364,14 @@ function loadFieldMeta() {
           }
         });
         console.log("[Uniform] META loaded. fieldChoices keys:", Object.keys(fieldChoices));
+        // Dump raw field types so we can see what Zoho actually returns for subforms
+        console.log("[Uniform] Raw field types from META:");
+        resp.fields.forEach(function(f) {
+          console.log("  field:", f.link_name, "type:", f.type,
+            "has choices:", !!(f.choices && f.choices.length),
+            "has subfields:", !!(f.subfields && f.subfields.length),
+            "keys:", Object.keys(f).join(","));
+        });
       } else {
         console.warn("[Uniform] META issue:", resp && resp.code, resp && resp.message);
       }
