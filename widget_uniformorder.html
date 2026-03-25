@@ -180,8 +180,8 @@ table.sf input[type=number]{width:56px;font-size:12px;padding:5px 6px;text-align
       <div class="g3">
 
         <div class="fg">
-          <div class="fl">WWID <span class="req">*</span></div>
-          <input type="text" id="fEmpId" placeholder="e.g. 123456"/>
+          <div class="fl">Employee ID <span class="req">*</span></div>
+          <input type="text" id="fEmpId" placeholder="e.g. LAX-0042"/>
         </div>
 
         <div class="fg s2">
@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10g — sorted dropdowns ***");
+console.log("[Uniform] *** VERSION v10h — small sig ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -519,13 +519,11 @@ function initSignature() {
   sigCanvas = document.getElementById("sigCanvas");
   sigCtx    = sigCanvas.getContext("2d");
 
-  // Set canvas pixel size to match display size
+  // Fixed canvas size — keeps base64 output small enough for Creator's field limits.
+  // 600x150 gives good signature quality without bloating the stored string.
   function resizeCanvas() {
-    var rect = sigCanvas.getBoundingClientRect();
-    var dpr  = window.devicePixelRatio || 1;
-    sigCanvas.width  = rect.width  * dpr;
-    sigCanvas.height = rect.height * dpr;
-    sigCtx.scale(dpr, dpr);
+    sigCanvas.width  = 600;
+    sigCanvas.height = 150;
     sigCtx.strokeStyle = "#1e293b";
     sigCtx.lineWidth   = 2;
     sigCtx.lineCap     = "round";
@@ -578,7 +576,8 @@ function clearSig() {
 
 function getSigDataURL() {
   if (!sigDirty) return null;
-  return sigCanvas.toDataURL("image/png");
+    // JPEG at 0.7 quality — ~5x smaller than PNG, more than enough for a signature
+  return sigCanvas.toDataURL("image/jpeg", 0.7);
 }
 
 // ── COLLECT + SUMMARY ─────────────────────────────────────────────────────────
