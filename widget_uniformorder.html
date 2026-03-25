@@ -844,7 +844,13 @@
     // Use Creator REST API v2.1 via fetch — ZOHO.CREATOR.DATA has no
     // reliable addRecord/addRecords on this SDK build. fetch works because
     // the widget is already authenticated in the same origin.
-    var url = "/creator/v2.1/data/autoflowx/" + APP + "/form/" + FORM;
+    // Build absolute URL using the widget's actual host — avoids SDK proxy routing
+    var host = window.location.origin;
+    // If running inside zappsusercontent iframe, derive the real host from serviceOrigin param
+    var svcOrigin = new URLSearchParams(window.location.search).get("serviceOrigin");
+    if (svcOrigin) { try { host = new URL(svcOrigin).origin; } catch(e) {} }
+    var url = host + "/creator/v2.1/data/autoflowx/" + APP + "/form/" + FORM;
+    console.log("[Uniform] POST url:", url);
 
     fetch(url, {
       method:  "POST",
