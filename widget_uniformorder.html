@@ -1,410 +1,217 @@
 <!DOCTYPE html>
 <!--
-  ============================================================================
-  UNIFORM ORDER WIDGET v9 — Full (All 9 Categories, Accordion)
-  ============================================================================
-  App:        lax-abg
-  Form:       Uniform_Order
-  Emp Report: All_Employee_Info
-
-  SUBFORM LINK NAMES (exact, from schema):
-    Pants_Orders        Color, Size, Style, Cuffed, Quantity
-    Safety_Vest_Orders  Color, Size, Quantity
-    Dress_Shirt_Orders  Color, Size, Sleeves, Number   ← qty field is "Number"
-    Polo_Orders         Color, Size, Sleeves, Quantity
-    Tie_Orders          Color, Quantity
-    Scarf_Orders        Color, Quantity
-    Jackets             Color, Size, Style, Quantity   ← link name is "Jackets"
-    Sweaters            Color, Size, Style, Sleeves, Quantity  ← "Sweaters"
-    Headgear            Style, Quantity                ← "Headgear"
-
-  PARENT FIELDS:
-    Employee_ID         Picklist lookup → Employee_Info.ID (pass zohoId)
-    Department          Picklist (with others)
-    Full_or_Part_Time   Radio: Full Time / Part Time
-    Gender              Radio: Male / Female
-    Order_Date          Date  DD-MMM-YYYY
-    Submitted_By        Text  (loginuserid)
-    Notes               Textarea
-  ============================================================================
+  UNIFORM ORDER WIDGET v9-FINAL
+  App: lax-abg  |  Form: Uniform_Order  |  Emp: All_Employee_Info
+  Subforms: Pants_Orders, Safety_Vest_Orders, Dress_Shirt_Orders, Polo_Orders,
+            Tie_Orders, Scarf_Orders, Jackets, Sweaters, Headgear
+  NOTE: Dress_Shirt_Orders qty field = "Number" (not Quantity)
+        Jackets / Sweaters / Headgear are exact link names (no _Orders suffix)
 -->
 <html>
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --dark:      #0f172a;
-      --dark2:     #1e293b;
-      --mid:       #334155;
-      --th-bg:     #f1f5f9;
-      --th-text:   #64748b;
-      --body-bg:   #f0f4f8;
-      --card-bg:   #ffffff;
-      --border:    #e2e8f0;
-      --text:      #1e293b;
-      --muted:     #64748b;
-      --danger:    #ef4444;
-      --success:   #22c55e;
-      --info-bg:   #dbeafe;
-      --info-text: #1e40af;
-      --radius:    8px;
-      --radius-sm: 5px;
-      --shadow:    0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
-      --shadow-md: 0 4px 16px rgba(0,0,0,0.13);
-    }
-    body {
-      font-family: "DM Sans", -apple-system, sans-serif;
-      background: var(--body-bg); color: var(--text);
-      font-size: 14px; min-height: 100vh; padding-bottom: 72px;
-    }
-
-    /* Header */
-    .widget-header {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: #fff; padding: 14px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      position: sticky; top: 0; z-index: 100;
-    }
-    .header-title { font-size: 15px; font-weight: 600; }
-    .header-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-    .header-date  { font-size: 11px; color: #475569; }
-
-    /* Layout */
-    .content { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
-
-    /* Cards */
-    .card {
-      background: var(--card-bg); border-radius: var(--radius);
-      box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden;
-    }
-    .card-header {
-      background: var(--th-bg); border-bottom: 1px solid var(--border);
-      padding: 9px 16px; font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.06em; color: var(--th-text);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .card-body { padding: 16px; }
-
-    /* Employee fields grid */
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .span-3 { grid-column: 1 / -1; }
-    .span-2 { grid-column: 1 / 3; }
-    @media (max-width: 600px) {
-      .grid-3, .grid-2 { grid-template-columns: 1fr; }
-      .span-3, .span-2 { grid-column: 1 / -1; }
-    }
-
-    .field-group { display: flex; flex-direction: column; gap: 5px; }
-    .field-label { font-size: 11px; font-weight: 600; color: var(--th-text); text-transform: uppercase; letter-spacing: 0.05em; }
-    .req { color: var(--danger); margin-left: 2px; }
-
-    input[type=text], select, textarea {
-      font-family: inherit; font-size: 13px; color: var(--text);
-      background: #fff; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 7px 10px; width: 100%; outline: none;
-      transition: border-color 0.15s;
-    }
-    input[type=text]:focus, select:focus, textarea:focus { border-color: var(--mid); }
-    select { cursor: pointer; }
-    textarea { resize: vertical; min-height: 52px; }
-
-    /* Radio groups */
-    .radio-group { display: flex; gap: 16px; align-items: center; padding-top: 4px; flex-wrap: wrap; }
-    .radio-group label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
-
-    /* Lookup */
-    .lookup-wrap { position: relative; }
-    .lookup-row  { display: flex; gap: 6px; }
-    .lookup-row input { flex: 1; }
-    #empClear {
-      display: none; background: none; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0 10px; color: var(--muted);
-      cursor: pointer; font-size: 15px; align-items: center; justify-content: center;
-    }
-    #empClear:hover { color: var(--danger); border-color: #fca5a5; }
-    .lookup-drop {
-      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
-      background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
-      box-shadow: var(--shadow-md); max-height: 230px; overflow-y: auto; z-index: 400;
-    }
-    .lookup-drop.open { display: block; }
-    .emp-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); }
-    .emp-item:last-child { border-bottom: none; }
-    .emp-item:hover, .emp-item.kb { background: var(--th-bg); }
-    .emp-id   { font-size: 13px; font-weight: 500; }
-    .emp-name { font-size: 11px; color: var(--muted); margin-top: 1px; }
-    .emp-role { font-size: 10px; color: #94a3b8; }
-    .emp-msg  { padding: 12px; text-align: center; font-size: 12px; color: var(--muted); }
-    .resolved {
-      display: none; align-items: center; gap: 7px;
-      background: var(--info-bg); border: 1px solid #bfdbfe;
-      border-radius: var(--radius-sm); padding: 7px 11px; margin-top: 6px;
-      font-size: 12px; color: var(--info-text); font-weight: 500;
-    }
-    .resolved.show { display: flex; }
-
-    /* Accordion sections */
-    .acc-card {
-      background: var(--card-bg); border-radius: var(--radius);
-      box-shadow: var(--shadow); margin-bottom: 10px; overflow: hidden;
-    }
-    .acc-toggle {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px; cursor: pointer; user-select: none;
-      transition: background 0.1s;
-    }
-    .acc-toggle:hover { background: #f8fafc; }
-    .acc-left  { display: flex; align-items: center; gap: 10px; }
-    .acc-icon  {
-      width: 30px; height: 30px; background: var(--th-bg);
-      border-radius: var(--radius-sm);
-      display: flex; align-items: center; justify-content: center; font-size: 15px;
-    }
-    .acc-label { font-size: 14px; font-weight: 500; }
-    .acc-right { display: flex; align-items: center; gap: 8px; }
-    .acc-badge {
-      font-size: 10px; font-weight: 600;
-      background: var(--info-bg); color: var(--info-text);
-      padding: 2px 9px; border-radius: 12px; display: none;
-    }
-    .acc-badge.show { display: inline-block; }
-    .acc-chev { font-size: 11px; color: var(--muted); transition: transform 0.2s; }
-    .acc-chev.open { transform: rotate(90deg); }
-    .acc-body { display: none; border-top: 1px solid var(--border); }
-    .acc-body.open { display: block; }
-
-    /* Subform table */
-    .tbl-wrap { overflow-x: auto; }
-    table.sf { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 420px; }
-    table.sf th {
-      background: var(--th-bg); color: var(--th-text); font-size: 11px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.05em;
-      padding: 8px 10px; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap;
-    }
-    table.sf td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-    table.sf tr:last-child td { border-bottom: none; }
-    table.sf tbody tr:hover td { background: #fafbfc; }
-    table.sf select { font-size: 12px; padding: 5px 7px; }
-    table.sf input[type=number] {
-      width: 56px; font-size: 12px; padding: 5px 6px; text-align: center;
-      border: 1px solid var(--border); border-radius: var(--radius-sm);
-      font-family: inherit; outline: none;
-    }
-    .qty-wrap { display: flex; align-items: center; gap: 3px; }
-    .qty-btn {
-      width: 24px; height: 24px; border: 1px solid var(--border); background: var(--th-bg);
-      border-radius: 4px; cursor: pointer; font-size: 15px;
-      display: flex; align-items: center; justify-content: center; color: var(--muted);
-    }
-    .qty-btn:hover { background: #e2e8f0; color: var(--text); }
-    .del-btn {
-      background: none; border: none; color: #cbd5e1; cursor: pointer;
-      font-size: 16px; padding: 3px 6px; border-radius: 4px;
-    }
-    .del-btn:hover { color: var(--danger); background: #fef2f2; }
-    .add-row-btn {
-      width: 100%; padding: 9px; background: none; border: none;
-      border-top: 1px dashed var(--border); font-family: inherit;
-      font-size: 12px; color: var(--muted); cursor: pointer; text-align: center;
-    }
-    .add-row-btn:hover { background: #f8fafc; color: var(--dark); }
-
-    /* Submit bar */
-    .submit-bar {
-      position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
-      border-top: 1px solid var(--border); padding: 12px 20px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      z-index: 200; box-shadow: 0 -2px 8px rgba(0,0,0,0.07);
-    }
-    #subSummary { font-size: 12px; color: var(--muted); }
-    #subSummary strong { color: var(--text); }
-    .btn-row { display: flex; gap: 8px; }
-    .btn {
-      font-family: inherit; font-size: 13px; font-weight: 500;
-      border-radius: var(--radius); padding: 9px 22px; cursor: pointer; border: none;
-    }
-    .btn-primary { background: var(--dark); color: #fff; }
-    .btn-primary:hover { background: var(--dark2); }
-    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
-    .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); }
-    .btn-ghost:hover { background: var(--th-bg); }
-
-    /* Confirm modal */
-    .backdrop {
-      display: none; position: fixed; inset: 0;
-      background: rgba(15,23,42,0.55); backdrop-filter: blur(3px);
-      z-index: 500; align-items: center; justify-content: center;
-    }
-    .backdrop.show { display: flex; }
-    .modal {
-      background: #fff; border-radius: 12px; padding: 26px;
-      max-width: 500px; width: 92%; box-shadow: var(--shadow-md);
-      animation: popIn 0.16s ease;
-    }
-    @keyframes popIn { from{transform:scale(0.93);opacity:0;} to{transform:scale(1);opacity:1;} }
-    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-    .modal-sub   { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
-    .modal-body  {
-      font-size: 12px; line-height: 1.9; white-space: pre-wrap;
-      background: var(--th-bg); border-radius: var(--radius-sm);
-      padding: 12px 14px; margin-bottom: 18px; max-height: 260px; overflow-y: auto;
-    }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
-    /* Success */
-    .success-screen { display: none; text-align: center; padding: 60px 20px; max-width: 500px; margin: 0 auto; }
-    .success-screen.show { display: block; }
-    .success-icon  { font-size: 46px; margin-bottom: 14px; }
-    .success-title { font-size: 19px; font-weight: 600; margin-bottom: 8px; }
-    .success-sub   { color: var(--muted); font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
-
-    /* Error banner */
-    #errorBanner {
-      display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 600;
-      background: #fef2f2; border-bottom: 2px solid #fca5a5; padding: 10px 20px;
-      align-items: center; justify-content: space-between; gap: 12px;
-    }
-    #errorBanner.show { display: flex; }
-    #errorBannerMsg { font-size: 13px; color: #991b1b; font-weight: 500; }
-    #errorBannerClose {
-      background: none; border: none; color: #991b1b;
-      cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 4px;
-    }
-
-    /* Toast */
-    #toast {
-      position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
-      background: var(--dark); color: #fff; padding: 9px 20px; border-radius: 20px;
-      font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.25s;
-      z-index: 999; pointer-events: none; white-space: nowrap;
-    }
-    #toast.err  { background: var(--danger); }
-    #toast.show { opacity: 1; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --dark:#0f172a;--dark2:#1e293b;--mid:#334155;
+  --th-bg:#f1f5f9;--th-text:#64748b;--body-bg:#f0f4f8;
+  --card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#64748b;
+  --danger:#ef4444;--success:#22c55e;--info-bg:#dbeafe;--info-text:#1e40af;
+  --r:8px;--rs:5px;
+  --sh:0 1px 3px rgba(0,0,0,.10),0 1px 2px rgba(0,0,0,.06);
+  --shm:0 4px 16px rgba(0,0,0,.13);
+}
+body{font-family:"DM Sans",-apple-system,sans-serif;background:var(--body-bg);color:var(--text);font-size:14px;min-height:100vh;padding-bottom:72px;}
+.hdr{background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.hdr-title{font-size:15px;font-weight:600;}
+.hdr-sub{font-size:11px;color:#94a3b8;margin-top:2px;}
+.hdr-date{font-size:11px;color:#475569;}
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px;}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden;}
+.card-hdr{background:var(--th-bg);border-bottom:1px solid var(--border);padding:9px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--th-text);display:flex;align-items:center;gap:8px;}
+.card-body{padding:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+@media(max-width:600px){.g3{grid-template-columns:1fr;}}
+.fg{display:flex;flex-direction:column;gap:5px;}
+.fl{font-size:11px;font-weight:600;color:var(--th-text);text-transform:uppercase;letter-spacing:.05em;}
+.req{color:var(--danger);margin-left:2px;}
+input[type=text],select,textarea{font-family:inherit;font-size:13px;color:var(--text);background:#fff;border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;width:100%;outline:none;transition:border-color .15s;}
+input[type=text]:focus,select:focus,textarea:focus{border-color:var(--mid);}
+select{cursor:pointer;}
+.rg{display:flex;gap:16px;align-items:center;padding-top:4px;flex-wrap:wrap;}
+.rg label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+.lw{position:relative;}
+.lr{display:flex;gap:6px;}
+.lr input{flex:1;}
+#empClear{display:none;background:none;border:1px solid var(--border);border-radius:var(--rs);padding:0 10px;color:var(--muted);cursor:pointer;font-size:15px;align-items:center;justify-content:center;}
+#empClear:hover{color:var(--danger);border-color:#fca5a5;}
+.ldrop{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shm);max-height:230px;overflow-y:auto;z-index:400;}
+.ldrop.open{display:block;}
+.ei{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);}
+.ei:last-child{border-bottom:none;}
+.ei:hover,.ei.kb{background:var(--th-bg);}
+.ei-id{font-size:13px;font-weight:500;}
+.ei-nm{font-size:11px;color:var(--muted);margin-top:1px;}
+.ei-ro{font-size:10px;color:#94a3b8;}
+.emsg{padding:12px;text-align:center;font-size:12px;color:var(--muted);}
+.res{display:none;align-items:center;gap:7px;background:var(--info-bg);border:1px solid #bfdbfe;border-radius:var(--rs);padding:7px 11px;margin-top:6px;font-size:12px;color:var(--info-text);font-weight:500;}
+.res.show{display:flex;}
+.ac{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:10px;overflow:hidden;}
+.at{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;transition:background .1s;}
+.at:hover{background:#f8fafc;}
+.al{display:flex;align-items:center;gap:10px;}
+.ai{width:30px;height:30px;background:var(--th-bg);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.an{font-size:14px;font-weight:500;}
+.ar{display:flex;align-items:center;gap:8px;}
+.abg{font-size:10px;font-weight:600;background:var(--info-bg);color:var(--info-text);padding:2px 9px;border-radius:12px;display:none;}
+.abg.show{display:inline-block;}
+.achv{font-size:11px;color:var(--muted);transition:transform .2s;display:inline-block;}
+.achv.open{transform:rotate(90deg);}
+.ab{display:none;border-top:1px solid var(--border);}
+.ab.open{display:block;}
+.tw{overflow-x:auto;}
+table.sf{width:100%;border-collapse:collapse;font-size:13px;min-width:420px;}
+table.sf th{background:var(--th-bg);color:var(--th-text);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap;}
+table.sf td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+table.sf tr:last-child td{border-bottom:none;}
+table.sf tbody tr:hover td{background:#fafbfc;}
+table.sf select{font-size:12px;padding:5px 7px;}
+table.sf input[type=number]{width:56px;font-size:12px;padding:5px 6px;text-align:center;border:1px solid var(--border);border-radius:var(--rs);font-family:inherit;outline:none;}
+.qw{display:flex;align-items:center;gap:3px;}
+.qb{width:24px;height:24px;border:1px solid var(--border);background:var(--th-bg);border-radius:4px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--muted);}
+.qb:hover{background:#e2e8f0;color:var(--text);}
+.db{background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:16px;padding:3px 6px;border-radius:4px;}
+.db:hover{color:var(--danger);background:#fef2f2;}
+.arb{width:100%;padding:9px;background:none;border:none;border-top:1px dashed var(--border);font-family:inherit;font-size:12px;color:var(--muted);cursor:pointer;text-align:center;}
+.arb:hover{background:#f8fafc;color:var(--dark);}
+.sbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:200;box-shadow:0 -2px 8px rgba(0,0,0,.07);}
+#sumEl{font-size:12px;color:var(--muted);}
+#sumEl strong{color:var(--text);}
+.br{display:flex;gap:8px;}
+.btn{font-family:inherit;font-size:13px;font-weight:500;border-radius:var(--r);padding:9px 22px;cursor:pointer;border:none;}
+.bp{background:var(--dark);color:#fff;}
+.bp:hover{background:var(--dark2);}
+.bp:disabled{background:#94a3b8;cursor:not-allowed;}
+.bg{background:none;color:var(--muted);border:1px solid var(--border);}
+.bg:hover{background:var(--th-bg);}
+.bkd{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);z-index:500;align-items:center;justify-content:center;}
+.bkd.show{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:26px;max-width:500px;width:92%;box-shadow:var(--shm);animation:pi .16s ease;}
+@keyframes pi{from{transform:scale(.93);opacity:0;}to{transform:scale(1);opacity:1;}}
+.mt{font-size:16px;font-weight:600;margin-bottom:6px;}
+.ms{font-size:13px;color:var(--muted);margin-bottom:14px;}
+.mb{font-size:12px;line-height:1.9;white-space:pre-wrap;background:var(--th-bg);border-radius:var(--rs);padding:12px 14px;margin-bottom:18px;max-height:260px;overflow-y:auto;}
+.ma{display:flex;gap:10px;justify-content:flex-end;}
+.ss{display:none;text-align:center;padding:60px 20px;max-width:500px;margin:0 auto;}
+.ss.show{display:block;}
+.si{font-size:46px;margin-bottom:14px;}
+.st{font-size:19px;font-weight:600;margin-bottom:8px;}
+.sb{color:var(--muted);font-size:13px;margin-bottom:24px;line-height:1.6;}
+#eb{display:none;position:fixed;top:0;left:0;right:0;z-index:600;background:#fef2f2;border-bottom:2px solid #fca5a5;padding:10px 20px;align-items:center;justify-content:space-between;gap:12px;}
+#eb.show{display:flex;}
+#ebm{font-size:13px;color:#991b1b;font-weight:500;}
+#ebc{background:none;border:none;color:#991b1b;cursor:pointer;font-size:16px;padding:2px 8px;border-radius:4px;}
+#toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:9px 20px;border-radius:20px;font-size:13px;font-weight:500;opacity:0;transition:opacity .25s;z-index:999;pointer-events:none;white-space:nowrap;}
+#toast.err{background:var(--danger);}
+#toast.show{opacity:1;}
+</style>
 </head>
 <body>
 
-<!-- Header -->
-<div class="widget-header">
+<div class="hdr">
   <div>
-    <div class="header-title">Uniform Order Request</div>
-    <div class="header-sub" id="headerSub">Loading&#8230;</div>
+    <div class="hdr-title">Uniform Order Request</div>
+    <div class="hdr-sub" id="hSub">Loading&#8230;</div>
   </div>
-  <div class="header-date" id="headerDate"></div>
+  <div class="hdr-date" id="hDate"></div>
 </div>
 
-<!-- Error banner -->
-<div id="errorBanner">
+<div id="eb">
   <div style="display:flex;align-items:center;gap:8px;">
-    <span>&#9888;&#65039;</span>
-    <span id="errorBannerMsg"></span>
+    <span>&#9888;</span><span id="ebm"></span>
   </div>
-  <button id="errorBannerClose">&#x2715;</button>
+  <button id="ebc">&#x2715;</button>
 </div>
 
-<div class="content" id="mainContent">
-
-  <!-- Employee info card -->
+<div class="wrap" id="mainWrap">
   <div class="card">
-    <div class="card-header">&#128100; Employee Information</div>
+    <div class="card-hdr">&#128100; Employee Information</div>
     <div class="card-body">
-      <div class="grid-3">
-
-        <!-- Employee ID lookup -->
-        <div class="field-group">
-          <div class="field-label">Employee ID <span class="req">*</span></div>
-          <div class="lookup-wrap" id="lookupWrap">
-            <div class="lookup-row">
+      <div class="g3">
+        <div class="fg">
+          <div class="fl">Employee ID <span class="req">*</span></div>
+          <div class="lw" id="lw">
+            <div class="lr">
               <input type="text" id="empInput" placeholder="Type ID, first or last name&#8230;" autocomplete="off"/>
               <button id="empClear" title="Clear">&#x2715;</button>
             </div>
-            <div class="lookup-drop" id="empDrop"></div>
-            <div class="resolved" id="resolved">
+            <div class="ldrop" id="ldrop"></div>
+            <div class="res" id="res">
               <span>&#10003;</span>
-              <span id="resolvedName" style="font-weight:600;"></span>
-              <span id="resolvedRole" style="font-size:11px;opacity:0.75;margin-left:4px;"></span>
+              <span id="resName" style="font-weight:600;"></span>
+              <span id="resRole" style="font-size:11px;opacity:.75;margin-left:4px;"></span>
             </div>
           </div>
         </div>
-
-        <!-- Department -->
-        <div class="field-group">
-          <div class="field-label">Department <span class="req">*</span></div>
+        <div class="fg">
+          <div class="fl">Department <span class="req">*</span></div>
           <select id="fDept">
             <option value="">&#8212; Select &#8212;</option>
-            <option>Valet</option>
-            <option>Dispatch</option>
-            <option>Operations</option>
-            <option>Management</option>
-            <option>Other</option>
+            <option>Valet</option><option>Dispatch</option>
+            <option>Operations</option><option>Management</option><option>Other</option>
           </select>
         </div>
-
-        <!-- Notes -->
-        <div class="field-group">
-          <div class="field-label">Notes</div>
+        <div class="fg">
+          <div class="fl">Notes</div>
           <input type="text" id="fNotes" placeholder="Special instructions&#8230;"/>
         </div>
-
-        <!-- Full/Part Time -->
-        <div class="field-group">
-          <div class="field-label">Employment Type <span class="req">*</span></div>
-          <div class="radio-group" id="rgFPT">
+        <div class="fg">
+          <div class="fl">Employment Type <span class="req">*</span></div>
+          <div class="rg">
             <label><input type="radio" name="fpt" value="Full Time"/> Full Time</label>
             <label><input type="radio" name="fpt" value="Part Time"/> Part Time</label>
           </div>
         </div>
-
-        <!-- Gender -->
-        <div class="field-group">
-          <div class="field-label">Gender <span class="req">*</span></div>
-          <div class="radio-group" id="rgGender">
+        <div class="fg">
+          <div class="fl">Gender <span class="req">*</span></div>
+          <div class="rg">
             <label><input type="radio" name="gender" value="Male"/> Male</label>
             <label><input type="radio" name="gender" value="Female"/> Female</label>
           </div>
         </div>
-
       </div>
     </div>
   </div>
-
-  <!-- Accordion sections built by JS -->
-  <div id="accordions"></div>
-
+  <div id="accs"></div>
 </div>
 
-<!-- Success screen -->
-<div class="success-screen" id="successScreen">
-  <div class="success-icon">&#9989;</div>
-  <div class="success-title">Order Submitted!</div>
-  <div class="success-sub" id="successMsg"></div>
-  <button class="btn btn-ghost" id="btnNewOrder">Submit Another Order</button>
+<div class="ss" id="ss">
+  <div class="si">&#9989;</div>
+  <div class="st">Order Submitted!</div>
+  <div class="sb" id="ssMsg"></div>
+  <button class="btn bg" id="btnNew">Submit Another Order</button>
 </div>
 
-<!-- Submit bar -->
-<div class="submit-bar" id="submitBar">
-  <div id="subSummary">No items added</div>
-  <div class="btn-row">
-    <button class="btn btn-ghost" id="btnClear">Clear</button>
-    <button class="btn btn-primary" id="btnSubmit">Submit Order</button>
+<div class="sbar" id="sbar">
+  <div id="sumEl">No items added</div>
+  <div class="br">
+    <button class="btn bg" id="btnClear">Clear</button>
+    <button class="btn bp" id="btnSub">Submit Order</button>
   </div>
 </div>
 
-<!-- Confirm modal -->
-<div class="backdrop" id="backdrop">
+<div class="bkd" id="bkd">
   <div class="modal">
-    <div class="modal-title">Confirm Order</div>
-    <div class="modal-sub">Review before submitting:</div>
-    <div class="modal-body" id="modalBody"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="btnBack">Back</button>
-      <button class="btn btn-primary" id="btnConfirm">Confirm &#38; Submit</button>
+    <div class="mt">Confirm Order</div>
+    <div class="ms">Review before submitting:</div>
+    <div class="mb" id="mbody"></div>
+    <div class="ma">
+      <button class="btn bg" id="btnBack">Back</button>
+      <button class="btn bp" id="btnConf">Confirm &amp; Submit</button>
     </div>
   </div>
 </div>
@@ -412,250 +219,200 @@
 <div id="toast"></div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────────
 var APP     = "lax-abg";
 var FORM    = "Uniform_Order";
 var EMP_RPT = "All_Employee_Info";
 
-// ── SECTION DEFINITIONS ───────────────────────────────────────────────────────
-// key = exact subform link name in Creator
-// qtyKey = field name for quantity (Dress_Shirt_Orders uses "Number" not "Quantity")
-var SECTIONS = [
-  { key:"Pants_Orders",       label:"Pants",        icon:"\uD83D\uDC56",
-    cols:[ {k:"Color",  t:"sel", o:["Black","Blue","Gray"]},
-           {k:"Size",   t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Style",  t:"sel", o:["Cargo","Chino","Dress Pants"]},
-           {k:"Cuffed", t:"sel", o:["No","Yes"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Safety_Vest_Orders", label:"Safety Vest",  icon:"\uD83E\uDDBD",
-    cols:[ {k:"Color", t:"sel", o:["Yellow","Orange","Blue","Black","Purple"]},
-           {k:"Size",  t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Dress_Shirt_Orders", label:"Dress Shirt",  icon:"\uD83D\uDC54",
-    cols:[ {k:"Color",   t:"sel", o:["White","Red","Blue","Black"]},
-           {k:"Size",    t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Sleeves", t:"sel", o:["Full Sleeves","Half Sleeves"]},
-           {k:"Number",  t:"qty"} ] },   // qty field is "Number" per schema
-
-  { key:"Polo_Orders",        label:"Polo",         icon:"\uD83D\uDC55",
-    cols:[ {k:"Color",   t:"sel", o:["White","Red","Blue","Black","Gray"]},
-           {k:"Size",    t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Sleeves", t:"sel", o:["Full Sleeves","Half Sleeves"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Tie_Orders",         label:"Tie",          icon:"\uD83C\uDF80",
-    cols:[ {k:"Color",    t:"sel", o:["Blue","Red"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Scarf_Orders",       label:"Scarf",        icon:"\uD83E\uDDE3",
-    cols:[ {k:"Color",    t:"sel", o:["Blue","Red","Orange"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Jackets",            label:"Jacket",       icon:"\uD83E\uDDE5",
-    cols:[ {k:"Color",    t:"sel", o:["Red","Blue","Gray","Black"]},
-           {k:"Size",     t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Style",    t:"sel", o:["3 Layered","Fleece","Bomber","Regular"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Sweaters",           label:"Sweater",      icon:"\uD83E\uDDF6",
-    cols:[ {k:"Color",    t:"sel", o:["Red","Blue","Gray","Black"]},
-           {k:"Size",     t:"sel", o:["XS","S","M","L","XL","2XL","3XL"]},
-           {k:"Style",    t:"sel", o:["Fleece","Pullover","V-Neck","Front Buttoned","Front Zip","Cardigan"]},
-           {k:"Sleeves",  t:"sel", o:["Full Sleeves","Half Sleeves"]},
-           {k:"Quantity", t:"qty"} ] },
-
-  { key:"Headgear",           label:"Headgear",     icon:"\uD83E\uDDE2",
-    cols:[ {k:"Style",    t:"sel", o:["Baseball Hat","Beanie"]},
-           {k:"Quantity", t:"qty"} ] }
+var SECS = [
+  { key:"Pants_Orders",       lbl:"Pants",        icon:"👖",
+    cols:[{k:"Color",t:"s",o:["Black","Blue","Gray"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Style",t:"s",o:["Cargo","Chino","Dress Pants"]},
+          {k:"Cuffed",t:"s",o:["No","Yes"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Safety_Vest_Orders", lbl:"Safety Vest",  icon:"🦺",
+    cols:[{k:"Color",t:"s",o:["Yellow","Orange","Blue","Black","Purple"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Dress_Shirt_Orders", lbl:"Dress Shirt",  icon:"👔",
+    cols:[{k:"Color",t:"s",o:["White","Red","Blue","Black"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Sleeves",t:"s",o:["Full Sleeves","Half Sleeves"]},
+          {k:"Number",t:"q"}]},
+  { key:"Polo_Orders",        lbl:"Polo",          icon:"👕",
+    cols:[{k:"Color",t:"s",o:["White","Red","Blue","Black","Gray"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Sleeves",t:"s",o:["Full Sleeves","Half Sleeves"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Tie_Orders",         lbl:"Tie",           icon:"🎀",
+    cols:[{k:"Color",t:"s",o:["Blue","Red"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Scarf_Orders",       lbl:"Scarf",         icon:"🧣",
+    cols:[{k:"Color",t:"s",o:["Blue","Red","Orange"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Jackets",            lbl:"Jacket",        icon:"🧥",
+    cols:[{k:"Color",t:"s",o:["Red","Blue","Gray","Black"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Style",t:"s",o:["3 Layered","Fleece","Bomber","Regular"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Sweaters",           lbl:"Sweater",       icon:"🧶",
+    cols:[{k:"Color",t:"s",o:["Red","Blue","Gray","Black"]},
+          {k:"Size",t:"s",o:["XS","S","M","L","XL","2XL","3XL"]},
+          {k:"Style",t:"s",o:["Fleece","Pullover","V-Neck","Front Buttoned","Front Zip","Cardigan"]},
+          {k:"Sleeves",t:"s",o:["Full Sleeves","Half Sleeves"]},
+          {k:"Quantity",t:"q"}]},
+  { key:"Headgear",           lbl:"Headgear",      icon:"🧢",
+    cols:[{k:"Style",t:"s",o:["Baseball Hat","Beanie"]},
+          {k:"Quantity",t:"q"}]}
 ];
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
 var loginUser   = "";
 var empCache    = [];
 var dropMatches = [];
 var selectedEmp = null;
 var activeIdx   = -1;
 var rowSeqs     = {};
-var toastTimer  = null;
+var ttTimer     = null;
 
-// ── BOOT ──────────────────────────────────────────────────────────────────────
 console.log("[Uniform] *** VERSION v9-FINAL-9sections ***");
 
-document.getElementById("headerDate").textContent =
-  new Date().toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric", year:"numeric"});
+document.getElementById("hDate").textContent =
+  new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
 
 buildAccordions();
 
-// Wire static buttons
-document.getElementById("empInput").addEventListener("input",   function(){ handleEmpInput(this.value); });
-document.getElementById("empInput").addEventListener("focus",   function(){ if(this.value.trim() && !selectedEmp) handleEmpInput(this.value); });
-document.getElementById("empInput").addEventListener("keydown", function(e){ handleEmpKey(e); });
-document.getElementById("empClear").addEventListener("click",   function(){ clearEmp(); });
-document.getElementById("btnSubmit").addEventListener("click",  function(){ openConfirm(); });
+document.getElementById("empInput").addEventListener("input",   function(){ onEmpInput(this.value); });
+document.getElementById("empInput").addEventListener("focus",   function(){ if(this.value.trim()&&!selectedEmp) onEmpInput(this.value); });
+document.getElementById("empInput").addEventListener("keydown", function(e){ onEmpKey(e); });
+document.getElementById("empClear").addEventListener("click",   clearEmp);
+document.getElementById("btnSub").addEventListener("click",     openConfirm);
 document.getElementById("btnClear").addEventListener("click",   function(){ if(confirm("Clear all fields?")) resetForm(); });
-document.getElementById("btnBack").addEventListener("click",    function(){ closeConfirm(); });
-document.getElementById("btnConfirm").addEventListener("click", function(){ doSubmit(); });
-document.getElementById("btnNewOrder").addEventListener("click",function(){ resetForm(); });
-document.getElementById("errorBannerClose").addEventListener("click", function(){ document.getElementById("errorBanner").classList.remove("show"); });
+document.getElementById("btnBack").addEventListener("click",    closeConfirm);
+document.getElementById("btnConf").addEventListener("click",    doSubmit);
+document.getElementById("btnNew").addEventListener("click",     resetForm);
+document.getElementById("ebc").addEventListener("click",        function(){ document.getElementById("eb").classList.remove("show"); });
 document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeConfirm(); });
-document.addEventListener("click",   function(e){ if(!document.getElementById("lookupWrap").contains(e.target)) closeDrop(); });
+document.addEventListener("click",   function(e){ if(!document.getElementById("lw").contains(e.target)) closeDrop(); });
 
 ZOHO.CREATOR.UTIL.getInitParams().then(function(p){
   loginUser = p.loginUser || "";
   var u = loginUser ? loginUser.split("@")[0] : "";
-  document.getElementById("headerSub").textContent = u ? "Submitting as: " + u : "Uniform Order Form";
+  document.getElementById("hSub").textContent = u ? "Submitting as: " + u : "Uniform Order Form";
   loadEmployees();
 }).catch(function(){
-  document.getElementById("headerSub").textContent = "Uniform Order Form";
+  document.getElementById("hSub").textContent = "Uniform Order Form";
   loadEmployees();
 });
 
-// ── BUILD ACCORDIONS ──────────────────────────────────────────────────────────
 function buildAccordions() {
-  var container = document.getElementById("accordions");
-  SECTIONS.forEach(function(sec) {
+  var container = document.getElementById("accs");
+  SECS.forEach(function(sec) {
     rowSeqs[sec.key] = 0;
+    var card = document.createElement("div"); card.className = "ac";
 
-    var card = document.createElement("div");
-    card.className = "acc-card";
+    var tog = document.createElement("div"); tog.className = "at";
+    var al = document.createElement("div"); al.className = "al";
+    var ai = document.createElement("div"); ai.className = "ai"; ai.textContent = sec.icon;
+    var an = document.createElement("span"); an.className = "an"; an.textContent = sec.lbl;
+    al.appendChild(ai); al.appendChild(an);
+    var ar = document.createElement("div"); ar.className = "ar";
+    var badge = document.createElement("span"); badge.className = "abg"; badge.id = "badge-" + sec.key;
+    var chev  = document.createElement("span"); chev.className  = "achv"; chev.id  = "chev-"  + sec.key; chev.textContent = "▶";
+    ar.appendChild(badge); ar.appendChild(chev);
+    tog.appendChild(al); tog.appendChild(ar);
+    (function(s){ tog.addEventListener("click", function(){ toggleAcc(s); }); })(sec);
+    card.appendChild(tog);
 
-    // Toggle header
-    var toggle = document.createElement("div");
-    toggle.className = "acc-toggle";
-    toggle.innerHTML =
-      "<div class=\"acc-left\">" +
-        "<div class=\"acc-icon\">" + sec.icon + "</div>" +
-        "<span class=\"acc-label\">" + sec.label + "</span>" +
-      "</div>" +
-      "<div class=\"acc-right\">" +
-        "<span class=\"acc-badge\" id=\"badge-" + sec.key + "\"></span>" +
-        "<span class=\"acc-chev\" id=\"chev-" + sec.key + "\">&#9654;</span>" +
-      "</div>";
-
-    (function(s){ toggle.addEventListener("click", function(){ toggleAcc(s); }); })(sec);
-    card.appendChild(toggle);
-
-    // Body
-    var body = document.createElement("div");
-    body.className = "acc-body";
-    body.id = "body-" + sec.key;
-
-    var wrap = document.createElement("div");
-    wrap.className = "tbl-wrap";
-
-    var table = document.createElement("table");
-    table.className = "sf";
-
-    // Build thead
-    var thead = document.createElement("thead");
-    var htr   = document.createElement("tr");
+    var body = document.createElement("div"); body.className = "ab"; body.id = "ab-" + sec.key;
+    var tw   = document.createElement("div"); tw.className = "tw";
+    var tbl  = document.createElement("table"); tbl.className = "sf";
+    var thead = document.createElement("thead"); var htr = document.createElement("tr");
     sec.cols.forEach(function(col){
       var th = document.createElement("th");
-      th.textContent = col.k === "Number" ? "Qty" : col.k;
+      th.textContent = col.t === "q" ? "Qty" : col.k;
       htr.appendChild(th);
     });
-    htr.appendChild(document.createElement("th")); // delete col
-    thead.appendChild(htr);
-    table.appendChild(thead);
-    table.appendChild(document.createElement("tbody"));
-
-    wrap.appendChild(table);
-    body.appendChild(wrap);
-
-    var addBtn = document.createElement("button");
-    addBtn.className   = "add-row-btn";
-    addBtn.textContent = "+ Add " + sec.label.toLowerCase() + " variation";
-    (function(s){ addBtn.addEventListener("click", function(){ addRow(s); }); })(sec);
-    body.appendChild(addBtn);
-
+    htr.appendChild(document.createElement("th"));
+    thead.appendChild(htr); tbl.appendChild(thead); tbl.appendChild(document.createElement("tbody"));
+    tw.appendChild(tbl);
+    var arb = document.createElement("button"); arb.className = "arb";
+    arb.textContent = "+ Add " + sec.lbl.toLowerCase() + " variation";
+    (function(s){ arb.addEventListener("click", function(){ addRow(s); }); })(sec);
+    body.appendChild(tw); body.appendChild(arb);
     card.appendChild(body);
     container.appendChild(card);
   });
 }
 
 function toggleAcc(sec) {
-  var body = document.getElementById("body-" + sec.key);
+  var body = document.getElementById("ab-" + sec.key);
   var chev = document.getElementById("chev-" + sec.key);
-  var isOpen = body.classList.contains("open");
-  if (!isOpen) {
-    // Auto-add first row when opening
-    var tbody = body.querySelector("tbody");
-    if (!tbody.rows.length) addRow(sec);
-  }
-  body.classList.toggle("open", !isOpen);
-  chev.classList.toggle("open", !isOpen);
-  updateSummary();
+  var open = body.classList.contains("open");
+  if (!open && !body.querySelector("tbody").rows.length) addRow(sec);
+  body.classList.toggle("open", !open);
+  chev.classList.toggle("open", !open);
+  updateSum();
 }
 
-// ── LOAD EMPLOYEES ────────────────────────────────────────────────────────────
 function loadEmployees() {
   ZOHO.CREATOR.DATA.getRecords({
     app_name: APP, report_name: EMP_RPT, page: 1, max_records: 1000
   }).then(function(resp){
-    if(resp && resp.code===3000 && resp.data && resp.data.length){
+    if (resp && resp.code===3000 && resp.data && resp.data.length) {
       empCache = [];
-      for(var i=0;i<resp.data.length;i++){
+      for (var i=0; i<resp.data.length; i++) {
         var r=resp.data[i];
         var fn=(r.First_Name||"").trim(), ln=(r.Last_Name||"").trim();
-        var full=(r.Full_Name||"").trim() || (ln&&fn ? ln+", "+fn : ln||fn);
+        var full=(r.Full_Name||"").trim()||(ln&&fn ? ln+", "+fn : ln||fn);
         var eid=(r.Employee_ID||"").trim();
-        if(eid) empCache.push({
-          zohoId: r.ID, empId: eid, fullName: full,
-          firstName: fn, lastName: ln,
-          title: (r.Title||"").trim(), team: (r.Team||"").trim()
-        });
+        if (eid) empCache.push({zohoId:r.ID,empId:eid,fullName:full,firstName:fn,lastName:ln,title:(r.Title||"").trim(),team:(r.Team||"").trim()});
       }
       empCache.sort(function(a,b){ return a.empId.localeCompare(b.empId); });
       console.log("[Uniform] Employees loaded:", empCache.length);
     } else {
       console.warn("[Uniform] Employee load issue:", resp&&resp.code, resp&&resp.message);
     }
-  }).catch(function(err){ console.error("[Uniform] Employee load error:", err); });
+  }).catch(function(err){ console.error("[Uniform] loadEmployees error:", err); });
 }
 
-// ── EMPLOYEE LOOKUP ───────────────────────────────────────────────────────────
-function handleEmpInput(val){
+function onEmpInput(val) {
   val=val.trim(); selectedEmp=null; activeIdx=-1;
-  document.getElementById("empClear").style.display = val?"flex":"none";
-  document.getElementById("resolved").classList.remove("show");
-  if(!val){ closeDrop(); updateSummary(); return; }
-  if(!empCache.length){ showDropMsg("Loading employees&#8230;"); return; }
-  var q=val.toLowerCase();
-  dropMatches=[];
-  for(var i=0;i<empCache.length;i++){
+  document.getElementById("empClear").style.display = val ? "flex" : "none";
+  document.getElementById("res").classList.remove("show");
+  if (!val) { closeDrop(); updateSum(); return; }
+  if (!empCache.length) { showDropMsg("Loading employees..."); return; }
+  var q=val.toLowerCase(); dropMatches=[];
+  for (var i=0; i<empCache.length; i++) {
     var e=empCache[i];
-    if(e.empId.toLowerCase().indexOf(q)>-1 || e.firstName.toLowerCase().indexOf(q)>-1 ||
-       e.lastName.toLowerCase().indexOf(q)>-1 || e.fullName.toLowerCase().indexOf(q)>-1){
-      dropMatches.push(e);
-      if(dropMatches.length>=10) break;
+    if (e.empId.toLowerCase().indexOf(q)>-1||e.firstName.toLowerCase().indexOf(q)>-1||
+        e.lastName.toLowerCase().indexOf(q)>-1||e.fullName.toLowerCase().indexOf(q)>-1) {
+      dropMatches.push(e); if(dropMatches.length>=10) break;
     }
   }
-  if(!dropMatches.length){ showDropMsg("No employees found"); return; }
-  renderDrop(q); updateSummary();
+  if (!dropMatches.length) { showDropMsg("No employees found"); return; }
+  renderDrop(q); updateSum();
 }
 
-function handleEmpKey(e){
-  var items=document.getElementById("empDrop").querySelectorAll(".emp-item");
-  if(!items.length) return;
-  if(e.key==="ArrowDown"){ e.preventDefault(); activeIdx=Math.min(activeIdx+1,items.length-1); hlItems(items); }
-  else if(e.key==="ArrowUp"){ e.preventDefault(); activeIdx=Math.max(activeIdx-1,0); hlItems(items); }
-  else if(e.key==="Enter"&&activeIdx>=0){ e.preventDefault(); pickEmp(activeIdx); }
-  else if(e.key==="Escape") closeDrop();
+function onEmpKey(e) {
+  var items = document.getElementById("ldrop").querySelectorAll(".ei");
+  if (!items.length) return;
+  if (e.key==="ArrowDown"){ e.preventDefault(); activeIdx=Math.min(activeIdx+1,items.length-1); hlItems(items); }
+  else if (e.key==="ArrowUp"){ e.preventDefault(); activeIdx=Math.max(activeIdx-1,0); hlItems(items); }
+  else if (e.key==="Enter"&&activeIdx>=0){ e.preventDefault(); pickEmp(activeIdx); }
+  else if (e.key==="Escape") closeDrop();
 }
 function hlItems(items){ items.forEach(function(el,i){ el.classList.toggle("kb",i===activeIdx); }); if(items[activeIdx]) items[activeIdx].scrollIntoView({block:"nearest"}); }
 
-function renderDrop(q){
-  var drop=document.getElementById("empDrop"); drop.innerHTML="";
-  for(var i=0;i<dropMatches.length;i++){
+function renderDrop(q) {
+  var drop=document.getElementById("ldrop"); drop.innerHTML="";
+  for (var i=0; i<dropMatches.length; i++) {
     var e=dropMatches[i];
-    var div=document.createElement("div"); div.className="emp-item";
-    var id=document.createElement("div"); id.className="emp-id"; id.innerHTML=hlText(e.empId,q);
-    var nm=document.createElement("div"); nm.className="emp-name"; nm.innerHTML=hlText(e.fullName,q);
+    var div=document.createElement("div"); div.className="ei";
+    var id=document.createElement("div"); id.className="ei-id"; id.innerHTML=hlTxt(e.empId,q);
+    var nm=document.createElement("div"); nm.className="ei-nm"; nm.innerHTML=hlTxt(e.fullName,q);
     div.appendChild(id); div.appendChild(nm);
-    if(e.title||e.team){
-      var ro=document.createElement("div"); ro.className="emp-role";
+    if (e.title||e.team) {
+      var ro=document.createElement("div"); ro.className="ei-ro";
       ro.textContent=[e.title,e.team].filter(Boolean).join(" · ");
       div.appendChild(ro);
     }
@@ -664,258 +421,196 @@ function renderDrop(q){
   }
   drop.classList.add("open");
 }
-function showDropMsg(msg){ var d=document.getElementById("empDrop"); d.innerHTML="<div class=\"emp-msg\">"+msg+"</div>"; d.classList.add("open"); }
-function closeDrop(){ var d=document.getElementById("empDrop"); d.classList.remove("open"); d.innerHTML=""; }
-function pickEmp(i){
+function showDropMsg(msg){ var d=document.getElementById("ldrop"); d.innerHTML=""; var el=document.createElement("div"); el.className="emsg"; el.textContent=msg; d.appendChild(el); d.classList.add("open"); }
+function closeDrop(){ var d=document.getElementById("ldrop"); d.classList.remove("open"); d.innerHTML=""; }
+function pickEmp(i) {
   var emp=dropMatches[i]; if(!emp) return;
   selectedEmp=emp;
   document.getElementById("empInput").value=emp.empId;
   document.getElementById("empClear").style.display="flex";
-  document.getElementById("resolvedName").textContent=emp.fullName;
-  document.getElementById("resolvedRole").textContent=emp.title||"";
-  document.getElementById("resolved").classList.add("show");
-  closeDrop(); updateSummary();
+  document.getElementById("resName").textContent=emp.fullName;
+  document.getElementById("resRole").textContent=emp.title||"";
+  document.getElementById("res").classList.add("show");
+  closeDrop(); updateSum();
 }
-function clearEmp(){
-  selectedEmp=null;
-  document.getElementById("empInput").value="";
+function clearEmp() {
+  selectedEmp=null; document.getElementById("empInput").value="";
   document.getElementById("empClear").style.display="none";
-  document.getElementById("resolved").classList.remove("show");
-  closeDrop(); updateSummary();
+  document.getElementById("res").classList.remove("show");
+  closeDrop(); updateSum();
 }
 
-// ── SUBFORM ROWS ──────────────────────────────────────────────────────────────
-function addRow(sec){
-  var tbody=document.getElementById("body-"+sec.key).querySelector("tbody");
-  var tr=document.createElement("tr");
-  tr.id="row-"+sec.key+"-"+(rowSeqs[sec.key]++);
-
+function addRow(sec) {
+  var tbody=document.getElementById("ab-"+sec.key).querySelector("tbody");
+  var tr=document.createElement("tr"); tr.id="r-"+sec.key+"-"+(rowSeqs[sec.key]++);
   sec.cols.forEach(function(col){
     var td=document.createElement("td");
-    if(col.t==="sel"){
-      var sel=document.createElement("select");
-      sel.dataset.key=col.k;
+    if (col.t==="s") {
+      var sel=document.createElement("select"); sel.dataset.key=col.k;
       col.o.forEach(function(o){ var op=document.createElement("option"); op.value=o; op.textContent=o; sel.appendChild(op); });
-      sel.addEventListener("change",updateSummary);
-      td.appendChild(sel);
+      sel.addEventListener("change",updateSum); td.appendChild(sel);
     } else {
-      // qty
-      var wrap=document.createElement("div"); wrap.className="qty-wrap";
-      var minus=document.createElement("button"); minus.className="qty-btn"; minus.type="button"; minus.textContent="−";
+      var wrap=document.createElement("div"); wrap.className="qw";
+      var minus=document.createElement("button"); minus.className="qb"; minus.type="button"; minus.textContent="−";
       var inp=document.createElement("input"); inp.type="number"; inp.min=1; inp.max=99; inp.value=1; inp.dataset.key=col.k;
-      var plus=document.createElement("button"); plus.className="qty-btn"; plus.type="button"; plus.textContent="+";
-      minus.addEventListener("click",function(){ inp.value=Math.max(1,parseInt(inp.value||1)-1); updateSummary(); });
-      plus.addEventListener("click",function(){ inp.value=Math.min(99,parseInt(inp.value||1)+1); updateSummary(); });
-      inp.addEventListener("input",updateSummary);
-      wrap.appendChild(minus); wrap.appendChild(inp); wrap.appendChild(plus);
-      td.appendChild(wrap);
+      var plus=document.createElement("button"); plus.className="qb"; plus.type="button"; plus.textContent="+";
+      minus.addEventListener("click",function(){ inp.value=Math.max(1,parseInt(inp.value||1)-1); updateSum(); });
+      plus.addEventListener("click",function(){ inp.value=Math.min(99,parseInt(inp.value||1)+1); updateSum(); });
+      inp.addEventListener("input",updateSum);
+      wrap.appendChild(minus); wrap.appendChild(inp); wrap.appendChild(plus); td.appendChild(wrap);
     }
     tr.appendChild(td);
   });
-
-  var delTd=document.createElement("td");
-  var del=document.createElement("button"); del.className="del-btn"; del.type="button"; del.textContent="✕";
-  del.addEventListener("click",function(){ tr.remove(); updateSummary(); updateBadge(sec); });
-  delTd.appendChild(del); tr.appendChild(delTd);
-  tbody.appendChild(tr);
-  updateSummary(); updateBadge(sec);
+  var dtd=document.createElement("td");
+  var db=document.createElement("button"); db.className="db"; db.type="button"; db.textContent="✕";
+  db.addEventListener("click",function(){ tr.remove(); updateSum(); refreshBadge(sec); });
+  dtd.appendChild(db); tr.appendChild(dtd); tbody.appendChild(tr);
+  updateSum(); refreshBadge(sec);
 }
 
-function updateBadge(sec){
-  var tbody=document.getElementById("body-"+sec.key).querySelector("tbody");
-  var n=tbody.rows.length;
-  var badge=document.getElementById("badge-"+sec.key);
-  badge.textContent=n ? n+" row"+(n>1?"s":"") : "";
-  badge.classList.toggle("show", n>0);
+function refreshBadge(sec) {
+  var n=document.getElementById("ab-"+sec.key).querySelector("tbody").rows.length;
+  var b=document.getElementById("badge-"+sec.key);
+  b.textContent=n ? n+" row"+(n>1?"s":"") : ""; b.classList.toggle("show",n>0);
 }
 
-// ── COLLECT + SUMMARY ─────────────────────────────────────────────────────────
-function collectAll(){
-  var result={}, totalItems=0, totalRows=0;
-  SECTIONS.forEach(function(sec){
-    var tbody=document.getElementById("body-"+sec.key).querySelector("tbody");
-    if(!tbody.rows.length) return;
-    var rows=[];
-    for(var i=0;i<tbody.rows.length;i++){
-      var tr=tbody.rows[i]; var row={};
-      tr.querySelectorAll("[data-key]").forEach(function(el){
-        row[el.dataset.key]=el.type==="number"?parseInt(el.value||1):el.value;
-      });
-      if(Object.keys(row).length){ rows.push(row); totalRows++; }
-      // sum qty (handle "Number" field name)
-      totalItems += (row.Quantity || row.Number || 1);
+function collectAll() {
+  var sf={}, totalItems=0, totalRows=0;
+  SECS.forEach(function(sec){
+    var rows=[], trs=document.getElementById("ab-"+sec.key).querySelector("tbody").rows;
+    for (var i=0; i<trs.length; i++) {
+      var row={}; trs[i].querySelectorAll("[data-key]").forEach(function(el){ row[el.dataset.key]=el.type==="number"?parseInt(el.value||1):el.value; });
+      if (Object.keys(row).length){ rows.push(row); totalRows++; }
+      totalItems+=(row.Quantity||row.Number||1);
     }
-    result[sec.key]=rows;
+    if (rows.length) sf[sec.key]=rows;
   });
-  return {subforms:result, totalItems:totalItems, totalRows:totalRows};
+  return {sf:sf,totalItems:totalItems,totalRows:totalRows};
 }
 
-function updateSummary(){
-  var d=collectAll();
-  var el=document.getElementById("subSummary");
-  if(!d.totalRows){
-    el.innerHTML="No items added";
-  } else {
-    var cats=Object.keys(d.subforms).map(function(k){
-      var sec=SECTIONS.find(function(s){ return s.key===k; });
-      return sec ? sec.label : k;
-    });
-    el.innerHTML="<strong>"+d.totalItems+" item"+(d.totalItems!==1?"s":"")+"</strong> &nbsp;·&nbsp; "+cats.join(", ");
-  }
+function updateSum() {
+  var d=collectAll(); var el=document.getElementById("sumEl");
+  if (!d.totalRows) { el.innerHTML="No items added"; return; }
+  var cats=Object.keys(d.sf).map(function(k){ var s=SECS.find(function(x){ return x.key===k; }); return s?s.lbl:k; });
+  el.innerHTML="<strong>"+d.totalItems+" item"+(d.totalItems!==1?"s":"")+"</strong> &nbsp;&middot;&nbsp; "+cats.join(", ");
 }
 
-// ── CONFIRM MODAL ─────────────────────────────────────────────────────────────
-function openConfirm(){
-  if(!selectedEmp){ showToast("Select an employee first.",true); return; }
-  if(!document.getElementById("fDept").value){ showToast("Select a department.",true); return; }
+function openConfirm() {
+  if (!selectedEmp){ toast("Select an employee first.",true); return; }
+  if (!document.getElementById("fDept").value){ toast("Select a department.",true); return; }
   var fpt=document.querySelector("input[name=fpt]:checked");
-  if(!fpt){ showToast("Select Full Time or Part Time.",true); return; }
-  var gender=document.querySelector("input[name=gender]:checked");
-  if(!gender){ showToast("Select a gender.",true); return; }
-  var d=collectAll();
-  if(!d.totalRows){ showToast("Add at least one item.",true); return; }
+  if (!fpt){ toast("Select Full Time or Part Time.",true); return; }
+  var gen=document.querySelector("input[name=gender]:checked");
+  if (!gen){ toast("Select a gender.",true); return; }
+  var d=collectAll(); if (!d.totalRows){ toast("Add at least one item.",true); return; }
 
   var dept=document.getElementById("fDept").value;
   var notes=document.getElementById("fNotes").value.trim();
   var lines=[];
-  lines.push("Employee:    "+selectedEmp.empId+" — "+selectedEmp.fullName);
-  if(selectedEmp.title) lines.push("Title:       "+selectedEmp.title);
-  lines.push("Department:  "+dept);
-  lines.push("Employment:  "+fpt.value+"  |  Gender: "+gender.value);
-  if(notes) lines.push("Notes:       "+notes);
-  lines.push("──────────────────────────────");
-  SECTIONS.forEach(function(sec){
-    var rows=d.subforms[sec.key];
-    if(!rows||!rows.length) return;
-    lines.push(sec.icon+" "+sec.label+":");
-    rows.forEach(function(r,i){
-      var parts=Object.values(r).map(String);
-      lines.push("  "+(i+1)+".  "+parts.join("  ·  "));
-    });
+  lines.push("Employee:   "+selectedEmp.empId+" \u2014 "+selectedEmp.fullName);
+  if (selectedEmp.title) lines.push("Title:      "+selectedEmp.title);
+  lines.push("Department: "+dept);
+  lines.push("Type:       "+fpt.value+"  |  Gender: "+gen.value);
+  if (notes) lines.push("Notes:      "+notes);
+  lines.push("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+  SECS.forEach(function(sec){
+    var rows=d.sf[sec.key]; if(!rows||!rows.length) return;
+    lines.push(sec.icon+" "+sec.lbl+":");
+    rows.forEach(function(r,i){ lines.push("  "+(i+1)+".  "+Object.values(r).join("  \u00b7  ")); });
   });
-  lines.push("──────────────────────────────");
+  lines.push("\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
   lines.push("Total: "+d.totalItems+" item"+(d.totalItems!==1?"s":""));
 
-  document.getElementById("modalBody").textContent=lines.join("
-");
-  document.getElementById("btnConfirm").textContent="Confirm & Submit";
-  document.getElementById("btnConfirm").disabled=false;
-  document.getElementById("backdrop").classList.add("show");
+  document.getElementById("mbody").textContent=lines.join("\n");
+  document.getElementById("btnConf").textContent="Confirm & Submit";
+  document.getElementById("btnConf").disabled=false;
+  document.getElementById("bkd").classList.add("show");
 }
-function closeConfirm(){ document.getElementById("backdrop").classList.remove("show"); }
+function closeConfirm(){ document.getElementById("bkd").classList.remove("show"); }
 
-// ── SUBMIT ────────────────────────────────────────────────────────────────────
-function doSubmit(){
-  var btn=document.getElementById("btnConfirm");
-  btn.textContent="Submitting…"; btn.disabled=true;
-
-  var d=collectAll();
+function doSubmit() {
+  var btn=document.getElementById("btnConf");
+  btn.textContent="Submitting\u2026"; btn.disabled=true;
   var fpt=document.querySelector("input[name=fpt]:checked");
-  var gender=document.querySelector("input[name=gender]:checked");
-
-  var _dt=new Date();
+  var gen=document.querySelector("input[name=gender]:checked");
   var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  var today=String(_dt.getDate()).padStart(2,"0")+"-"+months[_dt.getMonth()]+"-"+_dt.getFullYear();
-
-  var record={
+  var now=new Date();
+  var today=String(now.getDate()).padStart(2,"0")+"-"+months[now.getMonth()]+"-"+now.getFullYear();
+  var d=collectAll();
+  var rec={
     Employee_ID:       selectedEmp.zohoId,
     Department:        document.getElementById("fDept").value,
     Full_or_Part_Time: fpt.value,
-    Gender:            gender.value,
+    Gender:            gen.value,
     Order_Date:        today,
     Submitted_By:      loginUser,
     Notes:             document.getElementById("fNotes").value.trim()
   };
-
-  // Attach subforms
-  Object.keys(d.subforms).forEach(function(k){ record[k]=d.subforms[k]; });
-
-  // Sanity: remove Full_Name if somehow present
-  delete record.Full_Name;
-
-  console.log("[Uniform] addRecords payload:", JSON.stringify({data:[record]}));
-
+  Object.keys(d.sf).forEach(function(k){ rec[k]=d.sf[k]; });
+  delete rec.Full_Name;
+  console.log("[Uniform] Submitting:", JSON.stringify({data:[rec]}));
   ZOHO.CREATOR.DATA.addRecords({
-    app_name:  APP,
-    form_name: FORM,
-    payload:   { data: [record] }
+    app_name: APP, form_name: FORM, payload: {data:[rec]}
   }).then(function(resp){
     closeConfirm();
-    console.log("[Uniform] addRecords response:", JSON.stringify(resp));
-    if(resp && resp.code===3000){
-      // Check per-record result
-      if(resp.result && resp.result.length && resp.result[0].code!==3000){
-        var errors=resp.result[0].error;
-        var msg=typeof errors==="object" ? JSON.stringify(errors) : String(errors);
-        showFormError(msg); showToast("Zoho error: "+msg,true);
+    console.log("[Uniform] Response:", JSON.stringify(resp));
+    if (resp && resp.code===3000) {
+      if (resp.result && resp.result.length && resp.result[0].code!==3000) {
+        var errs=resp.result[0].error;
+        var msg=typeof errs==="object" ? JSON.stringify(errs) : String(errs);
+        showErrBanner(msg); toast("Zoho error: "+msg,true);
         btn.textContent="Confirm & Submit"; btn.disabled=false;
-      } else {
-        showSuccess(d);
-      }
+      } else { showSuccess(d); }
     } else {
       var msg=(resp&&resp.message)?resp.message:"Code "+(resp&&resp.code);
-      showFormError(msg); showToast("Submit failed: "+msg,true);
+      showErrBanner(msg); toast("Submit failed: "+msg,true);
       btn.textContent="Confirm & Submit"; btn.disabled=false;
     }
   }).catch(function(err){
-    closeConfirm();
-    console.error("[Uniform] addRecords error:",err);
-    showToast("Submission error — check console.",true);
+    closeConfirm(); console.error("[Uniform] Error:",err);
+    toast("Submission error \u2014 check console.",true);
     btn.textContent="Confirm & Submit"; btn.disabled=false;
   });
 }
 
-// ── SUCCESS / RESET ───────────────────────────────────────────────────────────
-function showSuccess(d){
-  document.getElementById("mainContent").style.display="none";
-  document.getElementById("submitBar").style.display="none";
-  document.getElementById("successMsg").textContent=
-    "Order for "+selectedEmp.fullName+" ("+selectedEmp.empId+") saved — "+
-    d.totalItems+" item"+(d.totalItems!==1?"s":"")+" across "+Object.keys(d.subforms).length+" categor"+(Object.keys(d.subforms).length===1?"y":"ies")+".";
-  document.getElementById("successScreen").classList.add("show");
+function showSuccess(d) {
+  document.getElementById("mainWrap").style.display="none";
+  document.getElementById("sbar").style.display="none";
+  document.getElementById("ssMsg").textContent=
+    "Order for "+selectedEmp.fullName+" ("+selectedEmp.empId+") saved \u2014 "+
+    d.totalItems+" item"+(d.totalItems!==1?"s":"")+" across "+
+    Object.keys(d.sf).length+" categor"+(Object.keys(d.sf).length===1?"y":"ies")+".";
+  document.getElementById("ss").classList.add("show");
 }
-function resetForm(){
+
+function resetForm() {
   clearEmp();
   document.getElementById("fDept").value="";
   document.getElementById("fNotes").value="";
-  document.querySelectorAll("input[name=fpt]").forEach(function(r){ r.checked=false; });
-  document.querySelectorAll("input[name=gender]").forEach(function(r){ r.checked=false; });
-  SECTIONS.forEach(function(sec){
-    var tbody=document.getElementById("body-"+sec.key).querySelector("tbody");
-    tbody.innerHTML="";
+  document.querySelectorAll("input[name=fpt],input[name=gender]").forEach(function(r){ r.checked=false; });
+  SECS.forEach(function(sec){
+    document.getElementById("ab-"+sec.key).querySelector("tbody").innerHTML="";
     rowSeqs[sec.key]=0;
-    var body=document.getElementById("body-"+sec.key);
-    body.classList.remove("open");
+    document.getElementById("ab-"+sec.key).classList.remove("open");
     document.getElementById("chev-"+sec.key).classList.remove("open");
-    updateBadge(sec);
+    refreshBadge(sec);
   });
-  document.getElementById("mainContent").style.display="block";
-  document.getElementById("submitBar").style.display="flex";
-  document.getElementById("successScreen").classList.remove("show");
-  updateSummary();
+  document.getElementById("mainWrap").style.display="block";
+  document.getElementById("sbar").style.display="flex";
+  document.getElementById("ss").classList.remove("show");
+  updateSum();
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function hlText(str,q){
-  if(!str||!q) return esc(str||"");
-  var idx=str.toLowerCase().indexOf(q.toLowerCase());
-  if(idx<0) return esc(str);
-  return esc(str.slice(0,idx))+"<mark style=\"background:#fef08a;color:inherit;border-radius:2px;\">"+esc(str.slice(idx,idx+q.length))+"</mark>"+esc(str.slice(idx+q.length));
+function hlTxt(str,q) {
+  if(!str||!q) return escH(str||"");
+  var lo=str.toLowerCase(); var idx=lo.indexOf(q.toLowerCase());
+  if(idx<0) return escH(str);
+  return escH(str.slice(0,idx))+'<mark style="background:#fef08a;color:inherit;border-radius:2px;">'+
+         escH(str.slice(idx,idx+q.length))+"</mark>"+escH(str.slice(idx+q.length));
 }
-function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function showFormError(msg){
-  var b=document.getElementById("errorBanner");
-  document.getElementById("errorBannerMsg").textContent=msg;
-  b.classList.add("show");
-  setTimeout(function(){ b.classList.remove("show"); },8000);
-}
-var _tt;
-function showToast(msg,isErr){
-  var el=document.getElementById("toast");
-  el.textContent=msg; el.className="toast"+(isErr?" err":"");
-  el.classList.add("show"); clearTimeout(_tt);
-  _tt=setTimeout(function(){ el.classList.remove("show"); },3500);
-}
+function escH(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function showErrBanner(msg){ document.getElementById("ebm").textContent=msg; document.getElementById("eb").classList.add("show"); setTimeout(function(){ document.getElementById("eb").classList.remove("show"); },8000); }
+function toast(msg,isErr){ var el=document.getElementById("toast"); el.textContent=msg; el.className="toast"+(isErr?" err":""); el.classList.add("show"); clearTimeout(ttTimer); ttTimer=setTimeout(function(){ el.classList.remove("show"); },3500); }
 </script>
 </body>
 </html>
