@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10k — sig coords + white bg ***");
+console.log("[Uniform] *** VERSION v10l — META order preserved ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -477,8 +477,10 @@ function addRow(sec) {
       if (!choices.length) {
         var ph = document.createElement("option"); ph.value = ""; ph.textContent = "N/A"; sel.appendChild(ph);
       } else {
-        var sorted = choices.slice().sort(function(a,b){ return a.localeCompare(b); });
-        sorted.forEach(function(v){
+        // Use Creator's defined order — not alphabetical.
+        // Size fields (XS/S/M/L/XL/2XL/3XL) are already in logical order in the form.
+        // Only subforms that have that size defined will show it here.
+        choices.forEach(function(v){
           var op = document.createElement("option"); op.value = v; op.textContent = v; sel.appendChild(op);
         });
       }
