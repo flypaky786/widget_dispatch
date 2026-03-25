@@ -10,7 +10,7 @@
   ADD these fields to Uniform_Order:
     Employee_ID_Text   Single Line   required  (was lookup)
     Employee_Name      Single Line   required  (plain text, NOT a Name field type)
-    Employee_Signature Multi Line   required  (stores base64 PNG — must be Multi Line, NOT Signature field type)
+    Employee_Signature Signature              (native Signature field — uploaded via FILE.uploadFile after addRecords)
 
   KEEP all existing fields:
     Department, Full_or_Part_Time, Gender, Order_Date,
@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10h — small sig ***");
+console.log("[Uniform] *** VERSION v10i — two-step sig ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -679,10 +679,7 @@ function doSubmit() {
     Order_Date:        today,
     Submitted_By:      loginUser,
     Notes:             document.getElementById("fNotes").value.trim(),
-    Employee_Signature: getSigDataURL() || ""
-    // NOTE: Employee_Signature must be Multi Line (Long Text) in Creator.
-    // Zoho's native Signature field type cannot be set via addRecords API (platform limitation).
-    // Change the field type to Multi Line to store base64 PNG as text.
+    // Employee_Signature uploaded separately via FILE.uploadFile after record is created
   };
 
   Object.keys(d.sf).forEach(function(k){ rec[k] = d.sf[k]; });
@@ -695,16 +692,40 @@ function doSubmit() {
     payload:   { data: [rec] }
   }).then(function(resp){
     closeConfirm();
-    console.log("[Uniform] Response:", JSON.stringify(resp));
+    console.log("[Uniform] addRecords response:", JSON.stringify(resp));
+
     if (resp && resp.code === 3000) {
       if (resp.result && resp.result.length && resp.result[0].code !== 3000) {
         var errs = resp.result[0].error;
         var msg  = typeof errs === "object" ? JSON.stringify(errs) : String(errs);
         showErrBanner(msg); toast("Zoho error: " + msg, true);
         btn.textContent = "Confirm & Submit"; btn.disabled = false;
-      } else {
-        showSuccess(d);
+        return;
       }
+
+      var recordId = resp.result && resp.result[0] && resp.result[0].data && resp.result[0].data.ID;
+      console.log("[Uniform] Record ID:", recordId, "sigDirty:", sigDirty);
+
+      if (!recordId || !sigDirty) { showSuccess(d); return; }
+
+      getSigFile(function(sigFile) {
+        if (!sigFile) { showSuccess(d); return; }
+        ZOHO.CREATOR.FILE.uploadFile({
+          app_name:    APP,
+          report_name: "All_Uniform_Orders",
+          id:          recordId,
+          field_name:  "Employee_Signature",
+          file:        sigFile
+        }).then(function(upResp) {
+          console.log("[Uniform] uploadFile:", JSON.stringify(upResp));
+          showSuccess(d);
+        }).catch(function(upErr) {
+          console.error("[Uniform] uploadFile error:", upErr);
+          toast("Order saved. Signature upload failed.", false);
+          showSuccess(d);
+        });
+      });
+
     } else {
       var msg = (resp&&resp.message) ? resp.message : "Code " + (resp&&resp.code);
       showErrBanner(msg); toast("Submit failed: " + msg, true);
@@ -713,10 +734,9 @@ function doSubmit() {
   }).catch(function(err){
     closeConfirm();
     console.error("[Uniform] Error:", err);
-    toast("Submission error \u2014 check console.", true);
+    toast("Submission error — check console.", true);
     btn.textContent = "Confirm & Submit"; btn.disabled = false;
   });
-}
 
 // ── SUCCESS / RESET ───────────────────────────────────────────────────────────
 function showSuccess(d) {
