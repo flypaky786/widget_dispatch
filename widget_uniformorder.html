@@ -483,7 +483,8 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
-  console.log("[Uniform] *** VERSION v3-hardurl — if you see this, new file is live ***");
+  console.log("[Uniform] *** VERSION v5-addRecords-array ***");
+  console.log("[Uniform] DATA methods:", JSON.stringify(Object.keys(ZOHO.CREATOR.DATA || {})));
 
   addRow(); // seed one empty row
 
@@ -840,23 +841,23 @@
     payload.data.Notes        = notes;
     payload.data[SUBFORM]     = rows;   // nested subform rows
 
-    console.log("[Uniform] Submitting payload:", JSON.stringify(payload.data));
 
     // Use Creator REST API v2.1 via fetch — ZOHO.CREATOR.DATA has no
     // reliable addRecord/addRecords on this SDK build. fetch works because
     // the widget is already authenticated in the same origin.
-    var url = "https://lax.autoflowx.com/creator/v2.1/data/autoflowx/" + APP + "/form/" + FORM;
-    console.log("[Uniform] POST url:", url);
+    // addRecords expects payload.data as an ARRAY
+    var recordData = payload.data;
+    recordData[SUBFORM] = rows;
 
-    fetch(url, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(payload)
-    })
-    .then(function(res) { return res.json(); })
-    .then(function(resp) {
+    console.log("[Uniform] addRecords payload:", JSON.stringify({ data: [recordData] }));
+
+    ZOHO.CREATOR.DATA.addRecords({
+      app_name:  APP,
+      form_name: FORM,
+      payload:   { data: [recordData] }
+    }).then(function(resp) {
       closeConfirm();
-      console.log("[Uniform] fetch POST response:", JSON.stringify(resp));
+      console.log("[Uniform] addRecords response:", JSON.stringify(resp));
       if (resp && resp.code === 3000) {
         showSuccess(rows);
       } else {
@@ -865,10 +866,9 @@
         btnConfirm.textContent = "Confirm & Submit";
         btnConfirm.disabled    = false;
       }
-    })
-    .catch(function(err) {
+    }).catch(function(err) {
       closeConfirm();
-      console.error("[Uniform] fetch error:", err);
+      console.error("[Uniform] addRecords error:", err);
       showToast("Submission error — check console.", true);
       btnConfirm.textContent = "Confirm & Submit";
       btnConfirm.disabled    = false;
