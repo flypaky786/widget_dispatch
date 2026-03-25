@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10 — dynamic dropdowns + signature ***");
+console.log("[Uniform] *** VERSION v10b — per-subform META + name fix ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -337,53 +337,53 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(p){
 
 // ── META — load all field choices dynamically ─────────────────────────────────
 function loadFieldMeta() {
-  ZOHO.CREATOR.META.getFields({
-    app_name:  APP,
-    form_name: FORM
-  }).then(function(resp) {
-    if (resp && resp.code === 3000 && resp.fields) {
-      parseFieldMeta(resp.fields);
-    } else {
-      console.warn("[Uniform] META.getFields issue:", resp && resp.code, resp && resp.message);
-    }
-    // Build UI regardless (accordions show empty selects if meta failed)
-    buildAccordions();
-    populateDeptDropdown();
-    initSignature();
-  }).catch(function(err){
-    console.error("[Uniform] META.getFields error:", err);
+  // Fetch parent form fields first (Department + other parent picklists)
+  // Then fetch each subform separately — Zoho META requires one call per form/subform
+  var subformKeys = SECS.map(function(s){ return s.key; });
+  var allCalls = [FORM].concat(subformKeys).map(function(name) {
+    return ZOHO.CREATOR.META.getFields({ app_name: APP, form_name: name })
+      .then(function(resp) {
+        if (resp && resp.code === 3000 && resp.fields) {
+          // Parent form — parse for Department and other parent picklists
+          if (name === FORM) {
+            fieldChoices["__parent__"] = {};
+            resp.fields.forEach(function(f) {
+              if (f.choices && f.choices.length) {
+                fieldChoices["__parent__"][f.link_name] =
+                  f.choices.map(function(c){ return c.value || c.key; });
+              }
+            });
+            console.log("[Uniform] Parent fields parsed. Department choices:",
+              (fieldChoices["__parent__"]["Department"] || []).length);
+          } else {
+            // Subform — store choices by field link_name under the subform key
+            fieldChoices[name] = {};
+            resp.fields.forEach(function(f) {
+              if (f.choices && f.choices.length) {
+                fieldChoices[name][f.link_name] =
+                  f.choices.map(function(c){ return c.value || c.key; });
+              }
+            });
+            console.log("[Uniform] Subform", name, "fields parsed. Keys:",
+              Object.keys(fieldChoices[name]));
+          }
+        } else {
+          console.warn("[Uniform] META issue for", name, "code:", resp && resp.code);
+        }
+      }).catch(function(err){
+        console.warn("[Uniform] META error for", name, err);
+      });
+  });
+
+  Promise.all(allCalls).then(function() {
+    console.log("[Uniform] All META loaded. fieldChoices keys:", Object.keys(fieldChoices));
     buildAccordions();
     populateDeptDropdown();
     initSignature();
   });
 }
 
-function parseFieldMeta(fields) {
-  // Walk the fields array. Subforms have type=subform and a nested fields array.
-  // Parent-level picklists (like Department) are parsed for the parent form.
-  for (var i = 0; i < fields.length; i++) {
-    var f = fields[i];
 
-    // Parent picklist — store under key "__parent__"
-    if (f.choices && f.choices.length) {
-      if (!fieldChoices["__parent__"]) fieldChoices["__parent__"] = {};
-      fieldChoices["__parent__"][f.link_name] = f.choices.map(function(c){ return c.value || c.key; });
-    }
-
-    // Subform — walk its subfields
-    if (f.type === "subform" && f.fields) {
-      var sfKey = f.link_name;
-      fieldChoices[sfKey] = {};
-      for (var j = 0; j < f.fields.length; j++) {
-        var sf = f.fields[j];
-        if (sf.choices && sf.choices.length) {
-          fieldChoices[sfKey][sf.link_name] = sf.choices.map(function(c){ return c.value || c.key; });
-        }
-      }
-    }
-  }
-  console.log("[Uniform] Field meta parsed. Keys:", Object.keys(fieldChoices));
-}
 
 function populateDeptDropdown() {
   var sel = document.getElementById("fDept");
@@ -669,7 +669,14 @@ function doSubmit() {
 
   var rec = {
     Employee_ID_Text:  document.getElementById("fEmpId").value.trim(),
-    Employee_Name:     document.getElementById("fEmpName").value.trim(),
+    Employee_Name:     (function(){
+      var n = document.getElementById("fEmpName").value.trim();
+      var sp = n.indexOf(" ");
+      // Creator Name field expects {first_name, last_name}
+      return sp > -1
+        ? { first_name: n.slice(0, sp), last_name: n.slice(sp+1) }
+        : { first_name: n, last_name: "" };
+    }()),
     Department:        document.getElementById("fDept").value,
     Full_or_Part_Time: fpt.value,
     Gender:            gen.value,
