@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10c — name as string, sig as longtext ***");
+console.log("[Uniform] *** VERSION v10d — single META call + type21 subform parse ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -337,50 +337,45 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(p){
 
 // ── META — load all field choices dynamically ─────────────────────────────────
 function loadFieldMeta() {
-  // Fetch parent form fields first (Department + other parent picklists)
-  // Then fetch each subform separately — Zoho META requires one call per form/subform
-  var subformKeys = SECS.map(function(s){ return s.key; });
-  var allCalls = [FORM].concat(subformKeys).map(function(name) {
-    return ZOHO.CREATOR.META.getFields({ app_name: APP, form_name: name })
-      .then(function(resp) {
-        if (resp && resp.code === 3000 && resp.fields) {
-          // Parent form — parse for Department and other parent picklists
-          if (name === FORM) {
-            fieldChoices["__parent__"] = {};
-            resp.fields.forEach(function(f) {
-              if (f.choices && f.choices.length) {
-                fieldChoices["__parent__"][f.link_name] =
-                  f.choices.map(function(c){ return c.value || c.key; });
-              }
-            });
-            console.log("[Uniform] Parent fields parsed. Department choices:",
-              (fieldChoices["__parent__"]["Department"] || []).length);
-          } else {
-            // Subform — store choices by field link_name under the subform key
-            fieldChoices[name] = {};
-            resp.fields.forEach(function(f) {
-              if (f.choices && f.choices.length) {
-                fieldChoices[name][f.link_name] =
-                  f.choices.map(function(c){ return c.value || c.key; });
-              }
-            });
-            console.log("[Uniform] Subform", name, "fields parsed. Keys:",
-              Object.keys(fieldChoices[name]));
+  // One call on the parent form returns ALL fields including subforms.
+  // Subforms come back as type=21 with a "subfields" array containing their fields.
+  // Picklist choices are in the "choices" array on each field / subfield.
+  ZOHO.CREATOR.META.getFields({ app_name: APP, form_name: FORM })
+    .then(function(resp) {
+      if (resp && resp.code === 3000 && resp.fields) {
+        fieldChoices["__parent__"] = {};
+        resp.fields.forEach(function(f) {
+          // Parent-level picklist (e.g. Department)
+          if (f.choices && f.choices.length) {
+            fieldChoices["__parent__"][f.link_name] =
+              f.choices.map(function(c){ return c.value || c.key; });
           }
-        } else {
-          console.warn("[Uniform] META issue for", name, "code:", resp && resp.code);
-        }
-      }).catch(function(err){
-        console.warn("[Uniform] META error for", name, err);
-      });
-  });
-
-  Promise.all(allCalls).then(function() {
-    console.log("[Uniform] All META loaded. fieldChoices keys:", Object.keys(fieldChoices));
-    buildAccordions();
-    populateDeptDropdown();
-    initSignature();
-  });
+          // Subform (type 21) — walk its subfields array
+          if (f.type === 21 && f.subfields && f.subfields.length) {
+            fieldChoices[f.link_name] = {};
+            f.subfields.forEach(function(sf) {
+              if (sf.choices && sf.choices.length) {
+                fieldChoices[f.link_name][sf.link_name] =
+                  sf.choices.map(function(c){ return c.value || c.key; });
+              }
+            });
+            console.log("[Uniform] Subform", f.link_name, "choices:",
+              Object.keys(fieldChoices[f.link_name]));
+          }
+        });
+        console.log("[Uniform] META loaded. fieldChoices keys:", Object.keys(fieldChoices));
+      } else {
+        console.warn("[Uniform] META issue:", resp && resp.code, resp && resp.message);
+      }
+      buildAccordions();
+      populateDeptDropdown();
+      initSignature();
+    }).catch(function(err) {
+      console.error("[Uniform] META error:", err);
+      buildAccordions();
+      populateDeptDropdown();
+      initSignature();
+    });
 }
 
 
