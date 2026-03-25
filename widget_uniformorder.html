@@ -9,7 +9,7 @@
 
   ADD these fields to Uniform_Order:
     Employee_ID_Text   Single Line   required  (was lookup)
-    Employee_Name      Name field    required  (first + last, or Single Line)
+    Employee_Name      Single Line   required  (plain text, NOT a Name field type)
     Employee_Signature Multi Line              (stores base64 PNG string)
 
   KEEP all existing fields:
@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10b — per-subform META + name fix ***");
+console.log("[Uniform] *** VERSION v10c — name as string, sig as longtext ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -669,21 +669,15 @@ function doSubmit() {
 
   var rec = {
     Employee_ID_Text:  document.getElementById("fEmpId").value.trim(),
-    Employee_Name:     (function(){
-      var n = document.getElementById("fEmpName").value.trim();
-      var sp = n.indexOf(" ");
-      // Creator Name field expects {first_name, last_name}
-      return sp > -1
-        ? { first_name: n.slice(0, sp), last_name: n.slice(sp+1) }
-        : { first_name: n, last_name: "" };
-    }()),
+    Employee_Name:     document.getElementById("fEmpName").value.trim(),
     Department:        document.getElementById("fDept").value,
     Full_or_Part_Time: fpt.value,
     Gender:            gen.value,
     Order_Date:        today,
     Submitted_By:      loginUser,
     Notes:             document.getElementById("fNotes").value.trim(),
-    Employee_Signature: getSigDataURL()
+    Employee_Signature: getSigDataURL() || ""
+    // NOTE: Employee_Signature must be Multi Line (Long Text) in Creator, NOT Image/File Upload
   };
 
   Object.keys(d.sf).forEach(function(k){ rec[k] = d.sf[k]; });
