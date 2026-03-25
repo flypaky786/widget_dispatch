@@ -483,7 +483,7 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
-  console.log("[Uniform] *** VERSION v5-addRecords-array ***");
+  console.log("[Uniform] *** VERSION v6-lookup-id ***");
   console.log("[Uniform] DATA methods:", JSON.stringify(Object.keys(ZOHO.CREATOR.DATA || {})));
 
   addRow(); // seed one empty row
@@ -833,7 +833,7 @@
       { month:"2-digit", day:"2-digit", year:"numeric" });
 
     var payload = { data: {} };
-    payload.data.Employee_ID  = selectedEmp.empId;
+    payload.data.Employee_ID  = selectedEmp.zohoId;  // Lookup field needs internal Zoho record ID, not display value
     payload.data.Full_Name    = selectedEmp.fullName;
     payload.data.Department   = dept;
     payload.data.Order_Date   = today;
