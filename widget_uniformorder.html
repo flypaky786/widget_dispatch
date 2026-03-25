@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10e — raw META dump ***");
+console.log("[Uniform] *** VERSION v10f — f.fields fix ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -351,9 +351,9 @@ function loadFieldMeta() {
               f.choices.map(function(c){ return c.value || c.key; });
           }
           // Subform (type 21) — walk its subfields array
-          if (f.type === 21 && f.subfields && f.subfields.length) {
+          if (f.type === 21 && f.fields && f.fields.length) {
             fieldChoices[f.link_name] = {};
-            f.subfields.forEach(function(sf) {
+            f.fields.forEach(function(sf) {
               if (sf.choices && sf.choices.length) {
                 fieldChoices[f.link_name][sf.link_name] =
                   sf.choices.map(function(c){ return c.value || c.key; });
@@ -369,7 +369,7 @@ function loadFieldMeta() {
         resp.fields.forEach(function(f) {
           console.log("  field:", f.link_name, "type:", f.type,
             "has choices:", !!(f.choices && f.choices.length),
-            "has subfields:", !!(f.subfields && f.subfields.length),
+            "has fields[]:", !!(f.fields && f.fields.length),
             "keys:", Object.keys(f).join(","));
         });
       } else {
