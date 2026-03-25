@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  UNIFORM ORDER WIDGET v1 — Pants (Subform approach)
+  ============================================================================
+  App:         lax-abg
+  Form:        Uniform_Order          (parent — one record per employee order)
+  Subform:     Pants_Orders           (link name inside Uniform_Order)
+  Emp Report:  All_Employee_Info      (fields: Employee_ID, First_Name, Last_Name, Full_Name)
+
+  CREATOR SCHEMA TO BUILD
+  ─────────────────────────────────────────────────────────────────────────────
+  Parent form: Uniform_Order
+    Employee_ID   Single Line   (widget fills this from lookup)
+    Full_Name     Single Line   (widget fills from lookup — Last, First format)
+    Department    Single Line
+    Order_Date    Date          default = Today
+    Submitted_By  Email         default = zoho.loginuserid
+    Notes         Multi Line
+
+  Subform: Pants_Orders  (add as Subform component inside Uniform_Order)
+    Color         Dropdown  → Black / Blue / Gray
+    Size          Dropdown  → XS / S / M / L / XL / 2XL / 3XL
+    Style         Dropdown  → Cargo / Chino / Dress Pants
+    Cuffed        Dropdown  → No / Yes
+    Quantity      Number    → min 1
+
+  Report: All_Uniform_Orders
+    Form: Uniform_Order, all columns, expand Pants_Orders subform rows
+    No filters — this is the master reporting view
+
+  SCALING LATER
+    To add Polo, Safety Vest, etc: add another Subform component to
+    Uniform_Order (e.g. Polo_Orders), add its fields, then copy the
+    SECTION_DEF pattern at the bottom of this widget's JS and add a
+    new section card. The submit logic handles all subforms automatically.
+  ============================================================================
+-->
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --dark:      #0f172a;
+      --dark2:     #1e293b;
+      --mid:       #334155;
+      --th-bg:     #f1f5f9;
+      --th-text:   #64748b;
+      --body-bg:   #f0f4f8;
+      --card-bg:   #ffffff;
+      --border:    #e2e8f0;
+      --text:      #1e293b;
+      --muted:     #64748b;
+      --danger:    #ef4444;
+      --success:   #22c55e;
+      --info-bg:   #dbeafe;
+      --info-text: #1e40af;
+      --radius:    8px;
+      --radius-sm: 5px;
+      --shadow:    0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.13);
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: var(--body-bg);
+      color: var(--text);
+      font-size: 14px;
+      min-height: 100vh;
+      padding-bottom: 72px;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    .widget-header {
+      background: linear-gradient(135deg, var(--dark) 0%, var(--dark2) 100%);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .status-dot  { width: 9px; height: 9px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+    .header-title { font-size: 15px; font-weight: 600; }
+    .header-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .header-date  { font-size: 11px; color: #475569; }
+
+    /* ── Layout ───────────────────────────────────── */
+    .content { max-width: 820px; margin: 0 auto; padding: 20px 16px; }
+
+    /* ── Cards ────────────────────────────────────── */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .card-header {
+      background: var(--th-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 9px 16px;
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--th-text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-body { padding: 16px; }
+
+    /* ── Fields ───────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 520px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .field-group { display: flex; flex-direction: column; gap: 5px; }
+    .field-label {
+      font-size: 11px; font-weight: 600;
+      color: var(--th-text);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .field-label .req { color: var(--danger); margin-left: 2px; }
+
+    input[type=text], select, textarea {
+      font-family: inherit; font-size: 13px;
+      color: var(--text); background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 10px; width: 100%; outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus { border-color: var(--mid); }
+    select { cursor: pointer; }
+
+    /* ── Employee lookup ──────────────────────────── */
+    .lookup-wrap { position: relative; }
+    .lookup-row  { display: flex; gap: 6px; }
+    .lookup-row input { flex: 1; }
+
+    .lookup-clear {
+      background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0 10px; color: var(--muted);
+      cursor: pointer; font-size: 15px; line-height: 1;
+      transition: color 0.15s, border-color 0.15s;
+      display: none;
+    }
+    .lookup-clear:hover { color: var(--danger); border-color: #fca5a5; }
+
+    .lookup-drop {
+      display: none;
+      position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      max-height: 230px; overflow-y: auto;
+      z-index: 400;
+    }
+    .lookup-drop.show { display: block; }
+
+    .emp-item {
+      padding: 9px 12px; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+    .emp-item:last-child { border-bottom: none; }
+    .emp-item:hover, .emp-item.active { background: var(--th-bg); }
+    .emp-item-id   { font-size: 13px; font-weight: 500; }
+    .emp-item-name { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .emp-item-title{ font-size: 10px; color: #94a3b8; }
+
+    .emp-msg { padding: 12px; text-align: center; font-size: 12px; color: var(--muted); }
+
+    .resolved-badge {
+      display: none;
+      align-items: center; gap: 7px;
+      background: var(--info-bg); border: 1px solid #bfdbfe;
+      border-radius: var(--radius-sm);
+      padding: 7px 11px; margin-top: 6px;
+      font-size: 12px; color: var(--info-text); font-weight: 500;
+    }
+    .resolved-badge.show { display: flex; }
+    .resolved-badge .chk { font-size: 13px; }
+    .resolved-name  { font-weight: 600; }
+    .resolved-title { font-size: 11px; color: var(--info-text); opacity: 0.75; margin-left: 4px; }
+
+    /* ── Subform table ────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+    table.sf {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+      min-width: 520px;
+    }
+    table.sf th {
+      background: var(--th-bg); color: var(--th-text);
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 9px 10px; text-align: left;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    table.sf td {
+      padding: 6px 8px; border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    table.sf tr:last-child td { border-bottom: none; }
+    table.sf tbody tr:hover td { background: #fafbfc; }
+    table.sf select { font-size: 12px; padding: 5px 7px; }
+    table.sf input[type=number] {
+      width: 56px; font-size: 12px; padding: 5px 6px; text-align: center;
+    }
+
+    .qty-wrap { display: flex; align-items: center; gap: 3px; }
+    .qty-btn {
+      width: 24px; height: 24px;
+      border: 1px solid var(--border); background: var(--th-bg);
+      border-radius: 4px; cursor: pointer; font-size: 15px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); transition: background 0.1s;
+    }
+    .qty-btn:hover { background: #e2e8f0; color: var(--text); }
+
+    .del-btn {
+      background: none; border: none;
+      color: #cbd5e1; cursor: pointer; font-size: 16px;
+      padding: 3px 6px; border-radius: 4px;
+      transition: color 0.15s, background 0.1s;
+    }
+    .del-btn:hover { color: var(--danger); background: #fef2f2; }
+
+    .add-row-btn {
+      width: 100%; padding: 9px;
+      background: none; border: none;
+      border-top: 1px dashed var(--border);
+      font-family: inherit; font-size: 12px; color: var(--muted);
+      cursor: pointer; text-align: center;
+      transition: background 0.1s, color 0.1s;
+    }
+    .add-row-btn:hover { background: #f8fafc; color: var(--dark); }
+
+    /* ── Submit bar ───────────────────────────────── */
+    .submit-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      z-index: 200;
+      box-shadow: 0 -2px 8px rgba(0,0,0,0.07);
+    }
+    .sub-summary { font-size: 12px; color: var(--muted); }
+    .sub-summary strong { color: var(--text); }
+    .btn-row { display: flex; gap: 8px; }
+
+    .btn {
+      font-family: inherit; font-size: 13px; font-weight: 500;
+      border-radius: var(--radius); padding: 9px 22px;
+      cursor: pointer; border: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary  { background: var(--dark); color: #fff; }
+    .btn-primary:hover { background: var(--dark2); }
+    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+    .btn-ghost { background: none; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--th-bg); }
+
+    /* ── Confirm modal ────────────────────────────── */
+    .backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,0.55); backdrop-filter: blur(3px);
+      z-index: 500; align-items: center; justify-content: center;
+    }
+    .backdrop.show { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px;
+      padding: 26px; max-width: 480px; width: 92%;
+      box-shadow: var(--shadow-md);
+      animation: popIn 0.16s ease;
+    }
+    @keyframes popIn { from{transform:scale(0.93);opacity:0;} to{transform:scale(1);opacity:1;} }
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .modal-sub   { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .modal-body  {
+      font-size: 12px; line-height: 1.9; white-space: pre-wrap;
+      background: var(--th-bg); border-radius: var(--radius-sm);
+      padding: 12px 14px; margin-bottom: 18px;
+      max-height: 220px; overflow-y: auto;
+      font-family: 'DM Sans', monospace;
+    }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Success screen ───────────────────────────── */
+    .success-screen {
+      display: none; text-align: center;
+      padding: 60px 20px; max-width: 500px; margin: 0 auto;
+    }
+    .success-screen.show { display: block; }
+    .success-icon  { font-size: 46px; margin-bottom: 14px; }
+    .success-title { font-size: 19px; font-weight: 600; margin-bottom: 8px; }
+    .success-sub   { color: var(--muted); font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+
+    /* ── Toast ────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
+      background: var(--dark); color: #fff;
+      padding: 9px 20px; border-radius: 20px;
+      font-size: 13px; font-weight: 500;
+      opacity: 0; transition: opacity 0.25s;
+      z-index: 999; pointer-events: none; white-space: nowrap;
+    }
+    .toast.err  { background: var(--danger); }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<div class="widget-header">
+  <div class="header-left">
+    <span class="status-dot"></span>
+    <div>
+      <div class="header-title">Uniform Order — Pants</div>
+      <div class="header-sub" id="headerSub">Loading…</div>
+    </div>
+  </div>
+  <div class="header-date" id="headerDate"></div>
+</div>
+
+<!-- ── Main content ───────────────────────────────────────── -->
+<div class="content" id="mainContent">
+
+  <!-- Employee card -->
+  <div class="card">
+    <div class="card-header">👤 Employee</div>
+    <div class="card-body">
+      <div class="grid-2">
+
+        <!-- Lookup -->
+        <div class="field-group">
+          <div class="field-label">Employee ID <span class="req">*</span></div>
+          <div class="lookup-wrap" id="lookupWrap">
+            <div class="lookup-row">
+              <input type="text" id="empInput"
+                placeholder="Type ID, first or last name…"
+                autocomplete="off"
+                oninput="onEmpInput(this.value)"
+                onkeydown="onEmpKey(event)"
+                onfocus="onEmpFocus()" />
+              <button class="lookup-clear" id="empClear" onclick="clearEmp()" title="Clear">✕</button>
+            </div>
+            <div class="lookup-drop" id="empDrop"></div>
+            <div class="resolved-badge" id="resolvedBadge">
+              <span class="chk">✓</span>
+              <span class="resolved-name" id="resolvedName"></span>
+              <span class="resolved-title" id="resolvedTitle"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Department -->
+        <div class="field-group">
+          <div class="field-label">Department <span class="req">*</span></div>
+          <select id="fDept">
+            <option value="">— Select —</option>
+            <option>Valet</option>
+            <option>Dispatch</option>
+            <option>Operations</option>
+            <option>Management</option>
+            <option>Other</option>
+          </select>
+        </div>
+
+        <!-- Notes spans full width -->
+        <div class="field-group" style="grid-column:1/-1;">
+          <div class="field-label">Notes</div>
+          <input type="text" id="fNotes" placeholder="Any special instructions…" />
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Pants subform card -->
+  <div class="card">
+    <div class="card-header">👖 Pants — Order Lines
+      <span id="rowBadge" style="margin-left:auto;background:var(--info-bg);color:var(--info-text);padding:2px 9px;border-radius:12px;font-size:10px;display:none;"></span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="tbl-wrap">
+        <table class="sf">
+          <thead>
+            <tr>
+              <th>Color</th>
+              <th>Size</th>
+              <th>Style</th>
+              <th>Cuffed</th>
+              <th>Qty</th>
+              <th style="width:36px;"></th>
+            </tr>
+          </thead>
+          <tbody id="sfTbody"></tbody>
+        </table>
+      </div>
+      <button class="add-row-btn" onclick="addRow()">+ Add another variation</button>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<!-- ── Success screen ─────────────────────────────────────── -->
+<div class="success-screen" id="successScreen">
+  <div class="success-icon">✅</div>
+  <div class="success-title">Order Submitted!</div>
+  <div class="success-sub" id="successMsg">Your order has been recorded.</div>
+  <button class="btn btn-ghost" onclick="resetForm()">Submit Another Order</button>
+</div>
+
+<!-- ── Submit bar ─────────────────────────────────────────── -->
+<div class="submit-bar" id="submitBar">
+  <div class="sub-summary" id="subSummary">No items added</div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="confirmClear()">Clear</button>
+    <button class="btn btn-primary" onclick="openConfirm()">Submit Order</button>
+  </div>
+</div>
+
+<!-- ── Confirm modal ──────────────────────────────────────── -->
+<div class="backdrop" id="confirmBackdrop">
+  <div class="modal">
+    <div class="modal-title">Confirm Order</div>
+    <div class="modal-sub">Review your order before submitting:</div>
+    <div class="modal-body" id="confirmBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Back</button>
+      <button class="btn btn-primary" id="btnConfirm" onclick="doSubmit()">Confirm &amp; Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  CONFIG — update if form/report names change
+// ─────────────────────────────────────────────────────────────
+var APP       = "lax-abg";
+var FORM      = "Uniform_Order";
+var SUBFORM   = "Pants_Orders";      // exact link name of the subform in Creator
+var EMP_RPT   = "All_Employee_Info"; // report exposing Employee_Info records
+
+// ─────────────────────────────────────────────────────────────
+//  PANTS SUBFORM COLUMN DEFINITIONS
+//  To add another category later, duplicate this block and
+//  point it at a new <tbody> + new subform name.
+// ─────────────────────────────────────────────────────────────
+var PANTS_COLS = [
+  { key:"Color",    type:"select", opts:["Black","Blue","Gray"] },
+  { key:"Size",     type:"select", opts:["XS","S","M","L","XL","2XL","3XL"] },
+  { key:"Style",    type:"select", opts:["Cargo","Chino","Dress Pants"] },
+  { key:"Cuffed",   type:"select", opts:["No","Yes"] },
+  { key:"Quantity", type:"qty" }
+];
+
+// ─────────────────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────────────────
+var loginUser   = "";
+var empCache    = [];     // [{zohoId, empId, fullName, firstName, lastName, title, team}]
+var selectedEmp = null;   // one of empCache entries, or null
+var activeIdx   = -1;
+var rowSeq      = 0;
+var _dropMatches = [];
+
+// ─────────────────────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────────────────────
+document.getElementById("headerDate").textContent =
+  new Date().toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric", year:"numeric"});
+
+addRow(); // seed with one empty row
+
+ZOHO.CREATOR.UTIL.getInitParams().then(function(p) {
+  loginUser = p.loginUser || "";
+  var uname = loginUser ? loginUser.split("@")[0] : "";
+  document.getElementById("headerSub").textContent =
+    uname ? "Submitting as: " + uname : "Uniform Order Form";
+  loadEmployees();
+}).catch(function() {
+  document.getElementById("headerSub").textContent = "Uniform Order Form";
+  loadEmployees();
+});
+
+// ─────────────────────────────────────────────────────────────
+//  LOAD EMPLOYEES — all upfront, one call
+// ─────────────────────────────────────────────────────────────
+function loadEmployees() {
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name:    APP,
+    report_name: EMP_RPT,
+    page:        1,
+    max_records: 1000
+  }).then(function(resp) {
+    if (resp && resp.code === 3000 && resp.data && resp.data.length) {
+      empCache = resp.data.map(function(r) {
+        var fn = (r.First_Name || "").trim();
+        var ln = (r.Last_Name  || "").trim();
+        return {
+          zohoId:    r.ID,
+          empId:     (r.Employee_ID || "").trim(),
+          firstName: fn,
+          lastName:  ln,
+          // Full_Name is a formula: "Last, First" — use it directly if present,
+          // otherwise construct it the same way
+          fullName:  (r.Full_Name || "").trim() || (ln + (ln && fn ? ", " : "") + fn),
+          title:     (r.Title || "").trim(),
+          team:      (r.Team  || "").trim()
+        };
+      })
+      .filter(function(e) { return e.empId; })
+      .sort(function(a, b) { return a.empId.localeCompare(b.empId); });
+      console.log("[UniformWidget] Employees loaded:", empCache.length);
+    } else {
+      console.warn("[UniformWidget] Employee load issue — code:", resp && resp.code, "msg:", resp && resp.message);
+    }
+  }).catch(function(err) {
+    console.error("[UniformWidget] Employee load error:", err);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  EMPLOYEE LOOKUP — typeahead
+// ─────────────────────────────────────────────────────────────
+function onEmpInput(val) {
+  val = val.trim();
+  activeIdx = -1;
+  selectedEmp = null;
+  document.getElementById("empClear").style.display = val ? "flex" : "none";
+  document.getElementById("resolvedBadge").classList.remove("show");
+
+  if (!val) { hideDrop(); updateSummary(); return; }
+
+  if (!empCache.length) {
+    showDropMsg("Loading employees — try again in a moment…");
+    updateSummary();
+    return;
+  }
+
+  var q = val.toLowerCase();
+  _dropMatches = empCache.filter(function(e) {
+    return e.empId.toLowerCase().includes(q) ||
+           e.firstName.toLowerCase().includes(q) ||
+           e.lastName.toLowerCase().includes(q) ||
+           e.fullName.toLowerCase().includes(q);
+  }).slice(0, 10);
+
+  if (!_dropMatches.length) {
+    showDropMsg("No employees found for "" + val + """);
+    return;
+  }
+
+  renderDrop(q);
+  updateSummary();
+}
+
+function onEmpFocus() {
+  var val = document.getElementById("empInput").value.trim();
+  if (val && !selectedEmp) onEmpInput(val);
+}
+
+function onEmpKey(e) {
+  var drop  = document.getElementById("empDrop");
+  var items = drop.querySelectorAll(".emp-item");
+  if (!items.length) return;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    highlightItems(items);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeIdx = Math.max(activeIdx - 1, 0);
+    highlightItems(items);
+  } else if (e.key === "Enter" && activeIdx >= 0) {
+    e.preventDefault();
+    pickEmp(activeIdx);
+  } else if (e.key === "Escape") {
+    hideDrop();
+  }
+}
+
+function highlightItems(items) {
+  items.forEach(function(el, i) { el.classList.toggle("active", i === activeIdx); });
+  if (items[activeIdx]) items[activeIdx].scrollIntoView({ block:"nearest" });
+}
+
+function renderDrop(q) {
+  var d = document.getElementById("empDrop");
+  d.innerHTML = _dropMatches.map(function(e, i) {
+    var idHl   = hl(e.empId,    q);
+    var nmHl   = hl(e.fullName, q);
+    var titleTxt = e.title ? e.title + (e.team ? " · " + e.team : "") : e.team;
+    return '<div class="emp-item" data-i="' + i + '" onclick="pickEmp(' + i + ')">' +
+             '<div class="emp-item-id">'    + idHl   + '</div>' +
+             '<div class="emp-item-name">'  + nmHl   + '</div>' +
+             (titleTxt ? '<div class="emp-item-title">' + escHtml(titleTxt) + '</div>' : '') +
+           '</div>';
+  }).join("");
+  d.classList.add("show");
+}
+
+function showDropMsg(msg) {
+  var d = document.getElementById("empDrop");
+  d.innerHTML = '<div class="emp-msg">' + escHtml(msg) + '</div>';
+  d.classList.add("show");
+}
+
+function hideDrop() {
+  var d = document.getElementById("empDrop");
+  d.classList.remove("show");
+  d.innerHTML = "";
+}
+
+function pickEmp(i) {
+  var emp = _dropMatches[i];
+  if (!emp) return;
+  selectedEmp = emp;
+  document.getElementById("empInput").value = emp.empId;
+  document.getElementById("empClear").style.display = "flex";
+
+  var badge = document.getElementById("resolvedBadge");
+  document.getElementById("resolvedName").textContent  = emp.fullName;
+  document.getElementById("resolvedTitle").textContent = emp.title || "";
+  badge.classList.add("show");
+
+  hideDrop();
+  updateSummary();
+}
+
+function clearEmp() {
+  selectedEmp = null;
+  document.getElementById("empInput").value = "";
+  document.getElementById("empClear").style.display = "none";
+  document.getElementById("resolvedBadge").classList.remove("show");
+  hideDrop();
+  updateSummary();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener("click", function(e) {
+  if (!document.getElementById("lookupWrap").contains(e.target)) hideDrop();
+});
+
+// ─────────────────────────────────────────────────────────────
+//  SUBFORM ROWS
+// ─────────────────────────────────────────────────────────────
+function addRow() {
+  var tbody = document.getElementById("sfTbody");
+  var tr    = document.createElement("tr");
+  tr.id     = "sfr" + (rowSeq++);
+
+  PANTS_COLS.forEach(function(col) {
+    var td = document.createElement("td");
+
+    if (col.type === "select") {
+      var sel = document.createElement("select");
+      sel.dataset.key = col.key;
+      sel.onchange    = updateSummary;
+      col.opts.forEach(function(o) {
+        var op = document.createElement("option");
+        op.value = o; op.textContent = o;
+        sel.appendChild(op);
+      });
+      td.appendChild(sel);
+
+    } else if (col.type === "qty") {
+      var wrap  = document.createElement("div");
+      wrap.className = "qty-wrap";
+      var minus = document.createElement("button");
+      minus.className = "qty-btn"; minus.type = "button"; minus.textContent = "−";
+      var inp   = document.createElement("input");
+      inp.type  = "number"; inp.min = 1; inp.max = 99; inp.value = 1;
+      inp.dataset.key = col.key; inp.oninput = updateSummary;
+      var plus  = document.createElement("button");
+      plus.className = "qty-btn"; plus.type = "button"; plus.textContent = "+";
+      minus.onclick = function(){ inp.value = Math.max(1, parseInt(inp.value||1) - 1); updateSummary(); };
+      plus.onclick  = function(){ inp.value = Math.min(99,parseInt(inp.value||1) + 1); updateSummary(); };
+      wrap.appendChild(minus); wrap.appendChild(inp); wrap.appendChild(plus);
+      td.appendChild(wrap);
+    }
+
+    tr.appendChild(td);
+  });
+
+  // Delete button
+  var delTd  = document.createElement("td");
+  var delBtn = document.createElement("button");
+  delBtn.className = "del-btn"; delBtn.type = "button"; delBtn.title = "Remove row";
+  delBtn.textContent = "✕";
+  delBtn.onclick = function() { tr.remove(); updateSummary(); };
+  delTd.appendChild(delBtn);
+  tr.appendChild(delTd);
+
+  tbody.appendChild(tr);
+  updateSummary();
+}
+
+// ─────────────────────────────────────────────────────────────
+//  READ ROWS → array of objects for payload
+// ─────────────────────────────────────────────────────────────
+function collectRows() {
+  var rows = [];
+  var tbody = document.getElementById("sfTbody");
+  Array.from(tbody.rows).forEach(function(tr) {
+    var row = {};
+    tr.querySelectorAll("[data-key]").forEach(function(el) {
+      row[el.dataset.key] = el.type === "number"
+        ? parseInt(el.value || 1)
+        : el.value;
+    });
+    if (Object.keys(row).length) rows.push(row);
+  });
+  return rows;
+}
+
+function totalQty(rows) {
+  return rows.reduce(function(s, r){ return s + (r.Quantity || 1); }, 0);
+}
+
+function updateSummary() {
+  var n   = document.getElementById("sfTbody").rows.length;
+  var q   = totalQty(collectRows());
+  var el  = document.getElementById("subSummary");
+  var bdg = document.getElementById("rowBadge");
+
+  if (n === 0) {
+    el.innerHTML = "No items added";
+    bdg.style.display = "none";
+  } else {
+    el.innerHTML = "<strong>" + n + " variation" + (n > 1 ? "s" : "") +
+                   "</strong> &nbsp;·&nbsp; " + q + " total item" + (q > 1 ? "s" : "");
+    bdg.textContent    = n + " row" + (n > 1 ? "s" : "");
+    bdg.style.display  = "inline-block";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  VALIDATION + CONFIRM MODAL
+// ─────────────────────────────────────────────────────────────
+function openConfirm() {
+  if (!selectedEmp) {
+    showToast("Please select an employee first.", "err"); return;
+  }
+  if (!document.getElementById("fDept").value) {
+    showToast("Please select a department.", "err"); return;
+  }
+  var rows = collectRows();
+  if (!rows.length) {
+    showToast("Add at least one pants variation.", "err"); return;
+  }
+
+  var dept  = document.getElementById("fDept").value;
+  var notes = document.getElementById("fNotes").value.trim();
+  var q     = totalQty(rows);
+
+  var lines = [];
+  lines.push("Employee:    " + selectedEmp.empId + " — " + selectedEmp.fullName);
+  if (selectedEmp.title) lines.push("Title:       " + selectedEmp.title);
+  lines.push("Department:  " + dept);
+  if (notes) lines.push("Notes:       " + notes);
+  lines.push("─────────────────────────────────");
+  lines.push("PANTS ORDER:");
+  rows.forEach(function(r, i) {
+    lines.push("  " + (i+1) + ".  " +
+      r.Color + "  ·  " + r.Size + "  ·  " + r.Style +
+      "  ·  Cuffed: " + r.Cuffed + "  ·  Qty: " + r.Quantity);
+  });
+  lines.push("─────────────────────────────────");
+  lines.push("Total items: " + q);
+
+  document.getElementById("confirmBody").textContent = lines.join("\n");
+  document.getElementById("btnConfirm").textContent = "Confirm & Submit";
+  document.getElementById("btnConfirm").disabled    = false;
+  document.getElementById("confirmBackdrop").classList.add("show");
+}
+
+function closeConfirm() {
+  document.getElementById("confirmBackdrop").classList.remove("show");
+}
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") closeConfirm();
+});
+
+// ─────────────────────────────────────────────────────────────
+//  SUBMIT — single addRecord with nested subform payload
+//
+//  Zoho Creator DATA API subform format:
+//  payload.data[SUBFORM_LINK_NAME] = [ {field:value, ...}, ... ]
+// ─────────────────────────────────────────────────────────────
+function doSubmit() {
+  var btn   = document.getElementById("btnConfirm");
+  btn.textContent = "Submitting…";
+  btn.disabled    = true;
+
+  var rows  = collectRows();
+  var dept  = document.getElementById("fDept").value;
+  var notes = document.getElementById("fNotes").value.trim();
+  var today = new Date().toLocaleDateString("en-US",
+    { month:"2-digit", day:"2-digit", year:"numeric" });
+
+  // Build parent + nested subform payload
+  var payload = {
+    data: {
+      Employee_ID:  selectedEmp.empId,
+      Full_Name:    selectedEmp.fullName,
+      Department:   dept,
+      Order_Date:   today,
+      Submitted_By: loginUser,
+      Notes:        notes
+    }
+  };
+
+  // Attach subform rows under the subform link name
+  payload.data[SUBFORM] = rows;
+
+  ZOHO.CREATOR.DATA.addRecord({
+    app_name:  APP,
+    form_name: FORM,
+    payload:   payload
+  }).then(function(resp) {
+    closeConfirm();
+    if (resp && resp.code === 3000) {
+      showSuccess(rows);
+    } else {
+      console.error("[UniformWidget] addRecord failed:", resp);
+      var msg = (resp && resp.message) ? resp.message : "Unknown error (code " + (resp && resp.code) + ")";
+      showToast("Submit failed: " + msg, "err");
+      btn.textContent = "Confirm & Submit";
+      btn.disabled    = false;
+    }
+  }).catch(function(err) {
+    closeConfirm();
+    console.error("[UniformWidget] addRecord error:", err);
+    showToast("Submission error — check console.", "err");
+    btn.textContent = "Confirm & Submit";
+    btn.disabled    = false;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SUCCESS / RESET
+// ─────────────────────────────────────────────────────────────
+function showSuccess(rows) {
+  var q = totalQty(rows);
+  document.getElementById("mainContent").style.display    = "none";
+  document.getElementById("submitBar").style.display      = "none";
+  document.getElementById("successMsg").textContent =
+    "Pants order for " + selectedEmp.fullName + " (" + selectedEmp.empId + ") " +
+    "saved — " + rows.length + " variation" + (rows.length > 1 ? "s" : "") +
+    ", " + q + " total item" + (q > 1 ? "s" : "") + ".";
+  document.getElementById("successScreen").classList.add("show");
+}
+
+function resetForm() {
+  clearEmp();
+  document.getElementById("fDept").value  = "";
+  document.getElementById("fNotes").value = "";
+  document.getElementById("sfTbody").innerHTML = "";
+  rowSeq = 0;
+  addRow();
+  document.getElementById("mainContent").style.display    = "block";
+  document.getElementById("submitBar").style.display      = "flex";
+  document.getElementById("successScreen").classList.remove("show");
+  updateSummary();
+}
+
+function confirmClear() {
+  if (!confirm("Clear all fields and start over?")) return;
+  resetForm();
+}
+
+// ─────────────────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────────────────
+function hl(str, q) {
+  if (!str || !q) return escHtml(str || "");
+  var idx = str.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return escHtml(str);
+  return escHtml(str.slice(0, idx)) +
+    '<mark style="background:#fef08a;color:inherit;border-radius:2px;">' +
+    escHtml(str.slice(idx, idx + q.length)) + '</mark>' +
+    escHtml(str.slice(idx + q.length));
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+var _toastTimer;
+function showToast(msg, type) {
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className   = "toast" + (type === "err" ? " err" : "");
+  el.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.classList.remove("show"); }, 3500);
+}
+</script>
+</body>
+</html>
