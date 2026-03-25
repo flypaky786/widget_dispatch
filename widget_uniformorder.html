@@ -483,6 +483,7 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
+  console.log("[Uniform] *** VERSION v3-hardurl — if you see this, new file is live ***");
 
   addRow(); // seed one empty row
 
@@ -844,12 +845,7 @@
     // Use Creator REST API v2.1 via fetch — ZOHO.CREATOR.DATA has no
     // reliable addRecord/addRecords on this SDK build. fetch works because
     // the widget is already authenticated in the same origin.
-    // Build absolute URL using the widget's actual host — avoids SDK proxy routing
-    var host = window.location.origin;
-    // If running inside zappsusercontent iframe, derive the real host from serviceOrigin param
-    var svcOrigin = new URLSearchParams(window.location.search).get("serviceOrigin");
-    if (svcOrigin) { try { host = new URL(svcOrigin).origin; } catch(e) {} }
-    var url = host + "/creator/v2.1/data/autoflowx/" + APP + "/form/" + FORM;
+    var url = "https://lax.autoflowx.com/creator/v2.1/data/autoflowx/" + APP + "/form/" + FORM;
     console.log("[Uniform] POST url:", url);
 
     fetch(url, {
