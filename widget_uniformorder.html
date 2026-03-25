@@ -309,7 +309,7 @@ var rowSeqs   = {};
 var ttTimer   = null;
 var sigDirty  = false;
 
-console.log("[Uniform] *** VERSION v10i — two-step sig ***");
+console.log("[Uniform] *** VERSION v10j — getSigFile fixed ***");
 
 document.getElementById("hDate").textContent =
   new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
@@ -580,6 +580,15 @@ function getSigDataURL() {
   return sigCanvas.toDataURL("image/jpeg", 0.7);
 }
 
+// Convert canvas to JS File object for ZOHO.CREATOR.FILE.uploadFile
+function getSigFile(callback) {
+  if (!sigDirty) { callback(null); return; }
+  sigCanvas.toBlob(function(blob) {
+    if (!blob) { callback(null); return; }
+    callback(new File([blob], "signature.jpg", { type: "image/jpeg" }));
+  }, "image/jpeg", 0.7);
+}
+
 // ── COLLECT + SUMMARY ─────────────────────────────────────────────────────────
 function collectAll() {
   var sf = {}, totalItems = 0, totalRows = 0;
@@ -684,7 +693,7 @@ function doSubmit() {
 
   Object.keys(d.sf).forEach(function(k){ rec[k] = d.sf[k]; });
 
-  console.log("[Uniform] Submitting record (sig omitted from log):", JSON.stringify(Object.assign({}, rec, {Employee_Signature:"[base64 omitted]"})));
+  console.log("[Uniform] Submitting record:", JSON.stringify(rec));
 
   ZOHO.CREATOR.DATA.addRecords({
     app_name:  APP,
