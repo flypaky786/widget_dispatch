@@ -81,7 +81,6 @@
       position: sticky; top: 0; z-index: 100;
     }
     .header-left { display: flex; align-items: center; gap: 10px; }
-    .status-dot  { width: 9px; height: 9px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
     .header-title { font-size: 15px; font-weight: 600; }
     .header-sub   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
     .header-date  { font-size: 11px; color: #475569; }
@@ -314,7 +313,6 @@
 <!-- Header -->
 <div class="widget-header">
   <div class="header-left">
-    <span class="status-dot"></span>
     <div>
       <div class="header-title">Uniform Order — Pants</div>
       <div class="header-sub" id="headerSub">Loading…</div>
@@ -415,6 +413,19 @@
 </div>
 
 <!-- Confirm modal -->
+
+<!-- Error banner -->
+<div id="errorBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:300;
+  background:#fef2f2;border-bottom:2px solid #fca5a5;padding:10px 20px;
+  align-items:center;justify-content:space-between;gap:12px;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-size:15px;">&#9888;&#65039;</span>
+    <span id="errorBannerMsg" style="font-size:13px;color:#991b1b;font-weight:500;"></span>
+  </div>
+  <button id="errorBannerClose" style="background:none;border:none;color:#991b1b;
+    cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;">&#x2715;</button>
+</div>
+
 <div class="backdrop" id="confirmBackdrop">
   <div class="modal">
     <div class="modal-title">Confirm Order</div>
@@ -483,7 +494,7 @@
 
   // Dump available SDK methods — helps diagnose "not a function" errors
   console.log("[Uniform] ZOHO.CREATOR.DATA keys:", Object.keys(ZOHO.CREATOR.DATA || {}));
-  console.log("[Uniform] *** VERSION v6-lookup-id ***");
+  console.log("[Uniform] *** VERSION v7 ***");
   console.log("[Uniform] DATA methods:", JSON.stringify(Object.keys(ZOHO.CREATOR.DATA || {})));
 
   addRow(); // seed one empty row
@@ -834,7 +845,6 @@
 
     var payload = { data: {} };
     payload.data.Employee_ID  = selectedEmp.zohoId;  // Lookup field needs internal Zoho record ID, not display value
-    payload.data.Full_Name    = selectedEmp.fullName;
     payload.data.Department   = dept;
     payload.data.Order_Date   = today;
     payload.data.Submitted_By = loginUser;
@@ -858,14 +868,28 @@
     }).then(function(resp) {
       closeConfirm();
       console.log("[Uniform] addRecords response:", JSON.stringify(resp));
+      // resp.code 3000 = outer call OK, but check result[] for per-record errors
+      var success = false;
       if (resp && resp.code === 3000) {
-        showSuccess(rows);
+        if (resp.result && resp.result.length && resp.result[0].code !== 3000) {
+          // Zoho backend validation error — surface it clearly
+          var errors = resp.result[0].error || [];
+          var msg = errors.length ? errors.join(" | ") : "Validation error (code " + resp.result[0].code + ")";
+          showToast("Zoho error: " + msg, true);
+          showFormError(msg);
+          btnConfirm.textContent = "Confirm & Submit";
+          btnConfirm.disabled    = false;
+        } else {
+          success = true;
+        }
       } else {
         var msg = (resp && resp.message) ? resp.message : "Code " + (resp && resp.code);
         showToast("Submit failed: " + msg, true);
+        showFormError(msg);
         btnConfirm.textContent = "Confirm & Submit";
         btnConfirm.disabled    = false;
       }
+      if (success) showSuccess(rows);
     }).catch(function(err) {
       closeConfirm();
       console.error("[Uniform] addRecords error:", err);
@@ -932,6 +956,18 @@
   }
 
 }());
+
+// ── ERROR BANNER ─────────────────────────────────────────────────────────────
+function showFormError(msg) {
+  var b = document.getElementById("errorBanner");
+  document.getElementById("errorBannerMsg").textContent = msg;
+  b.style.display = "flex";
+  setTimeout(function() { b.style.display = "none"; }, 8000);
+}
+document.getElementById("errorBannerClose").addEventListener("click", function() {
+  document.getElementById("errorBanner").style.display = "none";
+});
+
 </script>
 </body>
 </html>
