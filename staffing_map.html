@@ -78,12 +78,7 @@ body {
 @keyframes fadeIn { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 @keyframes spin   { to{transform:rotate(360deg)} }
 
-.ripple-ring {
-  position: absolute; top:50%; left:50%;
-  width:50px; height:50px; border-radius:50%;
-  border:2px solid currentColor;
-  animation:ripple 2.2s ease-out infinite; pointer-events:none;
-}
+
 .avatar-circle {
   width:72px; height:72px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
@@ -735,7 +730,6 @@ function renderEmployeePin(s){
   pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-epDownX)<8 && Math.abs(e.clientY-epDownY)<8) openManageModal(s.id); });
 
   pin.innerHTML=`
-    ${status==="Active"?`<div class="ripple-ring" style="color:${cfg.color}"></div>`:""}
     <div class="avatar-circle" style="
       background:radial-gradient(circle at 35% 35%,${cfg.color}55,${cfg.color}18);
       border:3px solid ${cfg.color}; color:${cfg.color};
