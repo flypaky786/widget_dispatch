@@ -78,7 +78,12 @@ body {
 @keyframes fadeIn { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
 @keyframes spin   { to{transform:rotate(360deg)} }
 
-
+.ripple-ring {
+  position: absolute; top:50%; left:50%;
+  width:50px; height:50px; border-radius:50%;
+  border:2px solid currentColor;
+  animation:ripple 2.2s ease-out infinite; pointer-events:none;
+}
 .avatar-circle {
   width:72px; height:72px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
@@ -672,8 +677,14 @@ function loadEmployees(){
     } else {
       console.warn("[Staffing Widget] No employee data:", resp.code, resp.message);
     }
+    // Load records AFTER employees are cached so names resolve correctly on first render
+    loadRecords();
+    hideStateOverlay();
   }).catch(function(err){
     console.error("[Staffing Widget] loadEmployees exception:", err);
+    // Still load records even if employees failed
+    loadRecords();
+    hideStateOverlay();
   });
 }
 
@@ -730,6 +741,7 @@ function renderEmployeePin(s){
   pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-epDownX)<8 && Math.abs(e.clientY-epDownY)<8) openManageModal(s.id); });
 
   pin.innerHTML=`
+    ${status==="Active"?`<div class="ripple-ring" style="color:${cfg.color}"></div>`:""}
     <div class="avatar-circle" style="
       background:radial-gradient(circle at 35% 35%,${cfg.color}55,${cfg.color}18);
       border:3px solid ${cfg.color}; color:${cfg.color};
@@ -1344,11 +1356,8 @@ function startPolling(){
 // Bare call at bottom — no window.onload wrapper — matches dispatch widget exactly
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   console.log("[Staffing Widget] getInitParams OK:", JSON.stringify(params));
-  loadEmployees();
-  loadRecords();
-  hideStateOverlay();
-  renderAll();
-  startPolling(); // 15s poll — same pattern as dispatch/CSR widgets
+  loadEmployees(); // chains loadRecords() + hideStateOverlay() on completion
+  startPolling();
 }).catch(function(err){
   console.error("[Staffing Widget] getInitParams failed:", err);
   hideStateOverlay();
