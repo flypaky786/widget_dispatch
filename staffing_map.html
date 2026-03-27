@@ -1,5 +1,6 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -419,7 +420,7 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 0.75; // 1.0 = pins appear at their CSS px size on screen
+const PIN_SCALE_TARGET = 1.0; // 1.0 = pins appear at their CSS px size on screen
 
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
@@ -587,12 +588,18 @@ function isToday(dateStr){
 
 function normalizeRecord(r){
   // Employee_Info comes back as an object: {Employee_ID:"1508", ID:"...", zc_display_value:"1508"}
-  var empObj     = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
-  var empDisplay = empObj ? (empObj.Full_Name || empObj.Employee_ID || empObj.zc_display_value || empObj.ID)
-                          : (r["Employee_Info.Full_Name"] || r["Employee_Info.Employee_ID"] || r.Employee_ID || r.Employee_Info || "—");
-  var empRawId   = empObj ? empObj.ID : (r.Employee_Info || "");
+  var empObj   = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
+  var empRawId = empObj ? empObj.ID : (r.Employee_Info || "");
 
-  var parts    = String(empDisplay).trim().split(/[\s\-]+/);
+  // Try to get Full_Name from the allEmployees cache first (most reliable after polling)
+  var cachedEmp  = allEmployees.find(function(e){ return e.id === empRawId; });
+  var empDisplay = cachedEmp
+    ? cachedEmp.label
+    : (empObj
+        ? (empObj.Full_Name || empObj.Employee_ID || empObj.zc_display_value || empObj.ID)
+        : (r["Employee_Info.Full_Name"] || r["Employee_Info.Employee_ID"] || r.Employee_ID || r.Employee_Info || "—"));
+
+  var parts    = String(empDisplay).trim().split(/[\s,\-]+/);
   var initials = parts.length >= 2
     ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase()
     : String(empDisplay).substring(0,2).toUpperCase();
@@ -841,8 +848,15 @@ function openAssignModal(zoneName){
   document.getElementById("assign-zone-label").textContent="Zone: "+zoneName;
   document.getElementById("assign-error").textContent="";
 
+  // Reset button to original state in case previous assign left it in "Assigned!" state
+  const btn=document.querySelector("#assign-modal .modal-btn-primary");
+  btn.textContent="✓ Assign to Zone";
+  btn.style.background="";
+  btn.disabled=false;
+
   const sel=document.getElementById("assign-select");
   sel.innerHTML="<option value=''>Loading…</option>";
+  sel.selectedIndex=0; // always reset to blank on open
   document.getElementById("assign-modal").classList.add("open");
 
   // If employees haven't loaded yet (Zoho slow) — try fetching now
