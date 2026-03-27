@@ -1,3 +1,5 @@
+/*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,11 +55,11 @@ body {
   z-index: 20; cursor: pointer; user-select: none;
 }
 .plus-circle {
-  width: 56px; height: 56px; border-radius: 50%;
+  width: 72px; height: 72px; border-radius: 50%;
   background: rgba(56,139,253,0.15);
-  border: 2.5px dashed #ffffff;
+  border: 2.5px dashed #388bfd;
   display: flex; align-items: center; justify-content: center;
-  font-size: 26px; color: #ffffff; font-weight: 300;
+  font-size: 34px; color: #ffffff; font-weight: 300;
   transition: all 0.2s;
 }
 .plus-pin:hover .plus-circle {
@@ -65,7 +67,7 @@ body {
   transform: scale(1.1);
 }
 .plus-label {
-  margin-top: 4px; font-size: 9px; color: #ffffff;
+  margin-top: 4px; font-size: 9px; color: #388bfd88;
   text-align: center; white-space: nowrap; font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -82,21 +84,21 @@ body {
   animation:ripple 2.2s ease-out infinite; pointer-events:none;
 }
 .avatar-circle {
-  width:48px; height:48px; border-radius:50%;
+  width:72px; height:72px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:800; position:relative; z-index:2;
+  font-size:18px; font-weight:800; position:relative; z-index:2;
 }
 .avatar-label {
-  margin-top:5px; background:rgba(10,14,26,.94);
-  border:1px solid rgba(255,255,255,.1); border-radius:6px;
-  padding:3px 8px; font-size:9px; color:#e8edf5;
-  white-space:nowrap; text-align:center; line-height:1.6;
-  box-shadow:0 2px 8px rgba(0,0,0,.6); z-index:2;
+  margin-top:6px; background:rgba(10,14,26,.96);
+  border:1px solid rgba(255,255,255,.15); border-radius:7px;
+  padding:5px 11px; font-size:12px; color:#e8edf5;
+  white-space:nowrap; text-align:center; line-height:1.7;
+  box-shadow:0 3px 10px rgba(0,0,0,.7); z-index:2;
 }
-.avatar-label .emp-id   { font-weight:700; font-size:11px; color:#fff; }
-.avatar-label .zone-nm  { color:#94a3b8; font-size:9px; }
-.avatar-label .status-nm { font-size:9px; }
-.status-dot { width:7px; height:7px; border-radius:50%; margin-top:3px; z-index:2; }
+.avatar-label .emp-id   { font-weight:700; font-size:14px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:11px; }
+.avatar-label .status-nm { font-size:11px; }
+.status-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; z-index:2; }
 
 /* ── Zoom controls ── */
 #zoom-controls { position:absolute; bottom:16px; right:14px; display:flex; flex-direction:column; gap:5px; z-index:50; }
@@ -387,10 +389,10 @@ const AREA_POSITIONS = {
   "HSA Readyline 3": { x:1976, y:1338, box:{x:1894,y:1271,w:164,h:133} },
   "HSA Readyline 4": { x:2355, y:1331, box:{x:2268,y:1264,w:174,h:133} },
 
-  "Exit 6":     { x:929, y:213, box:{x:878,y:176,w:101,h:74} },
-  "Exit 5":     { x:928, y:307, box:{x:878,y:269,w:99,h:75} },
-  "Exit 4":     { x:930, y:395, box:{x:880,y:356,w:99,h:77} },
-  "Exit Extra": { x:1282,y:394, box:{x:1224,y:352,w:115,h:84} },
+  "Exit 6":     { x:929,  y:213, box:{x:878, y:176,w:101,h:74} },
+  "Exit 5":     { x:928,  y:307, box:{x:878, y:269,w:99, h:75} },
+  "Exit 4":     { x:930,  y:395, box:{x:880, y:356,w:99, h:77} },
+  "Exit Extra": { x:1282, y:394, box:{x:1224,y:352,w:115,h:84} },
 };
 
 // ═══════════════════════════════════════════════════════
@@ -416,9 +418,17 @@ let lastTap=0;
 const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
+// Target visual size factor — pins render at this size regardless of zoom
+const PIN_SCALE_TARGET = 1.0; // 1.0 = pins appear at their CSS px size on screen
+
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
+  // Inverse-scale all pins so they stay constant physical size on screen
+  var inv = PIN_SCALE_TARGET / scale;
+  canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
+    pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
+  });
 }
 function fitView(){
   // Use requestAnimationFrame to ensure layout is fully settled (fixes iPad Safari)
@@ -708,7 +718,7 @@ function renderEmployeePin(s){
   pin.className="pin";
   pin.style.left=s.x+"px";
   pin.style.top =s.y+"px";
-  pin.style.transform="translate(-50%,-50%)";
+  pin.style.transform="translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
   pin.dataset.recId=s.id;
   pin.dataset.zone=s.zone;
 
@@ -749,7 +759,7 @@ function buildStatusLine(s, status, cfg){
     }
   }
   return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● '+cfg.label+'</div>'
-       + (elapsed ? '<div class="status-elapsed" style="color:'+cfg.color+';font-size:8px;opacity:0.85">('+elapsed+')</div>' : '');
+       + (elapsed ? '<div class="status-elapsed" style="color:'+cfg.color+';font-size:11px;opacity:0.85">('+elapsed+')</div>' : '');
 }
 
 function renderPlusPin(zoneName,pos){
@@ -757,7 +767,7 @@ function renderPlusPin(zoneName,pos){
   pin.className="plus-pin";
   pin.style.left=pos.x+"px";
   pin.style.top =pos.y+"px";
-  pin.style.transform="translate(-50%,-50%)";
+  pin.style.transform="translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
   pin.innerHTML=`<div class="plus-circle">+</div><div class="plus-label">${zoneName}</div>`;
 
   // Same travel-distance tap detection for iPad Safari
@@ -1233,6 +1243,10 @@ function zohoDelete(recId){
     id:          recId,
   }).then(function(resp){
     console.log("[Staffing Widget] zohoDelete resp:", resp.code);
+    if(resp.code === 2932){
+      alert("Permission denied — please give 'data@odorzx.com' Delete access on the All_Staffing_Maps report in Zoho Creator.");
+      return false;
+    }
     if(resp.code !== 3000){ showToast("⚠️ Delete failed ("+resp.code+")", "#ef4444"); return false; }
     return true;
   }).catch(function(e){ console.error("[Staffing Widget] zohoDelete err:", e); showToast("⚠️ "+e, "#ef4444"); return false; });
