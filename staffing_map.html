@@ -587,17 +587,21 @@ function isToday(dateStr){
 }
 
 function normalizeRecord(r){
-  // Employee_Info comes back as an object: {Employee_ID:"1508", ID:"...", zc_display_value:"1508"}
   var empObj   = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
-  var empRawId = empObj ? empObj.ID : (r.Employee_Info || "");
+  var empRawId = empObj ? empObj.ID : (typeof r.Employee_Info === "string" ? r.Employee_Info : "");
 
-  // Try to get Full_Name from the allEmployees cache first (most reliable after polling)
+  // 1. Best: look up Full_Name from allEmployees cache (populated by loadEmployees)
   var cachedEmp  = allEmployees.find(function(e){ return e.id === empRawId; });
+  // 2. Fallback: check if a previous local record already has the resolved name
+  var prevRecord = records.find(function(rec){ return rec.id === r.ID; });
+
   var empDisplay = cachedEmp
     ? cachedEmp.label
-    : (empObj
-        ? (empObj.Full_Name || empObj.Employee_ID || empObj.zc_display_value || empObj.ID)
-        : (r["Employee_Info.Full_Name"] || r["Employee_Info.Employee_ID"] || r.Employee_ID || r.Employee_Info || "—"));
+    : prevRecord && prevRecord.empId && prevRecord.empId !== "—"
+      ? prevRecord.empId
+      : (empObj
+          ? (empObj.Full_Name || empObj.Employee_ID || empObj.zc_display_value || empObj.ID)
+          : (r["Employee_Info.Full_Name"] || r["Employee_Info.Employee_ID"] || r.Employee_ID || String(r.Employee_Info||"") || "—"));
 
   var parts    = String(empDisplay).trim().split(/[\s,\-]+/);
   var initials = parts.length >= 2
@@ -605,8 +609,6 @@ function normalizeRecord(r){
     : String(empDisplay).substring(0,2).toUpperCase();
 
   var pos = AREA_POSITIONS[r.Zone] || null;
-
-  // Treat empty strings as null for datetime fields
   function clean(v){ return (v && v !== "") ? v : null; }
 
   return {
@@ -679,6 +681,8 @@ function loadEmployees(){
     }
     // Load records AFTER employees are cached so names resolve correctly on first render
     loadRecords();
+    // Also re-render immediately in case records already loaded (race condition)
+    if(records.length) renderAll();
     hideStateOverlay();
   }).catch(function(err){
     console.error("[Staffing Widget] loadEmployees exception:", err);
@@ -974,6 +978,7 @@ function confirmAssign(){
     records.push({
       id:newId, empId:label, empRawId:empId, initials,
       zone:assigningZone, currentStatus:"Active",
+      dateTime: formatForZoho(new Date()), // needed for todayFilter to keep this record
       Break_Type_Start:null, Break_Type_End:null,
       Lunch_Start:null, Lunch_End:null,
       Break_2_Start:null, Break_2_End:null,
