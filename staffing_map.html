@@ -1,5 +1,6 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -95,9 +96,9 @@ body {
   white-space:nowrap; text-align:center; line-height:1.7;
   box-shadow:0 3px 10px rgba(0,0,0,.7); z-index:2;
 }
-.avatar-label .emp-id   { font-weight:700; font-size:18px; color:#fff; }
-.avatar-label .zone-nm  { color:#94a3b8; font-size:16px; }
-.avatar-label .status-nm { font-size:16px; }
+.avatar-label .emp-id   { font-weight:700; font-size:14px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:11px; }
+.avatar-label .status-nm { font-size:11px; }
 .status-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; z-index:2; }
 
 /* ── Zoom controls ── */
@@ -387,6 +388,7 @@ const AREA_POSITIONS = {
   "Exit Extra":      { x:1321, y:385,  box:{x:1263,y:343,w:115,h:84} },
 };
 
+
 // ═══════════════════════════════════════════════════════
 //  STATUS CONFIG
 // ═══════════════════════════════════════════════════════
@@ -411,7 +413,7 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 0.8; // visual size of pins on screen regardless of zoom
+const PIN_SCALE_TARGET = 0.6; // visual size of pins on screen regardless of zoom
 
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
@@ -666,9 +668,9 @@ function loadEmployees(){
   }).then(function(resp){
     if(resp.code === 3000 && resp.data && resp.data.length){
       allEmployees = resp.data.map(function(r){
-        var label = r.Full_Name || r.Employee_ID
-                 || (r.First_Name ? r.First_Name+" "+(r.Last_Name||"") : null)
-                 || r.ID;
+        var label = (r.First_Name && r.Last_Name)
+                 ? r.First_Name + " " + r.Last_Name
+                 : r.Full_Name || r.Employee_ID || r.ID;
         return { id: r.ID, label: String(label).trim() };
       }).sort(function(a,b){ return a.label.localeCompare(b.label); });
       console.log("[Staffing Widget] Employees ready:", allEmployees.length);
@@ -904,10 +906,10 @@ function openAssignModal(zoneName){
       if(resp.code===3000 && resp.data && resp.data.length){
         console.log("[Staffing Widget] On-demand first record:", JSON.stringify(resp.data[0]));
         allEmployees = resp.data.map(function(r){
-          var label = r.Full_Name || r.Employee_ID || r.Employee_Id
-                   || (r.First_Name ? r.First_Name+" "+(r.Last_Name||"") : null)
-                   || r.Name || r.ID;
-          return { id: r.ID, label: label.trim() };
+          var label = (r.First_Name && r.Last_Name)
+                   ? r.First_Name + " " + r.Last_Name
+                   : r.Full_Name || r.Employee_ID || r.ID;
+          return { id: r.ID, label: String(label).trim() };
         }).sort(function(a,b){ return a.label.localeCompare(b.label); });
       } else {
         console.warn("[Staffing Widget] On-demand emp empty. code:", resp.code, "msg:", resp.message);
