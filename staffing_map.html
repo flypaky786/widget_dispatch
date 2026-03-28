@@ -420,7 +420,7 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 1.0; // 1.0 = pins appear at their CSS px size on screen
+const PIN_SCALE_TARGET = 0.6; // 1.0 = pins appear at their CSS px size on screen
 
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
