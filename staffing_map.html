@@ -1,6 +1,5 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -420,7 +419,7 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 0.6; // 1.0 = pins appear at their CSS px size on screen
+const PIN_SCALE_TARGET = 0.6; // visual size of pins on screen regardless of zoom
 
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
@@ -642,7 +641,12 @@ function loadRecords(){
   }).then(function(resp){
     if(resp.code === 3000){
       var all      = resp.data || [];
-      var filtered = all.filter(function(r){ return todayFilter(r.Date_Time); });
+      // Only show employees who are Active, on Break, or at Lunch — exclude Unassigned
+      var active   = all.filter(function(r){
+        var status = (r.Current_Status || "").trim();
+        return status !== "Unassigned" && status !== "";
+      });
+      var filtered = active.filter(function(r){ return todayFilter(r.Date_Time); });
       records = filtered.map(normalizeRecord);
       renderAll();
       // If manage modal is open, refresh it in-place with latest data
@@ -1174,14 +1178,16 @@ function doAction(actionKey){
 function unassignEmployee(){
   const s=records.find(r=>r.id===managingId);
   if(!s) return;
-  if(!confirm(`Remove ${s.empId} from "${s.zone}"? This will delete the staffing record.`)) return;
+  if(!confirm(`Remove ${s.empId} from "${s.zone}"? This will mark them as unassigned.`)) return;
   setSaving(true);
-  zohoDelete(s.id).then(ok=>{
+  // Update record to Unassigned status instead of deleting
+  zohoUpdate(s.id, { Current_Status: "Unassigned" }).then(ok=>{
     if(!ok){ setSaving(false); return; }
+    // Remove from local records so zone shows + again
     records=records.filter(r=>r.id!==s.id);
     closeManageModal();
     renderAll();
-    showToast("🗑 "+s.empId+" removed from "+s.zone,"#6b7280");
+    showToast("🗑 "+s.empId+" unassigned from "+s.zone,"#6b7280");
   });
 }
 
