@@ -91,13 +91,13 @@ body {
 .avatar-label {
   margin-top:6px; background:rgba(10,14,26,.96);
   border:1px solid rgba(255,255,255,.15); border-radius:7px;
-  padding:5px 11px; font-size:12px; color:#e8edf5;
+  padding:5px 11px; font-size:18px; color:#e8edf5;
   white-space:nowrap; text-align:center; line-height:1.7;
   box-shadow:0 3px 10px rgba(0,0,0,.7); z-index:2;
 }
-.avatar-label .emp-id   { font-weight:700; font-size:14px; color:#fff; }
-.avatar-label .zone-nm  { color:#94a3b8; font-size:11px; }
-.avatar-label .status-nm { font-size:11px; }
+.avatar-label .emp-id   { font-weight:700; font-size:20px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:16px; }
+.avatar-label .status-nm { font-size:16px; }
 .status-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; z-index:2; }
 
 /* ── Zoom controls ── */
@@ -448,21 +448,8 @@ function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
   var inv = PIN_SCALE_TARGET / scale;
-  // All pins inverse-scaled so physical size stays constant
   canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
     pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
-  });
-  // Font sizes scale with the pin's inverse scale so text stays readable at all zoom levels
-  // PIN_SCALE_TARGET/scale = same factor as the pin's CSS scale, so text matches physical pin size
-  var labelScale = Math.min(PIN_SCALE_TARGET / scale, 4); // cap at 4x to avoid absurd sizes when very zoomed out
-  canvas().querySelectorAll(".pin .avatar-label").forEach(function(lbl){
-    lbl.style.fontSize = Math.round(12 * labelScale)+"px";
-    var empId = lbl.querySelector(".emp-id");
-    if(empId) empId.style.fontSize = Math.round(14 * labelScale)+"px";
-    var zoneNm = lbl.querySelector(".zone-nm");
-    if(zoneNm) zoneNm.style.fontSize = Math.round(11 * labelScale)+"px";
-    var statusNm = lbl.querySelector(".status-nm");
-    if(statusNm) statusNm.style.fontSize = Math.round(11 * labelScale)+"px";
   });
 }
 function fitView(){
