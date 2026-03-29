@@ -363,7 +363,7 @@ const FORM_NAME        = "Staffing_Map";
 const REPORT_NAME      = "All_Staffing_Maps";
 const EMP_REPORT_NAME  = "All_Employee_Info";
 const SCHED_REPORT     = "All_Schedules_Subform"; // schedule subform report
-const MAP_IMAGE_URL    = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png ";
+const MAP_IMAGE_URL    = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png";
 
 // ═══════════════════════════════════════════════════════
 //  ZONE POSITIONS
@@ -448,20 +448,21 @@ function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
   var inv = PIN_SCALE_TARGET / scale;
-  // Rescale circle wrappers and labels inside each pin on every zoom change
-  canvas().querySelectorAll(".pin").forEach(function(pin){
-    var circleWrap = pin.querySelector(".avatar-circle");
-    if(circleWrap && circleWrap.parentElement !== pin){
-      circleWrap.parentElement.style.transform = "scale("+inv+")";
-    }
-    var label = pin.querySelector(".avatar-label");
-    if(label) label.style.transform = "scale("+inv+")";
-    var dot = pin.querySelector(".status-dot");
-    if(dot) dot.style.transform = "scale("+inv+")";
-  });
-  // Plus pins still fully inverse-scaled
-  canvas().querySelectorAll(".plus-pin").forEach(function(pin){
+  // All pins inverse-scaled so physical size stays constant
+  canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
     pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
+  });
+  // Scale label font sizes UP with zoom so text grows when user zooms in
+  // Base label font is 14px emp-id, 11px others — multiply by scale clamped to a readable range
+  var labelScale = Math.max(1, Math.min(scale * 4, 3)); // grows 1x→3x as you zoom in
+  canvas().querySelectorAll(".pin .avatar-label").forEach(function(lbl){
+    lbl.style.fontSize        = Math.round(12 * labelScale)+"px";
+    var empId = lbl.querySelector(".emp-id");
+    if(empId) empId.style.fontSize = Math.round(14 * labelScale)+"px";
+    var zoneNm = lbl.querySelector(".zone-nm");
+    if(zoneNm) zoneNm.style.fontSize = Math.round(11 * labelScale)+"px";
+    var statusNm = lbl.querySelector(".status-nm");
+    if(statusNm) statusNm.style.fontSize = Math.round(11 * labelScale)+"px";
   });
 }
 function fitView(){
@@ -862,7 +863,7 @@ function renderEmployeePin(s){
   pin.className = "pin";
   pin.style.left      = s.x+"px";
   pin.style.top       = s.y+"px";
-  pin.style.transform = "translate(-50%,-50%)"; // no scale on pin wrapper
+  pin.style.transform = "translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
   pin.dataset.recId   = s.id;
   pin.dataset.zone    = s.zone;
 
@@ -870,24 +871,19 @@ function renderEmployeePin(s){
   pin.addEventListener("pointerdown", function(e){ epDownX=e.clientX; epDownY=e.clientY; e.stopPropagation(); });
   pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-epDownX)<8 && Math.abs(e.clientY-epDownY)<8) openManageModal(s.id); });
 
-  // Circle: fixed physical size via inverse scale
-  // Label: no inverse scale — grows naturally as user zooms in
-  var circleInv = PIN_SCALE_TARGET / scale;
   pin.innerHTML=`
-    <div style="transform:scale(${circleInv});transform-origin:center bottom;">
-      <div class="avatar-circle" style="
-        background:radial-gradient(circle at 35% 35%,${pinColor}55,${pinColor}18);
-        border:3px solid ${pinColor}; color:${pinColor};
-        box-shadow:0 0 16px ${pinColor}77,0 3px 10px rgba(0,0,0,.8);
-        animation:${pinAnimation};
-      ">${s.initials}</div>
-    </div>
-    <div class="avatar-label" style="border-color:${pinColor}44;transform:scale(${circleInv});transform-origin:center top;">
+    <div class="avatar-circle" style="
+      background:radial-gradient(circle at 35% 35%,${pinColor}55,${pinColor}18);
+      border:3px solid ${pinColor}; color:${pinColor};
+      box-shadow:0 0 16px ${pinColor}77,0 3px 10px rgba(0,0,0,.8);
+      animation:${pinAnimation};
+    ">${s.initials}</div>
+    <div class="avatar-label" style="border-color:${pinColor}44">
       <div class="emp-id">${s.empId}</div>
       <div class="zone-nm">${s.zone}</div>
       ${statusLine}
     </div>
-    <div class="status-dot" style="background:${pinColor};box-shadow:0 0 6px ${pinColor};transform:scale(${circleInv})"></div>
+    <div class="status-dot" style="background:${pinColor};box-shadow:0 0 6px ${pinColor}"></div>
   `;
   canvas().appendChild(pin);
 }
