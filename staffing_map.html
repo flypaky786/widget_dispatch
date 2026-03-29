@@ -1,6 +1,5 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -249,6 +248,9 @@ body {
     <div class="stat-pill"><span class="stat-dot" style="background:#f97316"></span><span id="cnt-break">—</span> Break</div>
     <div class="stat-pill"><span class="stat-dot" style="background:#3b82f6"></span><span id="cnt-lunch">—</span> Lunch</div>
     <div class="stat-pill"><span class="stat-dot" style="background:#6b7280"></span><span id="cnt-unassigned">—</span> Unassigned</div>
+    <div class="stat-pill" onclick="openClearAllDialog()" style="cursor:pointer;background:#2d1b1b;border:1px solid #ef444444;">
+      <span style="color:#ef4444;font-weight:700">✕ Clear All</span>
+    </div>
   </div>
 </div>
 
@@ -279,6 +281,7 @@ body {
     <select id="assign-select" size="1">
       <option value="">Loading employees…</option>
     </select>
+    <div id="schedule-preview" style="margin-top:10px;padding:10px;background:#0d1117;border-radius:8px;font-size:12px;color:#8b949e;min-height:36px;line-height:1.7;display:none;"></div>
     <div id="assign-error"></div>
     <button class="modal-btn modal-btn-primary" onclick="confirmAssign()" style="margin-top:14px">✓ Assign to Zone</button>
     <button class="modal-btn modal-btn-cancel" onclick="closeAssignModal()">Cancel</button>
@@ -335,66 +338,80 @@ body {
   </div>
 </div>
 
+<!-- ── CLEAR ALL DIALOG ── -->
+<div class="modal-overlay" id="clear-all-modal">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-title" style="color:#ef4444">⚠️ Clear All Employees</div>
+    <div class="modal-sub" style="margin-bottom:20px;font-size:13px;line-height:1.6;color:#94a3b8">
+      This will mark <strong style="color:#fff" id="clear-all-count">all</strong> employees as Unassigned and remove them from the map.<br><br>
+      This action cannot be undone. Press <strong style="color:#ef4444">Confirm Clear All</strong> to proceed.
+    </div>
+    <button class="modal-btn" style="background:#ef4444;color:#fff;font-size:14px" onclick="confirmClearAll()">Confirm Clear All</button>
+    <button class="modal-btn modal-btn-cancel" onclick="closeClearAllDialog()">Cancel</button>
+    <div id="clear-all-progress" style="display:none;text-align:center;margin-top:12px;font-size:12px;color:#8b949e"></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════
 //  CONFIG
 // ═══════════════════════════════════════════════════════
-const APP_NAME        = "lax-abg";
-const FORM_NAME       = "Staffing_Map";
-const REPORT_NAME     = "All_Staffing_Maps";
-const EMP_REPORT_NAME = "All_Employee_Info"; // report exposing Employee_Info records
-const MAP_IMAGE_URL   = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png";
+const APP_NAME         = "lax-abg";
+const FORM_NAME        = "Staffing_Map";
+const REPORT_NAME      = "All_Staffing_Maps";
+const EMP_REPORT_NAME  = "All_Employee_Info";
+const SCHED_REPORT     = "All_Schedules_Subform"; // schedule subform report
+const MAP_IMAGE_URL    = "https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png ";
 
 // ═══════════════════════════════════════════════════════
 //  ZONE POSITIONS
 // ═══════════════════════════════════════════════════════
 const AREA_POSITIONS = {
-  "HS CC":           { x:1160, y:652,  box:{x:1093,y:609,w:134,h:86} },
-  "HS FB":           { x:1162, y:864,  box:{x:1117,y:828,w:89,h:71} },
-  "HS Preferred":    { x:1717, y:729,  box:{x:1675,y:689,w:83,h:80} },
-  "HS L5":           { x:1778, y:80,   box:{x:1717,y:38,w:122,h:83} },
-  "HS Gate E":       { x:893,  y:1432, box:{x:829,y:1384,w:128,h:95} },
-  "HS South Core":   { x:1439, y:1430, box:{x:1384,y:1390,w:110,h:80} },
-  "HS Readyline1":   { x:1957, y:358,  box:{x:1883,y:288,w:148,h:140} },
-  "HSB Readyline2":  { x:2334, y:361,  box:{x:2248,y:291,w:172,h:140} },
-  "HSB Readyline3":  { x:1987, y:746,  box:{x:1895,y:674,w:184,h:143} },
-  "HSB Readyline4":  { x:2357, y:744,  box:{x:2272,y:671,w:169,h:145} },
-  "HS Pref 1":       { x:1307, y:619,  box:{x:1249,y:571,w:116,h:95} },
-  "HS Pref 2":       { x:1552, y:619,  box:{x:1478,y:567,w:148,h:104} },
-  "HS Pref 3":       { x:1444, y:859,  box:{x:1386,y:816,w:116,h:86} },
-  "HS Pref 4":       { x:1298, y:808,  box:{x:1245,y:759,w:105,h:97} },
-  "HS Pref 5":       { x:1583, y:775,  box:{x:1524,y:721,w:117,h:107} },
-  "Dispatch 1":      { x:1488, y:1149, box:{x:1427,y:1104,w:121,h:89} },
-  "Dispatch 2":      { x:1685, y:1142, box:{x:1632,y:1094,w:105,h:96} },
-  "Dispatch 3":      { x:1574, y:1333, box:{x:1518,y:1287,w:112,h:91} },
-  "Recovery 1":      { x:1096, y:1180, box:{x:1034,y:1129,w:123,h:102} },
-  "Recovery 2":      { x:1260, y:1333, box:{x:1196,y:1285,w:127,h:96} },
-  "A Returns 5":     { x:1674, y:1835, box:{x:1589,y:1779,w:170,h:112} },
-  "A Returns 4":     { x:1392, y:1830, box:{x:1301,y:1771,w:181,h:118} },
-  "A Returns 3":     { x:1093, y:1826, box:{x:1009,y:1766,w:167,h:120} },
-  "A Returns 2":     { x:1668, y:1612, box:{x:1575,y:1541,w:186,h:142} },
-  "A Returns 1":     { x:1159, y:1607, box:{x:1082,y:1536,w:153,h:142} },
-  "A LC1":           { x:2285, y:1569, box:{x:2202,y:1498,w:166,h:142} },
-  "A LC2":           { x:2288, y:1794, box:{x:2207,y:1725,w:161,h:137} },
+  "HS CC":        { x:1160, y:652,  box:{x:1093,y:609,w:134,h:86} },
+  "HS FB":        { x:1162, y:864,  box:{x:1117,y:828,w:89,h:71} },
+  "HS Preferred": { x:1717, y:729,  box:{x:1675,y:689,w:83,h:80} },
+  "HS L5":        { x:1778, y:80,   box:{x:1717,y:38,w:122,h:83} },
+  "HS Gate E":    { x:893,  y:1432, box:{x:829,y:1384,w:128,h:95} },
+  "HS South Core":{ x:1439, y:1430, box:{x:1384,y:1390,w:110,h:80} },
+
+  "HS Readyline1": { x:1957, y:358, box:{x:1883,y:288,w:148,h:140} },
+  "HSB Readyline2":{ x:2334, y:361, box:{x:2248,y:291,w:172,h:140} },
+  "HSB Readyline3":{ x:1987, y:746, box:{x:1895,y:674,w:184,h:143} },
+  "HSB Readyline4":{ x:2357, y:744, box:{x:2272,y:671,w:169,h:145} },
+
+  "HS Pref 1": { x:1307, y:619, box:{x:1249,y:571,w:116,h:95} },
+  "HS Pref 2": { x:1552, y:619, box:{x:1478,y:567,w:148,h:104} },
+  "HS Pref 3": { x:1432, y:832, box:{x:1374,y:789,w:116,h:86} },
+  "HS Pref 4": { x:1298, y:808, box:{x:1245,y:759,w:105,h:97} },
+  "HS Pref 5": { x:1583, y:775, box:{x:1524,y:721,w:117,h:107} },
+
+  "Dispatch 1": { x:1485, y:1173, box:{x:1424,y:1128,w:121,h:89} },
+  "Dispatch 2": { x:1673, y:1178, box:{x:1620,y:1130,w:105,h:96} },
+  "Dispatch 3": { x:1574, y:1333, box:{x:1518,y:1287,w:112,h:91} },
+
+  "Recovery 1": { x:1175, y:1183, box:{x:1113,y:1132,w:123,h:102} },
+  "Recovery 2": { x:1184, y:1336, box:{x:1120,y:1288,w:127,h:96} },
+
+  "A Returns 5": { x:1674, y:1835, box:{x:1589,y:1779,w:170,h:112} },
+  "A Returns 4": { x:1392, y:1830, box:{x:1301,y:1771,w:181,h:118} },
+  "A Returns 3": { x:1093, y:1826, box:{x:1009,y:1766,w:167,h:120} },
+  "A Returns 2": { x:1580, y:1612, box:{x:1487,y:1541,w:186,h:142} },
+  "A Returns 1": { x:1159, y:1607, box:{x:1082,y:1536,w:153,h:142} },
+
+  "A LC1": { x:2285, y:1569, box:{x:2202,y:1498,w:166,h:142} },
+  "A LC2": { x:2288, y:1794, box:{x:2207,y:1725,w:161,h:137} },
+
   "HSA Readyline 1": { x:1975, y:1122, box:{x:1891,y:1056,w:167,h:131} },
   "HSA Readyline 2": { x:2353, y:1118, box:{x:2266,y:1056,w:174,h:123} },
   "HSA Readyline 3": { x:1976, y:1338, box:{x:1894,y:1271,w:164,h:133} },
   "HSA Readyline 4": { x:2355, y:1331, box:{x:2268,y:1264,w:174,h:133} },
-  "Exit 6":          { x:1166, y:216,  box:{x:1115,y:179,w:101,h:74} },
-  "Exit 5":          { x:928,  y:307,  box:{x:878,y:269,w:99,h:75} },
-  "Exit 4":          { x:1052, y:419,  box:{x:1002,y:380,w:99,h:77} },
-  "Exit Extra":      { x:1321, y:385,  box:{x:1263,y:343,w:115,h:84} },
-  "BCSR 1":          { x:1457, y:358,  box:{x:1414,y:285,w:86,h:145} },
-  "BCSR 2":          { x:1766, y:360,  box:{x:1723,y:291,w:86,h:137} },
-  "ACSR 2":          { x:2656, y:1317, box:{x:2596,y:1262,w:119,h:110} },
-  "ACSR 1":          { x:2647, y:1114, box:{x:2581,y:1063,w:131,h:101} },
-  "DMgr 1":          { x:2757, y:1495, box:{x:2700,y:1449,w:113,h:92} },
-  "DMgr 2":          { x:2540, y:1495, box:{x:2483,y:1449,w:113,h:92} },
-  "DMgr 3":          { x:2641, y:1741, box:{x:2581,y:1689,w:119,h:104} },
-  "CP1":             { x:1876, y:1513, box:{x:1821,y:1470,w:110,h:86} },
-  "CP2":             { x:2014, y:1664, box:{x:1966,y:1612,w:95,h:104} },
+
+  "Exit 6":     { x:929,  y:213, box:{x:878, y:176,w:101,h:74} },
+  "Exit 5":     { x:928,  y:307, box:{x:878, y:269,w:99, h:75} },
+  "Exit 4":     { x:930,  y:395, box:{x:880, y:356,w:99, h:77} },
+  "Exit Extra": { x:1282, y:394, box:{x:1224,y:352,w:115,h:84} },
 };
 
 // ═══════════════════════════════════════════════════════
@@ -421,14 +438,28 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 0.6; // visual size of pins on screen regardless of zoom
+const PIN_SCALE_TARGET = 0.6;
+// Label scale relative to zoom — at 1.0 label is same as CSS size, grows as you zoom in
+// We let label scale naturally (no inverse scale) so text gets bigger when zoomed
+const LABEL_SCALE_BREAKPOINT = 0.15; // below this zoom level, hide label to avoid clutter
 
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
-  // Inverse-scale all pins so they stay constant physical size on screen
   var inv = PIN_SCALE_TARGET / scale;
-  canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
+  // Rescale circle wrappers and labels inside each pin on every zoom change
+  canvas().querySelectorAll(".pin").forEach(function(pin){
+    var circleWrap = pin.querySelector(".avatar-circle");
+    if(circleWrap && circleWrap.parentElement !== pin){
+      circleWrap.parentElement.style.transform = "scale("+inv+")";
+    }
+    var label = pin.querySelector(".avatar-label");
+    if(label) label.style.transform = "scale("+inv+")";
+    var dot = pin.querySelector(".status-dot");
+    if(dot) dot.style.transform = "scale("+inv+")";
+  });
+  // Plus pins still fully inverse-scaled
+  canvas().querySelectorAll(".plus-pin").forEach(function(pin){
     pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
   });
 }
@@ -524,13 +555,22 @@ vp().addEventListener("touchend",e=>{
 // ═══════════════════════════════════════════════════════
 //  DATA
 // ═══════════════════════════════════════════════════════
-let records    = [];  // today's Staffing_Map records
-let allEmployees = []; // all Employee_Info rows
-let assigningZone = null; // zone name currently in assign modal
-let managingId    = null; // record ID in manage modal
+let records      = [];
+let allEmployees = [];
+let allSchedules = [];        // today's schedule subform records, keyed by empRawId
+let pendingSchedule = null;   // schedule found during assign modal lookup
+let assigningZone = null;
+let managingId    = null;
 
 // Helper — treat Zoho empty string "" same as null/falsy
 function hasVal(v){ return v && v !== ""; }
+
+// Format today as "28-Mar-2026" for Zoho criteria
+function todayForZoho(){
+  var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var d=new Date();
+  return ("0"+d.getDate()).slice(-2)+"-"+months[d.getMonth()]+"-"+d.getFullYear();
+}
 
 // Derive status from field values
 function deriveStatus(r){
@@ -612,6 +652,16 @@ function normalizeRecord(r){
   var pos = AREA_POSITIONS[r.Zone] || null;
   function clean(v){ return (v && v !== "") ? v : null; }
 
+  // Attach schedule from allSchedules cache (matched by empRawId)
+  var sched = allSchedules.find(function(s){ return s.empRawId === empRawId; });
+  // Also preserve schedule from a previous local record if cache not yet loaded
+  var prevSched = prevRecord ? {
+    scheduledBreak1:  prevRecord.scheduledBreak1,
+    scheduledLunch:   prevRecord.scheduledLunch,
+    scheduledBreak2:  prevRecord.scheduledBreak2,
+    schedSubformId:   prevRecord.schedSubformId,
+  } : {};
+
   return {
     id:              r.ID,
     empId:           empDisplay,
@@ -620,6 +670,10 @@ function normalizeRecord(r){
     zone:            r.Zone  || "",
     dateTime:        r.Date_Time || "",
     currentStatus:   r.Current_Status || "Active",
+    schedSubformId:  r.Schedule_Subform_ID || (sched ? sched.id : (prevSched.schedSubformId || null)),
+    scheduledBreak1: sched ? sched.first_break_ts  : (prevSched.scheduledBreak1 || null),
+    scheduledLunch:  sched ? sched.lunch_break_ts  : (prevSched.scheduledLunch  || null),
+    scheduledBreak2: sched ? sched.second_break_ts : (prevSched.scheduledBreak2 || null),
     Break_Type_Start: clean(r.Break_Type_Start),
     Break_Type_End:   clean(r.Break_Type_End),
     Lunch_Start:      clean(r.Lunch_Start),
@@ -629,6 +683,44 @@ function normalizeRecord(r){
     x: pos ? pos.x : null,
     y: pos ? pos.y : null,
   };
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCHEDULE LOAD — batch fetch today's schedules
+// ═══════════════════════════════════════════════════════
+function loadSchedules(callback){
+  var today = todayForZoho();
+  console.log("[Staffing Widget] loadSchedules for:", today);
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name:    APP_NAME,
+    report_name: SCHED_REPORT,
+    from:        1,
+    max_records: 200,
+    criteria:    '(Shift_Date == "'+today+'")',
+  }).then(function(resp){
+    if(resp.code === 3000 && resp.data){
+      allSchedules = resp.data.map(function(r){
+        var empObj   = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
+        var empRawId = empObj ? empObj.ID : (r.Employee_Info || "");
+        return {
+          id:             r.ID,
+          empRawId:       empRawId,
+          first_break_ts: (r.first_break_ts  && r.first_break_ts  !== "") ? r.first_break_ts  : null,
+          lunch_break_ts: (r.lunch_break_ts  && r.lunch_break_ts  !== "") ? r.lunch_break_ts  : null,
+          second_break_ts:(r.second_break_ts && r.second_break_ts !== "") ? r.second_break_ts : null,
+        };
+      });
+      console.log("[Staffing Widget] Schedules loaded:", allSchedules.length);
+    } else {
+      console.warn("[Staffing Widget] No schedules found:", resp.code, resp.message);
+      allSchedules = [];
+    }
+    if(callback) callback();
+  }).catch(function(err){
+    console.error("[Staffing Widget] loadSchedules exception:", err);
+    allSchedules = [];
+    if(callback) callback();
+  });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -642,21 +734,22 @@ function loadRecords(){
     max_records: 200,
   }).then(function(resp){
     if(resp.code === 3000){
-      var all      = resp.data || [];
-      // Only show employees who are Active, on Break, or at Lunch — exclude Unassigned
-      var active   = all.filter(function(r){
+      var all    = resp.data || [];
+      var active = all.filter(function(r){
         var status = (r.Current_Status || "").trim();
         return status !== "Unassigned" && status !== "";
       });
       var filtered = active.filter(function(r){ return todayFilter(r.Date_Time); });
-      records = filtered.map(normalizeRecord);
-      renderAll();
-      // If manage modal is open, refresh it in-place with latest data
-      if(managingId){
-        var updated = records.find(function(r){ return r.id === managingId; });
-        if(updated) refreshManageModal(updated);
-      }
-      setLiveStatus(true);
+      // Load schedules first so normalizeRecord can attach them
+      loadSchedules(function(){
+        records = filtered.map(normalizeRecord);
+        renderAll();
+        if(managingId){
+          var updated = records.find(function(r){ return r.id === managingId; });
+          if(updated) refreshManageModal(updated);
+        }
+        setLiveStatus(true);
+      });
     } else {
       console.error("[Staffing Widget] loadRecords failed:", resp.code, resp.message);
       setLiveStatus(false);
@@ -731,58 +824,145 @@ function renderAll(){
 }
 
 function renderEmployeePin(s){
-  const status=deriveStatus(s);
-  const cfg=STATUS_CFG[status]||STATUS_CFG["Active"];
-
-  // Build status line with elapsed time
+  const status = deriveStatus(s);
+  const cfg    = STATUS_CFG[status] || STATUS_CFG["Active"];
   const statusLine = buildStatusLine(s, status, cfg);
 
-  const pin=document.createElement("div");
-  pin.className="pin";
-  pin.style.left=s.x+"px";
-  pin.style.top =s.y+"px";
-  pin.style.transform="translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
-  pin.dataset.recId=s.id;
-  pin.dataset.zone=s.zone;
+  // Overdue detection for pin border flash
+  var LEEWAY    = 5  * 60 * 1000;
+  var BREAK_MAX = 15 * 60 * 1000;
+  var LUNCH_MAX = 30 * 60 * 1000;
+  var now = Date.now();
+  function overdueCheck(scheduledISO, started){
+    if(!scheduledISO || started) return false;
+    var dt = parseZohoDate(scheduledISO);
+    return dt && (now - dt.getTime()) > LEEWAY;
+  }
+  function runLongCheck(startISO, maxMs){
+    if(!startISO) return false;
+    var dt = parseZohoDate(startISO);
+    return dt && (now - dt.getTime()) > (maxMs + LEEWAY);
+  }
+  var b1Overdue    = status === "Active"  && overdueCheck(s.scheduledBreak1, s.Break_Type_Start);
+  var lunchOverdue = status === "Active"  && hasVal(s.Break_Type_End) && overdueCheck(s.scheduledLunch, s.Lunch_Start);
+  var b2Overdue    = status === "Active"  && hasVal(s.Lunch_End) && overdueCheck(s.scheduledBreak2, s.Break_2_Start);
+  var b1RunLong    = status === "Break 1" && runLongCheck(s.Break_Type_Start, BREAK_MAX);
+  var lunchRunLong = status === "Lunch"   && runLongCheck(s.Lunch_Start,      LUNCH_MAX);
+  var b2RunLong    = status === "Break 2" && runLongCheck(s.Break_2_Start,    BREAK_MAX);
+  var anyOverdue   = b1Overdue || lunchOverdue || b2Overdue;
+  var anyRunLong   = b1RunLong || lunchRunLong || b2RunLong;
 
-  // Travel-distance tap — works reliably on iPad Safari where click can be swallowed
+  // Overdue (not started on time) → orange; Running long (can't stop) → red
+  var pinColor     = anyRunLong ? "#ef4444" : anyOverdue ? "#f97316" : cfg.color;
+  var pinAnimation = (anyRunLong || anyOverdue) ? "pulse 1s ease-in-out infinite"
+                   : status==="Active" ? "pulse 2.8s ease-in-out infinite" : "none";
+
+  const pin = document.createElement("div");
+  pin.className = "pin";
+  pin.style.left      = s.x+"px";
+  pin.style.top       = s.y+"px";
+  pin.style.transform = "translate(-50%,-50%)"; // no scale on pin wrapper
+  pin.dataset.recId   = s.id;
+  pin.dataset.zone    = s.zone;
+
   var epDownX=0, epDownY=0;
   pin.addEventListener("pointerdown", function(e){ epDownX=e.clientX; epDownY=e.clientY; e.stopPropagation(); });
   pin.addEventListener("pointerup",   function(e){ if(Math.abs(e.clientX-epDownX)<8 && Math.abs(e.clientY-epDownY)<8) openManageModal(s.id); });
 
+  // Circle: fixed physical size via inverse scale
+  // Label: no inverse scale — grows naturally as user zooms in
+  var circleInv = PIN_SCALE_TARGET / scale;
   pin.innerHTML=`
-    ${status==="Active"?`<div class="ripple-ring" style="color:${cfg.color}"></div>`:""}
-    <div class="avatar-circle" style="
-      background:radial-gradient(circle at 35% 35%,${cfg.color}55,${cfg.color}18);
-      border:3px solid ${cfg.color}; color:${cfg.color};
-      box-shadow:0 0 16px ${cfg.color}77,0 3px 10px rgba(0,0,0,.8);
-      animation:${status==="Active"?"pulse 2.8s ease-in-out infinite":"none"};
-    ">${s.initials}</div>
-    <div class="avatar-label" style="border-color:${cfg.color}44">
+    <div style="transform:scale(${circleInv});transform-origin:center bottom;">
+      <div class="avatar-circle" style="
+        background:radial-gradient(circle at 35% 35%,${pinColor}55,${pinColor}18);
+        border:3px solid ${pinColor}; color:${pinColor};
+        box-shadow:0 0 16px ${pinColor}77,0 3px 10px rgba(0,0,0,.8);
+        animation:${pinAnimation};
+      ">${s.initials}</div>
+    </div>
+    <div class="avatar-label" style="border-color:${pinColor}44;transform:scale(${circleInv});transform-origin:center top;">
       <div class="emp-id">${s.empId}</div>
       <div class="zone-nm">${s.zone}</div>
       ${statusLine}
     </div>
-    <div class="status-dot" style="background:${cfg.color};box-shadow:0 0 6px ${cfg.color}"></div>
+    <div class="status-dot" style="background:${pinColor};box-shadow:0 0 6px ${pinColor};transform:scale(${circleInv})"></div>
   `;
   canvas().appendChild(pin);
 }
 
 function buildStatusLine(s, status, cfg){
-  if(status === "Active"){
-    return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
+  var LEEWAY_MS      = 5  * 60 * 1000; // 5 min leeway before flagging overdue
+  var BREAK_MAX_MS   = 15 * 60 * 1000; // break allotment: 15 min
+  var LUNCH_MAX_MS   = 30 * 60 * 1000; // lunch allotment: 30 min
+  var now = Date.now();
+
+  // Overdue = scheduled time passed + 5min leeway, break not yet started
+  function isOverdue(scheduledISO, started){
+    if(!scheduledISO || started) return false;
+    var dt = parseZohoDate(scheduledISO);
+    return dt && (now - dt.getTime()) > LEEWAY_MS;
   }
+
+  // Running long = break/lunch started but exceeds allotted duration + 5min leeway
+  function isRunningLong(startISO, maxMs){
+    if(!startISO) return false;
+    var dt = parseZohoDate(startISO);
+    return dt && (now - dt.getTime()) > (maxMs + LEEWAY_MS);
+  }
+
+  // Active state overdue checks
+  var b1Overdue    = status === "Active" && isOverdue(s.scheduledBreak1, s.Break_Type_Start);
+  var lunchOverdue = status === "Active" && hasVal(s.Break_Type_End) && isOverdue(s.scheduledLunch, s.Lunch_Start);
+  var b2Overdue    = status === "Active" && hasVal(s.Lunch_End) && isOverdue(s.scheduledBreak2, s.Break_2_Start);
+  var anyOverdue   = b1Overdue || lunchOverdue || b2Overdue;
+
+  // Running long checks (break/lunch in progress too long)
+  var b1RunLong    = status === "Break 1" && isRunningLong(s.Break_Type_Start, BREAK_MAX_MS);
+  var lunchRunLong = status === "Lunch"   && isRunningLong(s.Lunch_Start,      LUNCH_MAX_MS);
+  var b2RunLong    = status === "Break 2" && isRunningLong(s.Break_2_Start,    BREAK_MAX_MS);
+  var anyRunLong   = b1RunLong || lunchRunLong || b2RunLong;
+
+  if(status === "Active"){
+    var statusLine = anyOverdue
+      ? '<div class="status-nm" style="color:#f97316;font-weight:700">⚠️ '+(b1Overdue?"Break 1":lunchOverdue?"Lunch":"Break 2")+' Overdue</div>'
+      : '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
+
+    var schedLines = [];
+    if(s.scheduledBreak1 && !hasVal(s.Break_Type_Start))
+      schedLines.push('<span style="color:'+(b1Overdue?'#f97316':'#6e7681')+'">☕ '+fmtTs(s.scheduledBreak1)+'</span>');
+    if(s.scheduledLunch && !hasVal(s.Lunch_Start))
+      schedLines.push('<span style="color:'+(lunchOverdue?'#f97316':'#6e7681')+'">🍽 '+fmtTs(s.scheduledLunch)+'</span>');
+    if(s.scheduledBreak2 && !hasVal(s.Break_2_Start))
+      schedLines.push('<span style="color:'+(b2Overdue?'#f97316':'#6e7681')+'">☕ '+fmtTs(s.scheduledBreak2)+'</span>');
+
+    return statusLine + (schedLines.length ? '<div style="font-size:10px;margin-top:2px">'+schedLines.join(' · ')+'</div>' : '');
+  }
+
+  // On break/lunch — show elapsed + running long warning
   var startISO = status==="Break 1" ? s.Break_Type_Start : status==="Lunch" ? s.Lunch_Start : s.Break_2_Start;
   var elapsed = "";
+  var overMin = 0;
   if(startISO){
     var startDt = parseZohoDate(startISO);
     if(startDt){
-      var mins = Math.floor((Date.now() - startDt.getTime()) / 60000);
-      elapsed = mins < 1 ? "just started" : mins + " min ago";
+      var elapsedMs  = now - startDt.getTime();
+      var mins       = Math.floor(elapsedMs / 60000);
+      var maxMs      = (status === "Lunch") ? LUNCH_MAX_MS : BREAK_MAX_MS;
+      elapsed        = mins < 1 ? "just started" : mins + " min ago";
+      if(anyRunLong){
+        overMin = Math.floor((elapsedMs - maxMs) / 60000);
+      }
     }
   }
-  return '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● '+cfg.label+'</div>'
-       + (elapsed ? '<div class="status-elapsed" style="color:'+cfg.color+';font-size:11px;opacity:0.85">('+elapsed+')</div>' : '');
+
+  var runLongLine = anyRunLong
+    ? '<div style="color:#ef4444;font-weight:700;font-size:11px">⚠️ '+overMin+' min over limit</div>'
+    : '';
+
+  return '<div class="status-nm" style="color:'+(anyRunLong?'#ef4444':cfg.color)+';font-weight:700">● '+cfg.label+'</div>'
+       + (elapsed ? '<div class="status-elapsed" style="color:'+(anyRunLong?'#ef4444':cfg.color)+';font-size:11px;opacity:0.85">('+elapsed+')</div>' : '')
+       + runLongLine;
 }
 
 function renderPlusPin(zoneName,pos){
@@ -860,11 +1040,16 @@ function updateCounts(assignedZones){
 //  ASSIGN MODAL
 // ═══════════════════════════════════════════════════════
 function openAssignModal(zoneName){
-  assigningZone=zoneName;
+  assigningZone   = zoneName;
+  pendingSchedule = null;
   document.getElementById("assign-zone-label").textContent="Zone: "+zoneName;
   document.getElementById("assign-error").textContent="";
 
-  // Reset button to original state in case previous assign left it in "Assigned!" state
+  var preview = document.getElementById("schedule-preview");
+  preview.style.display = "none";
+  preview.innerHTML     = "";
+
+  // Reset button
   const btn=document.querySelector("#assign-modal .modal-btn-primary");
   btn.textContent="✓ Assign to Zone";
   btn.style.background="";
@@ -872,23 +1057,68 @@ function openAssignModal(zoneName){
 
   const sel=document.getElementById("assign-select");
   sel.innerHTML="<option value=''>Loading…</option>";
-  sel.selectedIndex=0; // always reset to blank on open
+  sel.selectedIndex=0;
   document.getElementById("assign-modal").classList.add("open");
 
-  // If employees haven't loaded yet (Zoho slow) — try fetching now
+  // Wire schedule lookup on employee select
+  sel.onchange = function(){
+    var empId = sel.value;
+    pendingSchedule = null;
+    preview.style.display = "none";
+    preview.innerHTML = "";
+    if(!empId) return;
+
+    // Check allSchedules cache first
+    var cached = allSchedules.find(function(s){ return s.empRawId === empId; });
+    if(cached){
+      pendingSchedule = cached;
+      showSchedulePreview(cached);
+      return;
+    }
+
+    // Not in cache — fetch directly for this employee
+    preview.style.display = "block";
+    preview.innerHTML = "⏳ Looking up schedule…";
+    var today = todayForZoho();
+    ZOHO.CREATOR.DATA.getRecords({
+      app_name:    APP_NAME,
+      report_name: SCHED_REPORT,
+      from:        1,
+      max_records: 1,
+      criteria:    '(Employee_Info == "'+empId+'" && Shift_Date == "'+today+'")',
+    }).then(function(resp){
+      if(resp.code === 3000 && resp.data && resp.data.length){
+        var r = resp.data[0];
+        var sched = {
+          id:             r.ID,
+          empRawId:       empId,
+          first_break_ts: (r.first_break_ts  && r.first_break_ts  !== "") ? r.first_break_ts  : null,
+          lunch_break_ts: (r.lunch_break_ts  && r.lunch_break_ts  !== "") ? r.lunch_break_ts  : null,
+          second_break_ts:(r.second_break_ts && r.second_break_ts !== "") ? r.second_break_ts : null,
+        };
+        pendingSchedule = sched;
+        showSchedulePreview(sched);
+      } else {
+        pendingSchedule = null;
+        preview.style.display = "block";
+        preview.innerHTML = "⚠️ No schedule found for today";
+      }
+    }).catch(function(){
+      preview.style.display = "block";
+      preview.innerHTML = "⚠️ Could not load schedule";
+    });
+  };
+
   const populate=()=>{
     sel.innerHTML="";
     const assignedEmpIds=new Set(records.map(r=>r.empRawId));
-
     if(!allEmployees.length){
       sel.innerHTML="<option value=''>⚠️ No employees found — check EMP_REPORT_NAME</option>";
       return;
     }
-
     const placeholder=document.createElement("option");
     placeholder.value=""; placeholder.textContent="— Select Employee —";
     sel.appendChild(placeholder);
-
     allEmployees.forEach(emp=>{
       const opt=document.createElement("option");
       opt.value=emp.id;
@@ -900,36 +1130,37 @@ function openAssignModal(zoneName){
   };
 
   if(allEmployees.length){
-    console.log("[Staffing Widget] Using cached employees:", allEmployees.length);
     populate();
   } else if(typeof ZOHO!=="undefined"&&ZOHO.CREATOR){
-    console.log("[Staffing Widget] On-demand employee fetch for zone:", zoneName);
     ZOHO.CREATOR.DATA.getRecords({
       app_name:    APP_NAME,
       report_name: EMP_REPORT_NAME,
       from:        1,
       max_records: 1000,
     }).then(function(resp){
-      console.log("[Staffing Widget] On-demand emp response code:", resp.code, "count:", resp.data ? resp.data.length : 0);
       if(resp.code===3000 && resp.data && resp.data.length){
-        console.log("[Staffing Widget] On-demand first record:", JSON.stringify(resp.data[0]));
         allEmployees = resp.data.map(function(r){
           var label = (r.First_Name && r.Last_Name)
                    ? r.First_Name + " " + r.Last_Name
                    : r.Full_Name || r.Employee_ID || r.ID;
           return { id: r.ID, label: String(label).trim() };
         }).sort(function(a,b){ return a.label.localeCompare(b.label); });
-      } else {
-        console.warn("[Staffing Widget] On-demand emp empty. code:", resp.code, "msg:", resp.message);
       }
       populate();
-    }).catch(function(err){
-      console.error("[Staffing Widget] On-demand emp error:", err);
-      populate();
-    });
+    }).catch(function(){ populate(); });
   } else {
     sel.innerHTML="<option value=''>No employee data (dev mode)</option>";
   }
+}
+
+function showSchedulePreview(sched){
+  var preview = document.getElementById("schedule-preview");
+  preview.style.display = "block";
+  var lines = [];
+  if(sched.first_break_ts)  lines.push("☕ Break 1: <strong style='color:#f97316'>"+fmtTs(sched.first_break_ts)+"</strong>");
+  if(sched.lunch_break_ts)  lines.push("🍽 Lunch: <strong style='color:#3b82f6'>"+fmtTs(sched.lunch_break_ts)+"</strong>");
+  if(sched.second_break_ts) lines.push("☕ Break 2: <strong style='color:#f97316'>"+fmtTs(sched.second_break_ts)+"</strong>");
+  preview.innerHTML = lines.length ? lines.join(" &nbsp;·&nbsp; ") : "⚠️ No break times on file";
 }
 
 function closeAssignModal(){
@@ -968,14 +1199,17 @@ function confirmAssign(){
   console.log("[Staffing Widget] Adding record with payload:", JSON.stringify(payload));
 
   zohoAdd(payload).then(newId=>{
-    // Always reset button first
     btn.textContent=originalText;
     btn.style.background="";
     btn.disabled=false;
 
-    if(!newId) return; // validation error — alert() already shown by zohoAdd
+    if(!newId) return;
 
-    // Success — build local record and render immediately
+    // If we found a schedule, write its ID back to the Staffing_Map record
+    if(pendingSchedule && pendingSchedule.id){
+      zohoUpdate(newId, { Schedule_Subform_ID: pendingSchedule.id });
+    }
+
     const emp=allEmployees.find(e=>e.id===empId);
     const label=emp?emp.label:empId;
     const parts=label.trim().split(/[\s\-]+/);
@@ -984,14 +1218,17 @@ function confirmAssign(){
     records.push({
       id:newId, empId:label, empRawId:empId, initials,
       zone:assigningZone, currentStatus:"Active",
-      dateTime: formatForZoho(new Date()), // needed for todayFilter to keep this record
+      dateTime:        formatForZoho(new Date()),
+      schedSubformId:  pendingSchedule ? pendingSchedule.id         : null,
+      scheduledBreak1: pendingSchedule ? pendingSchedule.first_break_ts  : null,
+      scheduledLunch:  pendingSchedule ? pendingSchedule.lunch_break_ts  : null,
+      scheduledBreak2: pendingSchedule ? pendingSchedule.second_break_ts : null,
       Break_Type_Start:null, Break_Type_End:null,
       Lunch_Start:null, Lunch_End:null,
       Break_2_Start:null, Break_2_End:null,
       x:pos?pos.x:null, y:pos?pos.y:null,
     });
 
-    // Flash success then close
     btn.textContent="✅ Assigned!";
     btn.style.background="#22c55e";
     btn.disabled=true;
@@ -1286,6 +1523,60 @@ function zohoDelete(recId){
 }
 
 // ═══════════════════════════════════════════════════════
+//  CLEAR ALL
+// ═══════════════════════════════════════════════════════
+function openClearAllDialog(){
+  document.getElementById("clear-all-count").textContent = records.length + " assigned";
+  document.getElementById("clear-all-progress").style.display = "none";
+  document.getElementById("clear-all-progress").textContent = "";
+  document.getElementById("clear-all-modal").classList.add("open");
+}
+
+function closeClearAllDialog(){
+  document.getElementById("clear-all-modal").classList.remove("open");
+}
+
+function confirmClearAll(){
+  if(!records.length){ closeClearAllDialog(); return; }
+
+  var btn      = document.querySelector("#clear-all-modal .modal-btn");
+  var progress = document.getElementById("clear-all-progress");
+  btn.disabled = true;
+  btn.textContent = "Clearing…";
+  progress.style.display = "block";
+
+  var total   = records.length;
+  var done    = 0;
+  var failed  = 0;
+  var toUnassign = records.slice(); // copy array
+
+  function next(){
+    if(!toUnassign.length){
+      // All done
+      progress.textContent = "✅ Cleared "+done+" employees"+(failed?" ("+failed+" failed)":"");
+      records = [];
+      renderAll();
+      showToast("✅ All employees cleared","#6b7280");
+      setTimeout(closeClearAllDialog, 1500);
+      return;
+    }
+    var rec = toUnassign.shift();
+    progress.textContent = "Clearing "+done+" / "+total+"…";
+    ZOHO.CREATOR.DATA.updateRecordById({
+      app_name:    APP_NAME,
+      report_name: REPORT_NAME,
+      id:          rec.id,
+      payload:     { data: { Current_Status: "Unassigned" } },
+    }).then(function(resp){
+      if(resp.code === 3000) done++; else failed++;
+      next();
+    }).catch(function(){ failed++; next(); });
+  }
+
+  next(); // sequential to avoid rate limits
+}
+
+// ═══════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════
 function setSaving(on){
@@ -1323,6 +1614,7 @@ function setStateMsg(msg){ const el=document.getElementById("state-msg"); if(el)
 // Close modals on backdrop click
 document.getElementById("assign-modal").addEventListener("click",function(e){if(e.target===this)closeAssignModal();});
 document.getElementById("manage-modal").addEventListener("click",function(e){if(e.target===this)closeManageModal();});
+document.getElementById("clear-all-modal").addEventListener("click",function(e){if(e.target===this)closeClearAllDialog();});
 
 // ═══════════════════════════════════════════════════════
 //  NO MOCK DATA — widget starts empty when not in Zoho
