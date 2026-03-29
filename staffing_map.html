@@ -452,11 +452,11 @@ function applyTransform(){
   canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
     pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
   });
-  // Scale label font sizes UP with zoom so text grows when user zooms in
-  // Base label font is 14px emp-id, 11px others — multiply by scale clamped to a readable range
-  var labelScale = Math.max(1, Math.min(scale * 4, 3)); // grows 1x→3x as you zoom in
+  // Font sizes scale with the pin's inverse scale so text stays readable at all zoom levels
+  // PIN_SCALE_TARGET/scale = same factor as the pin's CSS scale, so text matches physical pin size
+  var labelScale = Math.min(PIN_SCALE_TARGET / scale, 4); // cap at 4x to avoid absurd sizes when very zoomed out
   canvas().querySelectorAll(".pin .avatar-label").forEach(function(lbl){
-    lbl.style.fontSize        = Math.round(12 * labelScale)+"px";
+    lbl.style.fontSize = Math.round(12 * labelScale)+"px";
     var empId = lbl.querySelector(".emp-id");
     if(empId) empId.style.fontSize = Math.round(14 * labelScale)+"px";
     var zoneNm = lbl.querySelector(".zone-nm");
