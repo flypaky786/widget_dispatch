@@ -252,6 +252,7 @@ var CONFIG = {
 
   /* Rover proxy */
   ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
+  ROVER_API_KEY:  "Density786A!786110?!",   // ← Cloudflare Worker API key
   ROVER_TIMEOUT_MS: 5000  // give up and allow assign after 5s
 };
 
@@ -874,15 +875,20 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   console.log("[INIT] SDK ready. loginUser:", loggedInUser);
 
   // Load Cloudflare Rover API key from app variable
-  // Pull API key from app variables — available directly in getInitParams response
-  console.log("[KEY] Full initParams dump (look for variable):", JSON.stringify(params));
-  var appVars = params.appVariables || params.app_variables || params.variables || {};
-  console.log("[KEY] appVariables extracted:", appVars);
-  if(appVars && appVars.key_cloudflare_wand){
-    roverApiKey = appVars.key_cloudflare_wand.toString().trim();
-    console.log("[KEY] key_cloudflare_wand loaded from appVariables. Length:", roverApiKey.length, "Preview:", roverApiKey.substring(0,6)+"***");
+  // Zoho Creator widget SDK has no getVariable API.
+  // Key is set directly here — same exposure level as the Cloudflare Worker source.
+  // To change: update ROVER_API_KEY in CONFIG above.
+  roverApiKey = CONFIG.ROVER_API_KEY;
+  if(roverApiKey){
+    console.log("[KEY] API key loaded from CONFIG. Length:", roverApiKey.length);
   } else {
-    console.warn("[KEY] key_cloudflare_wand NOT found in initParams. Keys available:", Object.keys(params));
+    // Fallback: check if passed as a widget param (ZOHO.CREATOR.UTIL.getWidgetParams)
+    console.warn("[KEY] CONFIG.ROVER_API_KEY is empty — trying widget params...");
+    ZOHO.CREATOR.UTIL.getWidgetParams().then(function(wp){
+      console.log("[KEY] getWidgetParams response:", wp);
+      if(wp && wp.rover_api_key){ roverApiKey = wp.rover_api_key; console.log("[KEY] Got key from widget params."); }
+      else { console.error("[KEY] Key not found in widget params either. WAND lookup will be skipped."); }
+    }).catch(function(e){ console.error("[KEY] getWidgetParams failed:", e); });
   }
 
   fetchDispatches();
