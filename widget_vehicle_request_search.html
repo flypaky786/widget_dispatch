@@ -467,7 +467,8 @@
   <div class="success-circle">✅</div>
   <div class="success-title">Request Submitted!</div>
   <div class="success-sub" id="successSub">Your vehicle request is in the queue.</div>
-  <button class="new-request-btn" onclick="resetForm()">New Request</button>
+  <div id="autoResetMsg" style="margin-top:10px;font-size:14px;color:#94a3b8;font-weight:500"></div>
+  <button class="new-request-btn" onclick="cancelAutoReset()">New Request Now</button>
 </div>
 
 <script>
@@ -640,6 +641,7 @@ function doSubmit() {
       document.getElementById("successSub").textContent = vLabel + " request added to the queue.";
       document.getElementById("mainForm").style.display = "none";
       document.getElementById("successScreen").classList.add("show");
+      startAutoReset(10);
     } else {
       showToast("error", extractApiError(resp));
       window.scrollTo(0, 0);
@@ -660,8 +662,38 @@ function extractApiError(res) {
   return "Something went wrong (code: " + (res ? res.code || "unknown" : "unknown") + "). Please try again.";
 }
 
+// ── Auto-reset countdown ──────────────────────────────────────────────────────
+var autoResetTimer = null;
+var autoResetCountdown = 0;
+
+function startAutoReset(seconds) {
+  autoResetCountdown = seconds;
+  clearInterval(autoResetTimer);
+  updateCountdownMsg();
+  autoResetTimer = setInterval(function() {
+    autoResetCountdown--;
+    if (autoResetCountdown <= 0) {
+      clearInterval(autoResetTimer);
+      resetForm();
+    } else {
+      updateCountdownMsg();
+    }
+  }, 1000);
+}
+
+function updateCountdownMsg() {
+  var el = document.getElementById("autoResetMsg");
+  if (el) el.textContent = "New request in " + autoResetCountdown + "s…";
+}
+
+function cancelAutoReset() {
+  clearInterval(autoResetTimer);
+  resetForm();
+}
+
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetForm() {
+  clearInterval(autoResetTimer);
   selectedVehicle = null;
   document.getElementById("deskId").value = "";
   document.getElementById("oneWay").checked = false;
