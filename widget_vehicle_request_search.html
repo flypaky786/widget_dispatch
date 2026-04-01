@@ -623,7 +623,7 @@ function doSubmit() {
       Upsell:                       document.getElementById("upsell").checked,
       Walk_Up_Customer:             document.getElementById("walkUp").checked,
       Specific_Make_Model_optional: document.getElementById("specificReq").value.trim(),
-      User_Email:                   initParams.loginUser || "",
+      User_Email:                   initParams.storedLoginUser || "",
       Dispatch_Status:              "New"
     }
   };
@@ -712,6 +712,7 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
   initParams = params;
   var loginUser = params.loginUser || "";
   document.getElementById("deskId").value = loginUser.split("@")[0];
+  initParams.storedLoginUser = loginUser;
   buildGrid();
 }).catch(function(err) {
   console.error("getInitParams error:", err);
