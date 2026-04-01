@@ -569,12 +569,13 @@ function saveAvisLookup(mva,data){
 
     console.log("[AVIS] Querying report:", CONFIG.AVIS_LOOKUP_REPORT, "for MVA:", mva);
     // Check for existing record by MVA
+    // Note: max_records only accepts 200, 500, or 1000 in Zoho Creator SDK
     ZOHO.CREATOR.DATA.getRecords({
       app_name: CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
       criteria: 'MVA == "'+mva+'"',
       page: 1,
-      max_records: 1
+      max_records: 200
     }).then(function(resp){
       console.log("[AVIS] getRecords response code:", resp.code, "| records found:", resp.data?resp.data.length:0, resp);
       if(resp.code===3000&&resp.data&&resp.data.length>0){
@@ -594,36 +595,36 @@ function saveAvisLookup(mva,data){
           resolve(existingId);
         });
       } else {
-        console.log("[AVIS] No existing record. Creating new in form:", CONFIG.AVIS_LOOKUP_FORM, payload);
+        console.log("[AVIS] No existing record. Creating new in form:", CONFIG.AVIS_LOOKUP_FORM, "Payload:", JSON.stringify(payload));
         ZOHO.CREATOR.DATA.addRecords({
           app_name: CONFIG.APP_NAME,
           form_name: CONFIG.AVIS_LOOKUP_FORM,
           payload: {data: payload}
         }).then(function(ar){
-          console.log("[AVIS] addRecords code:", ar.code, ar);
+          console.log("[AVIS] addRecords code:", ar.code, "Full response:", JSON.stringify(ar));
           if(ar.code===3000&&ar.data&&ar.data.ID){
             console.log("[AVIS] New record created, ID:", ar.data.ID);
             resolve(ar.data.ID.toString());
           } else {
-            console.warn("[AVIS] addRecords succeeded but no ID returned:", ar);
+            console.warn("[AVIS] addRecords did not return ID:", JSON.stringify(ar));
             resolve(null);
           }
         }).catch(function(e){
-          console.error("[AVIS] addRecords exception:", e);
+          console.error("[AVIS] addRecords exception:", JSON.stringify(e));
           resolve(null);
         });
       }
     }).catch(function(e){
-      console.error("[AVIS] getRecords exception — falling back to addRecords:", e);
+      console.error("[AVIS] getRecords exception — falling back to addRecords:", JSON.stringify(e));
       ZOHO.CREATOR.DATA.addRecords({
         app_name: CONFIG.APP_NAME,
         form_name: CONFIG.AVIS_LOOKUP_FORM,
         payload: {data: payload}
       }).then(function(ar){
-        console.log("[AVIS] Fallback addRecords code:", ar&&ar.code, ar);
+        console.log("[AVIS] Fallback addRecords code:", ar&&ar.code, "Full response:", JSON.stringify(ar));
         resolve(ar&&ar.code===3000&&ar.data&&ar.data.ID?ar.data.ID.toString():null);
       }).catch(function(e2){
-        console.error("[AVIS] Fallback addRecords also failed:", e2);
+        console.error("[AVIS] Fallback addRecords also failed:", JSON.stringify(e2));
         resolve(null);
       });
     });
