@@ -393,19 +393,8 @@
     <button class="toast-close" onclick="hideToast()">✕</button>
   </div>
 
-  <!-- Section: CSR Info -->
-  <div class="card">
-    <div class="card-header">
-      <span>🪪</span> CSR Info
-    </div>
-    <div class="card-body">
-      <div class="field">
-        <label>Desk ID <span class="req">*</span></label>
-        <input type="text" id="deskId" placeholder="e.g. D-12" autocomplete="off" />
-        <div class="field-error" id="deskIdErr">Desk ID is required.</div>
-      </div>
-    </div>
-  </div>
+  <!-- Desk ID: hidden, auto-filled with loginUser on load (mirrors Deluge onload logic) -->
+  <input type="hidden" id="deskId" />
 
   <!-- Section: Vehicle Type -->
   <div class="card">
@@ -600,16 +589,6 @@ function hideToast() {
 // ── Validation ────────────────────────────────────────────────────────────────
 function validate() {
   let ok = true;
-  const deskVal = document.getElementById("deskId").value.trim();
-
-  if (!deskVal) {
-    document.getElementById("deskId").classList.add("has-error");
-    document.getElementById("deskIdErr").classList.add("show");
-    ok = false;
-  } else {
-    document.getElementById("deskId").classList.remove("has-error");
-    document.getElementById("deskIdErr").classList.remove("show");
-  }
 
   if (!selectedVehicle) {
     document.getElementById("vehErr").classList.add("show");
@@ -636,42 +615,39 @@ function doSubmit() {
 
   const payload = {
     data: {
-      Your_desk_ID:                document.getElementById("deskId").value.trim(),
-      Vehicle_Type:                CODE_TO_VALUE[selectedVehicle.code],
-      One_Way_Rental:              document.getElementById("oneWay").checked,
-      Upsell:                      document.getElementById("upsell").checked,
-      Walk_Up_Customer:            document.getElementById("walkUp").checked,
+      Your_desk_ID:                 document.getElementById("deskId").value.trim(),
+      Vehicle_Type:                 CODE_TO_VALUE[selectedVehicle.code],
+      One_Way_Rental:               document.getElementById("oneWay").checked,
+      Upsell:                       document.getElementById("upsell").checked,
+      Walk_Up_Customer:             document.getElementById("walkUp").checked,
       Specific_Make_Model_optional: document.getElementById("specificReq").value.trim(),
-      User_Email:                  initParams.loginUser || "",
-      Dispatch_Status:             "New"
+      User_Email:                   initParams.loginUser || "",
+      Dispatch_Status:              "New"
     }
   };
 
-  const { appLinkName, accountOwner } = initParams;
-  const apiUrl = `https://creator.zoho.com/api/v2.1/${accountOwner}/${appLinkName}/form/Vehicle_Request_Form`;
+  // Relative URL — widget is already authenticated in the same origin.
+  // No authtoken header needed. This is the only write method that works
+  // on AutoFlowX (ZOHO.CREATOR.DATA.addRecord/addRecords are not available).
+  const url = "/creator/v2.1/data/autoflowx/lax-abg/form/Vehicle_Request_Form";
 
-  fetch(apiUrl, {
+  fetch(url, {
     method: "POST",
-    headers: {
-      "Authorization": "Zoho-oauthtoken " + initParams.authtoken,
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
   .then(r => r.json())
   .then(res => {
     btn.classList.remove("loading");
     btn.disabled = false;
-    console.log("Submit response:", res);
+    console.log("[VehicleRequest] POST response:", res);
 
-    if (res.code === 3000 || (res.result && res.result.code === 3000)) {
-      // Success
+    if (res && res.code === 3000) {
       const vLabel = selectedVehicle.code + " — " + selectedVehicle.name;
       document.getElementById("successSub").textContent = vLabel + " request added to the queue.";
       document.getElementById("mainForm").style.display = "none";
       document.getElementById("successScreen").classList.add("show");
     } else {
-      // API-level error
       const errMsg = extractApiError(res);
       showToast("error", errMsg);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -680,7 +656,7 @@ function doSubmit() {
   .catch(err => {
     btn.classList.remove("loading");
     btn.disabled = false;
-    console.error("Network error:", err);
+    console.error("[VehicleRequest] fetch error:", err);
     showToast("error", "Network error — check your connection and try again.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -712,7 +688,12 @@ function resetForm() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
   initParams = params;
-  const user = (params.loginUser || "").split("@")[0] || "Unknown";
+  const loginUser = params.loginUser || "";
+  const user = loginUser.split("@")[0] || "Unknown";
+
+  // Mirror Deluge onload: auto-fill desk ID with login user (field is hidden)
+  document.getElementById("deskId").value = loginUser;
+
   document.getElementById("userPill").textContent = "👤 " + user;
   buildGrid();
 }).catch(function(err) {
