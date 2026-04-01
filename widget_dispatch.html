@@ -253,7 +253,7 @@ var CONFIG = {
   /* Rover proxy */
   ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
   ROVER_API_KEY:  "Density786A!786110?!",   // ← Cloudflare Worker API key
-  ROVER_TIMEOUT_MS: 5000  // give up and allow assign after 5s
+  ROVER_TIMEOUT_MS: 9000  // give up and allow assign after 9s
 };
 
 /* ============================================================
@@ -531,10 +531,10 @@ document.getElementById("inputMva").addEventListener("input",function(){
   if(val.length===CONFIG.MVA_LENGTH){
     doRoverLookup(val);
   } else {
-    // Reset lookup state if user edits back below 8
-    if(val.length<CONFIG.MVA_LENGTH&&roverLookupDone){
-      currentLookupMva="";
-      roverLookupDone=false;roverLookupFailed=false;roverData=null;
+    // Only reset if user is editing away from the previously looked-up MVA
+    if(roverData&&val!==currentLookupMva.substring(0,val.length)){
+      roverData=null;currentLookupMva="";
+      roverLookupDone=false;roverLookupFailed=false;
       document.getElementById("roverCard").classList.remove("active");
       document.getElementById("roverLoading").classList.remove("active");
       document.getElementById("roverWarn").classList.remove("active");
@@ -699,7 +699,10 @@ var searchTimeout=null;document.getElementById("searchBox").addEventListener("in
    ASSIGN POPUP — OPEN / CLOSE
    ============================================================ */
 function resetPopupRoverState(){
-  roverData=null;roverLookupDone=false;roverLookupFailed=false;currentLookupMva="";
+  // Do NOT wipe roverData or currentLookupMva here — they persist so
+  // submitAssign can still use a lookup that completed before this open.
+  // They only reset when the MVA input changes to a different value.
+  roverLookupDone=false;roverLookupFailed=false;
   document.getElementById("roverCard").classList.remove("active");
   document.getElementById("roverLoading").classList.remove("active");
   document.getElementById("roverWarn").classList.remove("active");
@@ -806,6 +809,7 @@ function submitAssign(){
         closeAssignPopup();
         fetchDispatches();
         // ── Save Avis lookup record (fire-and-forget, non-blocking) ──
+        console.log("[ASSIGN] At submit: roverData=", roverData, "currentLookupMva=", currentLookupMva, "mva=", mva);
         if(roverData){
           console.log("[ASSIGN] Assign succeeded (recordId:", capturedRecordId, "). Saving Avis lookup for MVA:", mva);
           saveAvisLookup(mva,roverData).then(function(avisId){
