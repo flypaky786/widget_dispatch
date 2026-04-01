@@ -711,8 +711,9 @@ function resetForm() {
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
   initParams = params;
   var loginUser = params.loginUser || "";
+  var loginUserEmail = params.loginUserEmail || params.loginUser || "";
   document.getElementById("deskId").value = loginUser.split("@")[0];
-  initParams.storedLoginUser = loginUser;
+  initParams.storedLoginUser = loginUserEmail;
   buildGrid();
 }).catch(function(err) {
   console.error("getInitParams error:", err);
