@@ -443,7 +443,8 @@ function doRoverLookup(mva){
   document.getElementById("btnNext").style.display="none";
   document.getElementById("btnSubmitAssign").style.display="none";
   document.getElementById("stallGroup").style.display="none";
-  roverData=null;roverLookupDone=false;roverLookupFailed=false;
+  roverLookupDone=false;roverLookupFailed=false;
+  // Note: roverData intentionally NOT cleared here — preserved until new result arrives
 
   // Show spinner
   document.getElementById("roverLoading").classList.add("active");
