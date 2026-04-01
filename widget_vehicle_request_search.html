@@ -528,35 +528,38 @@ const CODE_TO_VALUE = {
 const SPECIFIC_TYPES = ["Z","L","V"];
 
 // ── State ────────────────────────────────────────────────────────────────────
-let selectedVehicle = null;
-let initParams = {};
+var selectedVehicle = null;
+var initParams = {};
 
 // ── Build grid (all vehicles, always visible) ─────────────────────────────────
 function buildGrid() {
-  const grid = document.getElementById("vehicleGrid");
-  grid.innerHTML = VEHICLES.map(v => {
-    const sel = selectedVehicle && selectedVehicle.code === v.code ? " selected" : "";
-    const sub = v.note ? v.note : v.cat;
-    return `<div class="veh-tile${sel}" onclick="selectVehicle('${v.code}')">
-      <div class="tile-code">${v.code}</div>
-      <div class="tile-name">${v.name}</div>
-    </div>`;
-  }).join("");
+  var grid = document.getElementById("vehicleGrid");
+  var html = "";
+  for (var i = 0; i < VEHICLES.length; i++) {
+    var v = VEHICLES[i];
+    var sel = selectedVehicle && selectedVehicle.code === v.code ? " selected" : "";
+    html += '<div class="veh-tile' + sel + '" onclick="selectVehicle(\'' + v.code + '\')">';
+    html += '<div class="tile-code">' + v.code + '</div>';
+    html += '<div class="tile-name">' + v.name + '</div>';
+    html += '</div>';
+  }
+  grid.innerHTML = html;
 }
 
 function selectVehicle(code) {
-  const v = VEHICLES.find(x => x.code === code);
+  var v = null;
+  for (var i = 0; i < VEHICLES.length; i++) { if (VEHICLES[i].code === code) { v = VEHICLES[i]; break; } }
   if (!v) return;
   selectedVehicle = v;
 
-  // Show collapsed badge, hide grid
   document.getElementById("selectedLabel").textContent = v.code + " — " + v.name;
   document.getElementById("selectedBadge").classList.add("show");
   document.getElementById("vehicleGrid").style.display = "none";
   document.getElementById("vehErr").classList.remove("show");
 
-  // Specific request visibility
-  if (SPECIFIC_TYPES.includes(code)) {
+  var isSpecific = false;
+  for (var j = 0; j < SPECIFIC_TYPES.length; j++) { if (SPECIFIC_TYPES[j] === code) { isSpecific = true; break; } }
+  if (isSpecific) {
     document.getElementById("specificRow").classList.add("show");
   } else {
     document.getElementById("specificRow").classList.remove("show");
@@ -575,8 +578,8 @@ function clearVehicle() {
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(type, msg) {
-  const el = document.getElementById("toast");
-  const icon = type === "error" ? "⚠️" : "✅";
+  var el = document.getElementById("toast");
+  var icon = type === "error" ? "⚠️" : "✅";
   document.getElementById("toastIcon").textContent = icon;
   document.getElementById("toastMsg").textContent = msg;
   el.className = "toast show " + type;
@@ -588,15 +591,13 @@ function hideToast() {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 function validate() {
-  let ok = true;
-
+  var ok = true;
   if (!selectedVehicle) {
     document.getElementById("vehErr").classList.add("show");
     ok = false;
   } else {
     document.getElementById("vehErr").classList.remove("show");
   }
-
   return ok;
 }
 
@@ -604,18 +605,18 @@ function validate() {
 function doSubmit() {
   hideToast();
   if (!validate()) {
-    showToast("error", "Please fix the errors below before submitting.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    showToast("error", "Please select a vehicle type.");
+    window.scrollTo(0, 0);
     return;
   }
 
-  const btn = document.getElementById("submitBtn");
+  var btn = document.getElementById("submitBtn");
   btn.classList.add("loading");
   btn.disabled = true;
 
-  const payload = {
+  var payload = {
     data: {
-      Your_desk_ID:                 document.getElementById("deskId").value.trim(),
+      Your_desk_ID:                 document.getElementById("deskId").value,
       Vehicle_Type:                 CODE_TO_VALUE[selectedVehicle.code],
       One_Way_Rental:               document.getElementById("oneWay").checked,
       Upsell:                       document.getElementById("upsell").checked,
@@ -626,48 +627,37 @@ function doSubmit() {
     }
   };
 
-  // Relative URL — widget is already authenticated in the same origin.
-  // No authtoken header needed. This is the only write method that works
-  // on AutoFlowX (ZOHO.CREATOR.DATA.addRecord/addRecords are not available).
-  const url = "/creator/v2.1/data/autoflowx/lax-abg/form/Vehicle_Request_Form";
-
-  fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  })
-  .then(r => r.json())
-  .then(res => {
+  ZOHO.CREATOR.DATA.addRecords({
+    app_name: "lax-abg",
+    form_name: "Vehicle_Request_Form",
+    payload: payload
+  }).then(function(resp) {
     btn.classList.remove("loading");
     btn.disabled = false;
-    console.log("[VehicleRequest] POST response:", res);
-
-    if (res && res.code === 3000) {
-      const vLabel = selectedVehicle.code + " — " + selectedVehicle.name;
+    console.log("[VehicleRequest] addRecords response:", resp);
+    if (resp && resp.code === 3000) {
+      var vLabel = selectedVehicle.code + " — " + selectedVehicle.name;
       document.getElementById("successSub").textContent = vLabel + " request added to the queue.";
       document.getElementById("mainForm").style.display = "none";
       document.getElementById("successScreen").classList.add("show");
     } else {
-      const errMsg = extractApiError(res);
-      showToast("error", errMsg);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      showToast("error", extractApiError(resp));
+      window.scrollTo(0, 0);
     }
-  })
-  .catch(err => {
+  }).catch(function(err) {
     btn.classList.remove("loading");
     btn.disabled = false;
-    console.error("[VehicleRequest] fetch error:", err);
-    showToast("error", "Network error — check your connection and try again.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    console.error("[VehicleRequest] addRecords error:", err);
+    showToast("error", "Submission error — check console.");
+    window.scrollTo(0, 0);
   });
 }
 
 function extractApiError(res) {
-  // Handle Zoho Creator error shapes
   if (res && res.message) return res.message;
   if (res && res.result && res.result.message) return res.result.message;
-  if (res && res.error) return JSON.stringify(res.error);
-  return "Something went wrong (code: " + (res.code || "unknown") + "). Please try again.";
+  if (res && res.error) { try { return JSON.stringify(res.error); } catch(e) {} }
+  return "Something went wrong (code: " + (res ? res.code || "unknown" : "unknown") + "). Please try again.";
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
@@ -688,17 +678,14 @@ function resetForm() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
   initParams = params;
-  const loginUser = params.loginUser || "";
-  const user = loginUser.split("@")[0] || "Unknown";
-
-  // Mirror Deluge onload: auto-fill desk ID with login user (field is hidden)
+  var loginUser = params.loginUser || "";
+  var user = loginUser.split("@")[0] || "Unknown";
   document.getElementById("deskId").value = loginUser;
-
-  document.getElementById("userPill").textContent = "👤 " + user;
+  document.getElementById("userPill").textContent = "\u{1F464} " + user;
   buildGrid();
 }).catch(function(err) {
   console.error("getInitParams error:", err);
-  document.getElementById("userPill").textContent = "👤 —";
+  document.getElementById("userPill").textContent = "\u{1F464} —";
   buildGrid();
 });
 </script>
