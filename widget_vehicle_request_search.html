@@ -380,7 +380,7 @@
       <div class="header-sub">LAX-ABG Dispatch</div>
     </div>
   </div>
-  <div class="user-pill" id="userPill">Loading…</div>
+
 </div>
 
 <!-- ── Main ── -->
@@ -711,13 +711,10 @@ function resetForm() {
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
   initParams = params;
   var loginUser = params.loginUser || "";
-  var user = loginUser.split("@")[0] || "Unknown";
   document.getElementById("deskId").value = loginUser;
-  document.getElementById("userPill").textContent = "\u{1F464} " + user;
   buildGrid();
 }).catch(function(err) {
   console.error("getInitParams error:", err);
-  document.getElementById("userPill").textContent = "\u{1F464} —";
   buildGrid();
 });
 </script>
