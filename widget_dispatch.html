@@ -776,7 +776,7 @@ function buildActionButtons(rec){
   var claimedBy=(rec.Claimed_By_Email||"").toLowerCase().trim();
   var isMe=loggedInUser&&claimedBy===loggedInUser.toLowerCase().trim();
   var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
-  var vc=(rec.Vehicle_Class||rec.Class||'').replace(/'/g,"\\'");
+  var vc=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
   var cm=(rec.Assigned_MVA||'').toString().replace(/'/g,"\\'");
   var cs=(rec.Stall_Number||'').toString().replace(/'/g,"\\'");
   if(isCancelledStatus(status))return'';
@@ -895,6 +895,20 @@ function submitAssign(){
   if(!mva||mva.length!==CONFIG.MVA_LENGTH){showPopupError("MVA must be "+CONFIG.MVA_LENGTH+" digits.");return;}
   if(!mvaRegex.test(mva)){showPopupError("MVA must be exactly "+CONFIG.MVA_LENGTH+" digits.");return;}
   if(!stall){showPopupError("Stall is required.");return;}
+
+  // Substitution rule check — block if rules exist and class is not allowed
+  if(roverData&&subRulesLoaded&&subRules!==null&&requestedClass){
+    var roverP=classPrefix(roverData.class||"");
+    var reqP=classPrefix(requestedClass);
+    if(roverP&&reqP&&roverP!==reqP){
+      var allowed=false;
+      for(var si=0;si<subRules.length;si++){if(subRules[si]===roverP){allowed=true;break;}}
+      if(!allowed){
+        showPopupError("Class "+roverP+" is not an approved substitution for "+reqP+". Allowed: "+subRules.join(", ")+".");
+        return;
+      }
+    }
+  }
 
   var btn=document.getElementById("btnSubmitAssign");
   btn.textContent="Checking...";btn.disabled=true;
