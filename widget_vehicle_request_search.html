@@ -528,6 +528,15 @@ const CODE_TO_VALUE = {
 
 const SPECIFIC_TYPES = ["Z","L","V"];
 
+// ── Report height to parent so iframe never scrolls internally ────────────────
+function reportHeight() {
+  var h = document.body.scrollHeight;
+  try { window.parent.postMessage({ type: "iframeHeight", height: h }, "*"); } catch(e) {}
+}
+// Report on load and after any dynamic content change
+window.addEventListener("load", reportHeight);
+window.addEventListener("resize", reportHeight);
+
 // ── State ────────────────────────────────────────────────────────────────────
 var selectedVehicle = null;
 var initParams = {};
@@ -545,6 +554,7 @@ function buildGrid() {
     html += '</div>';
   }
   grid.innerHTML = html;
+  reportHeight();
 }
 
 function selectVehicle(code) {
