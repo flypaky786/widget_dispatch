@@ -693,12 +693,13 @@ document.getElementById("inputMva").addEventListener("input",function(){
    AVIS LOOKUP RECORD — create or update in Avis_lookup_Requests
    Returns a Promise that resolves with the record ID (string)
    ============================================================ */
-function saveAvisLookup(mva,data){
+function saveAvisLookup(mva,data,vehicleRequestId){
   return new Promise(function(resolve,reject){
     if(!data){resolve(null);return;}
 
     var payload={
       MVA: mva,
+      Vehicle_Request_Form_ID: vehicleRequestId||"",
       Rover_Model: data.model||"",
       Rover_Make: data.make||"",
       Rover_Color: data.color||"",
@@ -710,11 +711,14 @@ function saveAvisLookup(mva,data){
       Status_Full: data.statusFull||""
     };
 
-    console.log("[AVIS] Querying report:", CONFIG.AVIS_LOOKUP_REPORT, "for MVA:", mva);
+    // Key on MVA + Vehicle_Request_Form_ID — same vehicle request re-assign = update,
+    // different vehicle request for same MVA = new record
+    var criteria='MVA == "'+mva+'" && Vehicle_Request_Form_ID == "'+vehicleRequestId+'"';
+    console.log("[AVIS] Querying report:", CONFIG.AVIS_LOOKUP_REPORT, "criteria:", criteria);
     ZOHO.CREATOR.DATA.getRecords({
       app_name: CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
-      criteria: 'MVA == "'+mva+'"',
+      criteria: criteria,
       page: 1,
       max_records: 200
     }).then(function(resp){
@@ -977,7 +981,7 @@ function submitAssign(){
         console.log("[ASSIGN] At submit: roverData=", roverData, "currentLookupMva=", currentLookupMva, "mva=", mva);
         if(roverData){
           console.log("[ASSIGN] Assign succeeded (recordId:", capturedRecordId, "). Saving Avis lookup for MVA:", mva);
-          saveAvisLookup(mva,roverData).then(function(avisId){
+          saveAvisLookup(mva,roverData,capturedRecordId).then(function(avisId){
             if(!avisId){
               console.warn("[ASSIGN] saveAvisLookup returned null — Avis_lookup_ID not written.");
               return;
