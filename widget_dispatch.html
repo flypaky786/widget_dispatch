@@ -397,12 +397,16 @@ function isAlertStatus(sf){
 function renderRoverCard(data,mva){
   document.getElementById("roverCardMva").textContent="MVA "+mva;
 
-  // Year / Make / Model
+  // Year / Make / Model + Color inline
   var parts=[];
   if(data.year)parts.push(data.year);
   if(data.make)parts.push(data.make);
   if(data.model)parts.push(data.model);
+  if(data.color)parts.push("🎨 "+data.color);
   document.getElementById("roverVehicleLine").textContent=parts.join(" ")||(data.vehicle||"—");
+
+  // Hide standalone color chip — now inline above
+  document.getElementById("roverColorChip").textContent="";
 
   // Class chip — compare against requested class
   var classEl=document.getElementById("roverClassChip");
@@ -417,17 +421,25 @@ function renderRoverCard(data,mva){
     classEl.textContent="";
   }
 
-  // Status
+  // Status — first line only (data.status is already shortStatus from the worker)
   document.getElementById("roverStatusLine").textContent=data.status||"—";
 
-  // StatusFull — alert if hold/unavailable
+  // StatusFull — show the hold/extra parts only (everything after the first segment)
+  // Format: "STATUS | HOLD DATE 25FEB26 | HOLD RSN RETITLE NC TO FL"
+  // We strip the first segment so we don't repeat the status line above
   var sfEl=document.getElementById("roverStatusFull");
-  sfEl.textContent=data.statusFull||data.status||"—";
-  if(isAlertStatus(data.statusFull)){sfEl.classList.add("alert");}
-  else{sfEl.classList.remove("alert");}
-
-  // Color
-  document.getElementById("roverColorChip").textContent=data.color?"🎨 "+data.color:"";
+  var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});
+  // Remove first part (same as status), keep hold date / reason / other messages
+  var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
+  if(extraParts.length>0){
+    sfEl.textContent=extraParts.join(" | ");
+    sfEl.style.display="";
+    if(isAlertStatus(data.statusFull)){sfEl.classList.add("alert");}
+    else{sfEl.classList.remove("alert");}
+  } else {
+    sfEl.textContent="";
+    sfEl.style.display="none";
+  }
 
   document.getElementById("roverCard").classList.add("active");
 }
