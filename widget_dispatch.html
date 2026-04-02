@@ -131,6 +131,7 @@
     .rover-class-chip{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:700;margin-bottom:8px}
     .rover-class-match{color:#059669}
     .rover-class-sub{color:#1e40af}
+    .rover-class-invalid{color:#dc2626}
     .rover-class-sub-label{font-size:12px;font-weight:600;opacity:.8}
 
     .rover-warn{display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:20px;align-items:flex-start;gap:8px}
@@ -238,6 +239,7 @@ var CONFIG = {
   REPORT_NAME: "All_Vehicle_Requests",
   AVIS_LOOKUP_FORM: "Avis_lookup_Requests",
   AVIS_LOOKUP_REPORT: "All_Avis_Lookup_Requests",
+  SUB_RULES_REPORT:   "All_Vehicle_Substitution_Rules",
 
   POLL_INTERVAL: 4000,
   MAX_RECORDS: 200,
@@ -274,7 +276,9 @@ var roverData=null;
 var roverLookupDone=false;
 var roverLookupFailed=false;
 var currentLookupMva="";
-var requestedClass="";      // vehicle class from the dispatch request
+var requestedClass="";      // vehicle class from the dispatch request (full string e.g. "V-Minivan")
+var subRules=null;          // null = not loaded, [] = loaded but no rules, [...] = allowed prefixes
+var subRulesLoaded=false;   // true once query completed
 
 /* ============================================================
    AUDIO
@@ -393,6 +397,85 @@ function isAlertStatus(sf){
   return u.indexOf("HOLD")>=0||u.indexOf("UNAVAILABLE")>=0||u.indexOf("HOLD DATE")>=0||u.indexOf("HOLD RSN")>=0;
 }
 
+/* classPrefix: extracts the letter code from a full class string
+   "V-Minivan" → "V",  "XC-Hybrid / Electric" → "XC",  "V" → "V" */
+function classPrefix(str){
+  if(!str)return"";
+  var s=str.trim();
+  var dash=s.indexOf("-");
+  return dash>0?s.substring(0,dash).trim().toUpperCase():s.toUpperCase();
+}
+
+/* loadSubRules: queries substitution rules for the requested vehicle type,
+   filtered to rules in effect on or before today. Resolves subRules to an
+   array of allowed class prefixes, or null if no rules apply (any sub OK). */
+function loadSubRules(requestedFullClass){
+  subRules=null;subRulesLoaded=false;
+  if(!requestedFullClass){subRulesLoaded=true;return;}
+
+  var today=new Date();
+  var dd=("0"+today.getDate()).slice(-2);
+  var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var todayStr=dd+"-"+months[today.getMonth()]+"-"+today.getFullYear();
+
+  console.log("[SUB] Loading rules for Vehicle_Type:",requestedFullClass,"| today:",todayStr);
+
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name: CONFIG.APP_NAME,
+    report_name: CONFIG.SUB_RULES_REPORT,
+    criteria: 'Vehicle_Type == "'+requestedFullClass+'"',
+    page: 1,
+    max_records: 200
+  }).then(function(resp){
+    console.log("[SUB] getRecords code:",resp.code,"| count:",resp.data?resp.data.length:0);
+    if(resp.code!==3000||!resp.data||!resp.data.length){
+      subRules=null;subRulesLoaded=true; // no rules → any sub allowed
+      console.log("[SUB] No rules found — any substitution allowed.");
+      return;
+    }
+    // Filter to rules where Date_in_Effect <= today, pick most recent
+    var valid=[];
+    for(var i=0;i<resp.data.length;i++){
+      var r=resp.data[i];
+      var d=parseZohoDate(r.Date_in_Effect);
+      if(d&&d.getTime()<=today.getTime())valid.push({date:d,rec:r});
+    }
+    if(!valid.length){
+      subRules=null;subRulesLoaded=true;
+      console.log("[SUB] No in-effect rules for today — any substitution allowed.");
+      return;
+    }
+    // Sort descending, take most recent
+    valid.sort(function(a,b){return b.date.getTime()-a.date.getTime();});
+    var best=valid[0].rec;
+    var types=best.Acceptable_Substitution_Types;
+    // types is an array of full strings e.g. ["B-Compact","C-Intermediate (Mid-size)"]
+    var prefixes=[];
+    if(Array.isArray(types)){
+      for(var j=0;j<types.length;j++){prefixes.push(classPrefix(types[j]));}
+    } else if(types){
+      prefixes.push(classPrefix(types.toString()));
+    }
+    subRules=prefixes;
+    subRulesLoaded=true;
+    console.log("[SUB] Rules in effect. Allowed prefixes:",prefixes);
+    // Re-render card if rover result already showing
+    if(roverData)renderRoverCard(roverData,currentLookupMva);
+  }).catch(function(e){
+    try{
+      var p=JSON.parse(e.responseText||'{}');
+      if(p.code===9280){
+        console.log("[SUB] No rules found (9280) — any substitution allowed.");
+        subRules=null;subRulesLoaded=true;
+        return;
+      }
+    }catch(pe){}
+    console.warn("[SUB] Rules query failed — treating as no rules:",JSON.stringify(e));
+    subRules=null;subRulesLoaded=true;
+    if(roverData)renderRoverCard(roverData,currentLookupMva);
+  });
+}
+
 /* renderRoverCard: populates and shows the lookup result card */
 function renderRoverCard(data,mva){
   document.getElementById("roverCardMva").textContent="MVA "+mva;
@@ -408,15 +491,35 @@ function renderRoverCard(data,mva){
   // Hide standalone color chip — now inline above
   document.getElementById("roverColorChip").textContent="";
 
-  // Class chip — compare against requested class
+  // Class chip — prefix-based comparison + substitution rule check
   var classEl=document.getElementById("roverClassChip");
-  var roverClass=(data.class||"").toUpperCase().trim();
-  var reqClass=(requestedClass||"").toUpperCase().trim();
-  if(roverClass){
-    var isSame=reqClass&&roverClass===reqClass;
-    var isSub=reqClass&&roverClass!==reqClass;
-    classEl.className="rover-class-chip "+(isSame?"rover-class-match":isSub?"rover-class-sub":"");
-    classEl.innerHTML="Class: "+roverClass+(isSub?' <span class="rover-class-sub-label">(sub)</span>':"");
+  var roverPrefix=classPrefix(data.class||"");
+  var reqPrefix=classPrefix(requestedClass||"");
+  if(roverPrefix){
+    var isSame=reqPrefix&&roverPrefix===reqPrefix;
+    var isSub=reqPrefix&&roverPrefix!==reqPrefix;
+    var subAllowed=true; // default: allowed when no rules loaded yet or no rules exist
+    if(isSub&&subRulesLoaded&&subRules!==null){
+      // Rules exist — check if roverPrefix is in allowed list
+      subAllowed=false;
+      for(var si=0;si<subRules.length;si++){
+        if(subRules[si]===roverPrefix){subAllowed=true;break;}
+      }
+    }
+    if(isSame){
+      classEl.className="rover-class-chip rover-class-match";
+      classEl.innerHTML="Class: "+roverPrefix;
+    } else if(isSub&&subRulesLoaded&&subRules!==null&&!subAllowed){
+      classEl.className="rover-class-chip rover-class-invalid";
+      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub) &#9888; not allowed</span>';
+    } else if(isSub){
+      classEl.className="rover-class-chip rover-class-sub";
+      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub)</span>';
+    } else {
+      // No requested class to compare against
+      classEl.className="rover-class-chip";
+      classEl.innerHTML="Class: "+roverPrefix;
+    }
   } else {
     classEl.textContent="";
   }
@@ -725,6 +828,7 @@ function resetPopupRoverState(){
   // submitAssign can still use a lookup that completed before this open.
   // They only reset when the MVA input changes to a different value.
   roverLookupDone=false;roverLookupFailed=false;
+  subRules=null;subRulesLoaded=false;
   document.getElementById("roverCard").classList.remove("active");
   document.getElementById("roverLoading").classList.remove("active");
   document.getElementById("roverWarn").classList.remove("active");
@@ -744,6 +848,7 @@ function openAssignPopup(id,v,vc){
   document.getElementById("btnSubmitAssign").textContent="Assign";
   clearPopupError();
   resetPopupRoverState();
+  loadSubRules(requestedClass);
   document.getElementById("assignOverlay").classList.add("active");
   setTimeout(function(){document.getElementById("inputMva").focus();},100);
 }
@@ -758,6 +863,7 @@ function openReassignPopup(id,v,m,s,vc){
   document.getElementById("btnSubmitAssign").textContent="Re-assign";
   clearPopupError();
   resetPopupRoverState();
+  loadSubRules(requestedClass);
   document.getElementById("assignOverlay").classList.add("active");
   if(m&&m.length===CONFIG.MVA_LENGTH){
     setTimeout(function(){doRoverLookup(m);},200);
