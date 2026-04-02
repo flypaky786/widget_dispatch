@@ -279,7 +279,6 @@ var currentLookupMva="";
 var requestedClass="";      // vehicle class from the dispatch request (full string e.g. "V-Minivan")
 var subRules=null;          // null = not loaded, [] = loaded but no rules, [...] = allowed prefixes
 var subRulesLoaded=false;   // true once query completed
-var avisLookupCache={};     // keyed by Avis_lookup_ID → {year,make,model,color,class}
 
 /* ============================================================
    AUDIO
@@ -332,29 +331,11 @@ function buildVehicleCell(rec){
 function buildAssignCell(rec){
   var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';
   var line1=mva&&stall?mva+' / '+stall:mva||stall||'';
-  if(!isAssignedStatus(rec.Dispatch_Status)||!rec.Avis_lookup_ID)return line1;
-  var av=avisLookupCache[rec.Avis_lookup_ID.toString()];
-  if(!av)return line1;
-  // Build vehicle detail line: "2025 TOYO GRHA · SIL · Class V (sub)"
-  var parts=[];
-  if(av.year)parts.push(av.year);
-  if(av.make)parts.push(av.make);
-  if(av.model)parts.push(av.model);
-  if(av.color)parts.push(av.color);
-  var detail=parts.join(' ');
-  // Class + sub indicator
-  var roverP=classPrefix(av.cls||'');
-  var reqP=classPrefix(rec.Vehicle_Type||'');
-  var classStr='';
-  if(roverP){
-    var isSub=reqP&&roverP!==reqP;
-    classStr='Class '+roverP+(isSub?' <span style="color:#1e40af;font-size:12px">(sub)</span>':'');
-  }
-  var line2parts=[];
-  if(detail)line2parts.push(detail);
-  if(classStr)line2parts.push(classStr);
-  var line2=line2parts.join(' · ');
-  return line1+(line2?'<br><span style="font-size:12px;color:#64748b">'+line2+'</span>':'');
+  if(!isAssignedStatus(rec.Dispatch_Status))return line1;
+  var av=rec.Avis_lookup_ID;
+  if(!av||!av.zc_display_value)return line1;
+  var line2='<span style="font-size:12px;color:#64748b">'+av.zc_display_value+'</span>';
+  return line1+'<br>'+line2;
 }
 
 /* ============================================================
@@ -1052,47 +1033,7 @@ function applyFilter(all){var now=Date.now();return all.filter(function(r){var s
 /* ============================================================
    POLLING
    ============================================================ */
-/* fetchAvisLookups: batch-fetches avis lookup records for all assigned records
-   that have an Avis_lookup_ID not already in cache */
-function fetchAvisLookups(records){
-  var ids=[];
-  for(var i=0;i<records.length;i++){
-    var r=records[i];
-    if(!isAssignedStatus(r.Dispatch_Status))continue;
-    var aid=r.Avis_lookup_ID?r.Avis_lookup_ID.toString():'';
-    if(aid&&!avisLookupCache[aid])ids.push(aid);
-  }
-  if(!ids.length)return;
-  // Build OR criteria: ID == "x" || ID == "y"
-  var criteria=ids.map(function(id){return'ID == "'+id+'"';}).join(' || ');
-  console.log("[AVIS-CACHE] Fetching",ids.length,"lookup record(s)");
-  ZOHO.CREATOR.DATA.getRecords({
-    app_name: CONFIG.APP_NAME,
-    report_name: CONFIG.AVIS_LOOKUP_REPORT,
-    criteria: criteria,
-    page: 1,
-    max_records: 200
-  }).then(function(resp){
-    if(resp.code!==3000||!resp.data)return;
-    for(var j=0;j<resp.data.length;j++){
-      var d=resp.data[j];
-      var rid=d.ID?d.ID.toString():'';
-      if(rid)avisLookupCache[rid]={
-        year:  d.Rover_Year||'',
-        make:  d.Rover_Make||'',
-        model: d.Rover_Model||'',
-        color: d.Rover_Color||'',
-        cls:   d.Rover_Class||''
-      };
-    }
-    console.log("[AVIS-CACHE] Cached",resp.data.length,"record(s). Total cache size:",Object.keys(avisLookupCache).length);
-    refreshTable(); // re-render now that cache is populated
-  }).catch(function(e){
-    console.warn("[AVIS-CACHE] Fetch failed:",JSON.stringify(e));
-  });
-}
-
-function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(function(response){if(response.code===3000){var all=response.data||[];autoDeleteExpired(all);currentRecords=applyFilter(all);checkForNewRequests(currentRecords);firstLoadComplete=true;refreshTable();fetchAvisLookups(currentRecords);document.getElementById("statusDot").className="status-dot live";document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();}}).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});}
+function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(function(response){if(response.code===3000){var all=response.data||[];autoDeleteExpired(all);currentRecords=applyFilter(all);checkForNewRequests(currentRecords);firstLoadComplete=true;refreshTable();document.getElementById("statusDot").className="status-dot live";document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();}}).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});}
 
 /* ============================================================
    INIT — load Zoho variable for Rover API key
