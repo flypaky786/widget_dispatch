@@ -434,11 +434,26 @@ function loadSubRules(requestedFullClass){
       return;
     }
     // Filter to rules where Date_in_Effect <= today, pick most recent
+    // Date_in_Effect is a date-only field e.g. "02-Apr-2026" — parse directly
     var valid=[];
+    var todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
     for(var i=0;i<resp.data.length;i++){
       var r=resp.data[i];
-      var d=parseZohoDate(r.Date_in_Effect);
-      if(d&&d.getTime()<=today.getTime())valid.push({date:d,rec:r});
+      var raw=r.Date_in_Effect||"";
+      // Try parseZohoDate first (datetime), then parse date-only "DD-Mon-YYYY"
+      var d=parseZohoDate(raw);
+      if(!d&&raw){
+        try{
+          var dp=raw.trim().split("-");
+          if(dp.length===3){
+            var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            var mi=months2.indexOf(dp[1]);
+            if(mi>=0)d=new Date(parseInt(dp[2]),mi,parseInt(dp[0]));
+          }
+        }catch(pe){}
+      }
+      console.log("[SUB] Rule date raw:",raw,"parsed:",d,"todayMidnight:",todayMidnight);
+      if(d&&d.getTime()<=todayMidnight.getTime())valid.push({date:d,rec:r});
     }
     if(!valid.length){
       subRules=null;subRulesLoaded=true;
