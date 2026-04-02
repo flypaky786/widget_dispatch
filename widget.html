@@ -5,6 +5,7 @@
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
+  - Assignment cell shows vehicle info (zc_display_value) from Avis_lookup_ID lookup
   - Parameterized CONFIG block for all tunable values
   - Added clickable column header sorting
   - Default sort: New → In Progress → Assigned → Cancelled (each oldest-first)
@@ -99,36 +100,20 @@
 </div></div>
 
 <script>
-/* ============================================================
-   CONFIG — Change these values to tune behavior without
-   modifying any code below.
-   ============================================================ */
 var CONFIG = {
-  // Zoho app/report
   APP_NAME: "lax-abg",
   REPORT_NAME: "All_Vehicle_Requests",
-
-  // Polling
-  POLL_INTERVAL: 4000,              // ms between fetches (4s)
-  MAX_RECORDS: 200,                 // Zoho API max per fetch
-
-  // Timeout periods
-  UNASSIGNED_HIDE_MS: 120 * 60 * 1000,  // hide unassigned New/IP after 120 min (2 hrs)
-  ASSIGNED_HIDE_MS: 20 * 60 * 1000,     // hide assigned after 20 min
-
-  // Labels (vehicle cell)
+  POLL_INTERVAL: 4000,
+  MAX_RECORDS: 200,
+  UNASSIGNED_HIDE_MS: 120 * 60 * 1000,
+  ASSIGNED_HIDE_MS: 20 * 60 * 1000,
   UPSELL_LABEL: "Upsell (99)",
   WALKUP_LABEL: "Walk Up (49)",
   ONEWAY_LABEL: "One-Way Rental",
-
-  // Audio ding (plays when status transitions to Assigned)
-  DING_FREQ_1: 880,                 // first tone Hz
-  DING_FREQ_2: 1175                 // second tone Hz
+  DING_FREQ_1: 880,
+  DING_FREQ_2: 1175
 };
 
-/* ============================================================
-   STATE — Internal variables (do not change)
-   ============================================================ */
 var previousData={},previousStatuses={},cancelRecordId=null,loggedInUser="",firstLoadComplete=false;
 var audioCtx=null,audioUnlocked=false;
 var sortCol=null,sortDir="desc";
@@ -141,10 +126,8 @@ document.addEventListener("touchstart",unlockAudio,{once:true});
 document.addEventListener("keydown",unlockAudio,{once:true});
 function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=CONFIG.DING_FREQ_1;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=CONFIG.DING_FREQ_2;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
 
-/* === DING: fires once when any record transitions to Assigned === */
 function checkForNewAssignments(recs){if(!firstLoadComplete)return;var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var cs=(rec.Dispatch_Status||"").toLowerCase(),ps=previousStatuses[id]||"";var na=cs.indexOf("assign")>=0||cs.indexOf("dispatch")>=0;var wa=ps.indexOf("assign")>=0||ps.indexOf("dispatch")>=0;if(na&&!wa&&!dinged){playDing();dinged=true;}}for(var j=0;j<recs.length;j++){var r=recs[j],rid=r.ID?r.ID.toString():"";if(rid)previousStatuses[rid]=(r.Dispatch_Status||"").toLowerCase();}}
 
-/* === STATUS HELPERS === */
 function isBool(v){return v===true||v==="true";}
 function badgeClass(s){s=(s||"").toLowerCase();if(s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0)return"in-progress";if(s.indexOf("new")>=0)return"new";if(s.indexOf("pending")>=0)return"pending";if(s.indexOf("assign")>=0)return"assigned";if(s.indexOf("dispatch")>=0)return"dispatched";if(s.indexOf("route")>=0)return"en-route";if(s.indexOf("complet")>=0)return"completed";if(s.indexOf("cancel")>=0)return"cancelled";return"pending";}
 function isAssignedStatus(s){s=(s||"").toLowerCase();return s.indexOf("assign")>=0||s.indexOf("dispatch")>=0;}
@@ -154,7 +137,6 @@ function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
 function parseZohoDate(d){if(!d)return null;try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;}}
 function formatTime(d){var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a;}
 
-/* === CELL BUILDERS === */
 function buildVehicleCell(rec){
   var lines=[];
   lines.push('<strong>'+(rec.Vehicle_Type||'—')+'</strong>');
@@ -165,9 +147,16 @@ function buildVehicleCell(rec){
   if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">'+CONFIG.ONEWAY_LABEL+'</span>');
   return lines.join('<br>');
 }
-function buildAssignCell(rec){var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';if(mva&&stall)return mva+' / '+stall;return mva||stall||'';}
 
-/* === SORT: New → In Progress → Assigned → Cancelled (each oldest-first) === */
+function buildAssignCell(rec){
+  var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';
+  var line1=mva&&stall?mva+' / '+stall:mva||stall||'';
+  if(!isAssignedStatus(rec.Dispatch_Status))return line1;
+  var av=rec.Avis_lookup_ID;
+  if(!av||!av.zc_display_value)return line1;
+  return line1+'<br><span style="font-size:12px;color:#64748b">'+av.zc_display_value+'</span>';
+}
+
 function defaultSort(records){
   var nw=[],ip=[],assigned=[],cancelled=[];
   for(var i=0;i<records.length;i++){var r=records[i];
@@ -181,12 +170,10 @@ function defaultSort(records){
   return nw.concat(ip).concat(assigned).concat(cancelled);
 }
 
-/* === COLUMN SORT === */
 function getSortValue(r,col){switch(col){case"requested":var d=parseZohoDate(r.Added_Time);return d?d.getTime():0;case"vehicle":return(r.Vehicle_Type||"").toLowerCase();case"status":return(r.Dispatch_Status||"").toLowerCase();case"mva":return(r.Assigned_MVA||"").toString();case"assigntime":var at=parseZohoDate(r.Assignment_Time);return at?at.getTime():0;default:return"";}}
 function columnSort(records,col,dir){var s=records.slice();s.sort(function(a,b){var va=getSortValue(a,col),vb=getSortValue(b,col),c=0;if(typeof va==="number"&&typeof vb==="number")c=va-vb;else c=va.toString().localeCompare(vb.toString());return dir==="desc"?-c:c;});return s;}
 function updateSortHeaders(){var ths=document.querySelectorAll("#headerRow th[data-col]");for(var i=0;i<ths.length;i++){var th=ths[i],ar=th.querySelector(".sort-arrow");if(sortCol&&th.getAttribute("data-col")===sortCol){th.classList.add("sort-active");ar.textContent=sortDir==="desc"?"▼":"▲";}else{th.classList.remove("sort-active");ar.textContent="▼";}}}
 
-/* === RENDER TABLE === */
 function renderTable(records){
   var tbody=document.getElementById("dispatchBody");
   if(!records||!records.length){tbody.innerHTML='<tr><td colspan="6" class="no-results">No active requests</td></tr>';return;}
@@ -208,16 +195,13 @@ function renderTable(records){
   tbody.innerHTML=html;
 }
 
-/* === SORT HEADER CLICKS === */
 document.getElementById("headerRow").addEventListener("click",function(e){var th=e.target.closest("th[data-col]");if(!th)return;var col=th.getAttribute("data-col");if(col===sortCol)sortDir=sortDir==="desc"?"asc":"desc";else{sortCol=col;sortDir="desc";}refreshTable();});
 
-/* === REFRESH TABLE (sort + render) === */
 function refreshTable(){
   var sorted=sortCol?columnSort(currentRecords,sortCol,sortDir):defaultSort(currentRecords);
   updateSortHeaders();renderTable(sorted);
 }
 
-/* === CANCEL DIALOG === */
 function openCancelDialog(id,vehicle){cancelRecordId=id;document.getElementById("cancelVehicle").textContent=vehicle;document.getElementById("cancelOverlay").classList.add("active");}
 function closeCancelDialog(){cancelRecordId=null;document.getElementById("cancelOverlay").classList.remove("active");}
 function confirmCancel(){
@@ -232,15 +216,12 @@ function confirmCancel(){
   .catch(function(){alert("Cancel failed.");btn.textContent="Yes, cancel it";btn.disabled=false;});
 }
 
-/* === POLLING + FILTER === */
 function fetchDispatches(){
   var config={app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,page:1,max_records:CONFIG.MAX_RECORDS};
   if(loggedInUser)config.criteria='(User_Email == "'+loggedInUser+'")';
   ZOHO.CREATOR.DATA.getRecords(config).then(function(response){
     if(response.code===3000){
       var all=response.data||[],now=Date.now();
-
-      /* === FILTER: apply timeout periods from CONFIG === */
       var filtered=all.filter(function(rec){
         var s=(rec.Dispatch_Status||"").toLowerCase();
         if(s.indexOf("complet")>=0||s.indexOf("cancel")>=0)return false;
@@ -251,7 +232,6 @@ function fetchDispatches(){
         }
         return true;
       });
-
       currentRecords=filtered;
       var sorted=sortCol?columnSort(filtered,sortCol,sortDir):defaultSort(filtered);
       updateSortHeaders();
@@ -262,7 +242,6 @@ function fetchDispatches(){
   }).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});
 }
 
-/* === INIT === */
 ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   loggedInUser=params.loginUser||"";
   document.getElementById("headerTitle").textContent="Active Requests for "+loggedInUser.split("@")[0];
