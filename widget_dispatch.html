@@ -128,7 +128,10 @@
     .rover-status-line{font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px}
     .rover-status-full{font-size:13px;font-style:italic;color:var(--text-muted);line-height:1.5}
     .rover-status-full.alert{color:#b91c1c;font-weight:700;font-style:italic}
-    .rover-color-chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-top:6px}
+    .rover-class-chip{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:700;margin-bottom:8px}
+    .rover-class-match{color:#059669}
+    .rover-class-sub{color:#1e40af}
+    .rover-class-sub-label{font-size:12px;font-weight:600;opacity:.8}
 
     .rover-warn{display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:20px;align-items:flex-start;gap:8px}
     .rover-warn.active{display:flex}
@@ -196,6 +199,7 @@
     </div>
     <div class="rover-card-body">
       <div class="rover-vehicle-line" id="roverVehicleLine"></div>
+      <div class="rover-class-chip" id="roverClassChip"></div>
       <div class="rover-status-line" id="roverStatusLine"></div>
       <div class="rover-status-full" id="roverStatusFull"></div>
       <div class="rover-color-chip" id="roverColorChip"></div>
@@ -252,7 +256,6 @@ var CONFIG = {
 
   /* Rover proxy */
   ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
-  ROVER_API_KEY:  "Density786A!786110?!",   // ← Cloudflare Worker API key
   ROVER_TIMEOUT_MS: 9000  // give up and allow assign after 9s
 };
 
@@ -266,11 +269,12 @@ var sortCol=null,sortDir="desc";
 var audioCtx=null,audioUnlocked=false;
 
 /* Rover state */
-var roverApiKey="";         // populated from Zoho variable
-var roverData=null;         // last successful lookup result
-var roverLookupDone=false;  // true once lookup completed (success or fail)
-var roverLookupFailed=false;// true if lookup errored / timed out
-var currentLookupMva="";    // MVA we last looked up — avoid re-fetching same MVA
+var roverApiKey="";         // unused — worker validates by Origin
+var roverData=null;
+var roverLookupDone=false;
+var roverLookupFailed=false;
+var currentLookupMva="";
+var requestedClass="";      // vehicle class from the dispatch request
 
 /* ============================================================
    AUDIO
@@ -391,7 +395,6 @@ function isAlertStatus(sf){
 
 /* renderRoverCard: populates and shows the lookup result card */
 function renderRoverCard(data,mva){
-  // Header badge
   document.getElementById("roverCardMva").textContent="MVA "+mva;
 
   // Year / Make / Model
@@ -401,19 +404,29 @@ function renderRoverCard(data,mva){
   if(data.model)parts.push(data.model);
   document.getElementById("roverVehicleLine").textContent=parts.join(" ")||(data.vehicle||"—");
 
-  // Status (bold via CSS on the element)
-  document.getElementById("roverStatusLine").textContent=data.status||"—";
-
-  // StatusFull — alert styling if contains hold/unavailable
-  var sfEl=document.getElementById("roverStatusFull");
-  sfEl.textContent=data.statusFull||data.status||"—";
-  if(isAlertStatus(data.statusFull)){
-    sfEl.classList.add("alert");
+  // Class chip — compare against requested class
+  var classEl=document.getElementById("roverClassChip");
+  var roverClass=(data.class||"").toUpperCase().trim();
+  var reqClass=(requestedClass||"").toUpperCase().trim();
+  if(roverClass){
+    var isSame=reqClass&&roverClass===reqClass;
+    var isSub=reqClass&&roverClass!==reqClass;
+    classEl.className="rover-class-chip "+(isSame?"rover-class-match":isSub?"rover-class-sub":"");
+    classEl.innerHTML="Class: "+roverClass+(isSub?' <span class="rover-class-sub-label">(sub)</span>':"");
   } else {
-    sfEl.classList.remove("alert");
+    classEl.textContent="";
   }
 
-  // Color chip
+  // Status
+  document.getElementById("roverStatusLine").textContent=data.status||"—";
+
+  // StatusFull — alert if hold/unavailable
+  var sfEl=document.getElementById("roverStatusFull");
+  sfEl.textContent=data.statusFull||data.status||"—";
+  if(isAlertStatus(data.statusFull)){sfEl.classList.add("alert");}
+  else{sfEl.classList.remove("alert");}
+
+  // Color
   document.getElementById("roverColorChip").textContent=data.color?"🎨 "+data.color:"";
 
   document.getElementById("roverCard").classList.add("active");
@@ -421,14 +434,6 @@ function renderRoverCard(data,mva){
 
 /* doRoverLookup: called whenever MVA reaches 8 digits */
 function doRoverLookup(mva){
-  if(!roverApiKey){
-    console.warn("[ROVER] No API key loaded — skipping lookup, unlocking assign.");
-    roverLookupDone=true;roverLookupFailed=true;
-    showRoverWarning("WAND key not available. You may still assign.");
-    revealAssignButton();
-    return;
-  }
-
   // Don't re-fetch same MVA
   if(mva===currentLookupMva&&roverLookupDone){
     console.log("[ROVER] Same MVA already looked up ("+mva+"), skipping.");
@@ -451,8 +456,8 @@ function doRoverLookup(mva){
   document.getElementById("inputMva").disabled=true;
 
   // Build URL — use key_cloudflare_wand variable loaded at init
-  var url=CONFIG.ROVER_BASE_URL+"/rover?mva="+encodeURIComponent(mva)+"&key="+encodeURIComponent(roverApiKey);
-  console.log("[ROVER] Fetch URL:", CONFIG.ROVER_BASE_URL+"/rover?mva="+mva+"&key=***", "| Timeout:", CONFIG.ROVER_TIMEOUT_MS+"ms");
+  var url=CONFIG.ROVER_BASE_URL+"/rover?mva="+encodeURIComponent(mva);
+  console.log("[ROVER] Fetch URL:", CONFIG.ROVER_BASE_URL+"/rover?mva="+mva, "| Timeout:", CONFIG.ROVER_TIMEOUT_MS+"ms");
 
   var timedOut=false;
   var timeoutHandle=setTimeout(function(){
@@ -656,16 +661,17 @@ function buildActionButtons(rec){
   var claimedBy=(rec.Claimed_By_Email||"").toLowerCase().trim();
   var isMe=loggedInUser&&claimedBy===loggedInUser.toLowerCase().trim();
   var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
+  var vc=(rec.Vehicle_Class||rec.Class||'').replace(/'/g,"\\'");
   var cm=(rec.Assigned_MVA||'').toString().replace(/'/g,"\\'");
   var cs=(rec.Stall_Number||'').toString().replace(/'/g,"\\'");
   if(isCancelledStatus(status))return'';
-  if(isAssignedStatus(status))return'<button class="btn-reassign" onclick="openReassignPopup(\''+id+'\',\''+ve+'\',\''+cm+'\',\''+cs+'\')">Re-assign</button>';
+  if(isAssignedStatus(status))return'<button class="btn-reassign" onclick="openReassignPopup(\''+id+'\',\''+ve+'\',\''+cm+'\',\''+cs+'\',\''+vc+'\')">Re-assign</button>';
   if(isInProgressStatus(status)){
-    if(isMe)return'<div class="btn-group"><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\')">Assign</button><button class="btn-unclaim" onclick="unclaimRecord(\''+id+'\')">Unclaim</button></div>';
+    if(isMe)return'<div class="btn-group"><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button><button class="btn-unclaim" onclick="unclaimRecord(\''+id+'\')">Unclaim</button></div>';
     var cn=claimedBy?claimedBy.split("@")[0]:"someone";
     return'<span class="claimed-label">Claimed by '+cn+'</span>';
   }
-  return'<div class="btn-group"><button class="btn-markip" onclick="markInProgress(\''+id+'\')">Mark IP</button><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\')">Assign</button></div>';
+  return'<div class="btn-group"><button class="btn-markip" onclick="markInProgress(\''+id+'\')">Mark IP</button><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button></div>';
 }
 
 /* ============================================================
@@ -716,8 +722,9 @@ function resetPopupRoverState(){
   document.getElementById("inputMva").disabled=false;
 }
 
-function openAssignPopup(id,v){
+function openAssignPopup(id,v,vc){
   assignRecordId=id;isReassign=false;
+  requestedClass=vc||"";
   document.getElementById("popupTitle").textContent="Assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value="";
@@ -729,8 +736,9 @@ function openAssignPopup(id,v){
   setTimeout(function(){document.getElementById("inputMva").focus();},100);
 }
 
-function openReassignPopup(id,v,m,s){
+function openReassignPopup(id,v,m,s,vc){
   assignRecordId=id;isReassign=true;
+  requestedClass=vc||"";
   document.getElementById("popupTitle").textContent="Re-assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value=m;
@@ -739,11 +747,9 @@ function openReassignPopup(id,v,m,s){
   clearPopupError();
   resetPopupRoverState();
   document.getElementById("assignOverlay").classList.add("active");
-  // Pre-fill means we should immediately trigger lookup if MVA is already 8 digits
   if(m&&m.length===CONFIG.MVA_LENGTH){
     setTimeout(function(){doRoverLookup(m);},200);
   } else {
-    // No pre-filled MVA — show stall + assign button directly for reassign
     document.getElementById("stallGroup").style.display="block";
     revealAssignButton();
   }
@@ -883,21 +889,7 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
   console.log("[INIT] SDK ready. loginUser:", loggedInUser);
 
   // Load Cloudflare Rover API key from app variable
-  // Zoho Creator widget SDK has no getVariable API.
-  // Key is set directly here — same exposure level as the Cloudflare Worker source.
-  // To change: update ROVER_API_KEY in CONFIG above.
-  roverApiKey = CONFIG.ROVER_API_KEY;
-  if(roverApiKey){
-    console.log("[KEY] API key loaded from CONFIG. Length:", roverApiKey.length);
-  } else {
-    // Fallback: check if passed as a widget param (ZOHO.CREATOR.UTIL.getWidgetParams)
-    console.warn("[KEY] CONFIG.ROVER_API_KEY is empty — trying widget params...");
-    ZOHO.CREATOR.UTIL.getWidgetParams().then(function(wp){
-      console.log("[KEY] getWidgetParams response:", wp);
-      if(wp && wp.rover_api_key){ roverApiKey = wp.rover_api_key; console.log("[KEY] Got key from widget params."); }
-      else { console.error("[KEY] Key not found in widget params either. WAND lookup will be skipped."); }
-    }).catch(function(e){ console.error("[KEY] getWidgetParams failed:", e); });
-  }
+  roverApiKey = ""; // unused — worker validates by Origin header
 
   fetchDispatches();
   setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
