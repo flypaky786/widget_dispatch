@@ -61,7 +61,7 @@
 
     /* top row */
     .card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;padding-right:36px}
-    .card-vehicle-name{font-size:21px;font-weight:800;color:var(--text);letter-spacing:-.3px;line-height:1.2}
+    .card-vehicle-name{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-.3px;line-height:1.2}
     .card-vehicle-sub{font-size:13px;color:var(--text-muted);font-weight:500;margin-top:3px}
     .card-vehicle-tag{font-size:13px;color:var(--red);font-weight:700;margin-top:3px}
     .card-vehicle-oneway{font-size:13px;color:var(--text-muted);font-weight:500;margin-top:3px}
@@ -142,7 +142,7 @@
 var CONFIG={
   APP_NAME:"lax-abg",REPORT_NAME:"All_Vehicle_Requests",
   POLL_INTERVAL:4000,MAX_RECORDS:200,
-  UNASSIGNED_HIDE_MS:120*60*1000,ASSIGNED_HIDE_MS:20*60*1000,
+  UNASSIGNED_HIDE_MS:120*60*1000,ASSIGNED_HIDE_MS:10*60*1000,
   AGE_WARN_MIN:10,AGE_URGENT_MIN:20,
   UPSELL_LABEL:"Upsell (99)",WALKUP_LABEL:"Walk Up (49)",ONEWAY_LABEL:"One-Way Rental",
   DING_FREQ_1:880,DING_FREQ_2:1175
@@ -255,7 +255,7 @@ function fetchDispatches(){
         var s=(rec.Dispatch_Status||"").toLowerCase();
         if(s.indexOf("complet")>=0||s.indexOf("cancel")>=0)return false;
         if(!isAssignedStatus(rec.Dispatch_Status)){var ad=parseZohoDate(rec.Added_Time);if(ad&&(now-ad.getTime())>CONFIG.UNASSIGNED_HIDE_MS)return false;}
-        else{var md=parseZohoDate(rec.Modified_Time);if(md&&(now-md.getTime())>CONFIG.ASSIGNED_HIDE_MS)return false;}
+        else{var at=parseZohoDate(rec.Assignment_Time);if(at&&(now-at.getTime())>CONFIG.ASSIGNED_HIDE_MS)return false;}
         return true;
       });
       currentRecords=filtered;
