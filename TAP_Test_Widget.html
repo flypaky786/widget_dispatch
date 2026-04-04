@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://js.zohostatic.com/zohocreatorsdk/2.0/js/widgetsdk-min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -186,7 +187,6 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
   </div>
 </div>
 
-<script src="https://js.zohostatic.com/zohocreatorsdk/2.0/js/widgetsdk-min.js"></script>
 <script>
 var APP   = "autoflowx";
 var REPORT = "LYFT_View_My_Cases1";
@@ -200,9 +200,11 @@ var sortDir      = "desc";
 var activeRow    = null;
 
 // ── SDK INIT ──────────────────────────────────────────────────────────────────
-ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
-  loadData();
-});
+window.onload = function() {
+  ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
+    loadData();
+  });
+};
 
 // ── LOAD ──────────────────────────────────────────────────────────────────────
 function loadData() {
