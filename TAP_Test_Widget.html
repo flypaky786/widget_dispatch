@@ -232,7 +232,8 @@ function applyAll() {
   filtered = [];
   for (var i = 0; i < allRecs.length; i++) {
     var r = allRecs[i];
-    var s = gv(r, "Case_Status") || "";
+    // Case_Status may be a lookup object — check both forms
+    var s = gv(r, "Case_Status.Case_Status") || gv(r, "Case_Status") || "";
     if (activeFilter !== "all") {
       if (s !== activeFilter) continue;
     }
@@ -243,6 +244,9 @@ function applyAll() {
     }
     filtered.push(r);
   }
+  // DEBUG — remove after confirming field structure
+  if (allRecs.length > 0) { console.log("FIRST RECORD:", JSON.stringify(allRecs[0])); }
+
   filtered.sort(function(a, b) {
     var va = gv(a, sortField), vb = gv(b, sortField);
     if (sortField === "Added_Time") { va = new Date(va); vb = new Date(vb); }
@@ -264,7 +268,7 @@ function render() {
   for (var i = 0; i < filtered.length; i++) {
     var r = filtered[i];
     var tr = document.createElement("tr");
-    var status  = gv(r,"Case_Status") || "—";
+    var status  = gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—";
     var flatbed = gv(r,"Flat_Bed_Required") || "";
     var est     = gv(r,"Case_Status.Estimated_Delivery_Date") || "";
     var amt     = gv(r,"External_Operator_Form_ID.Amount_Paid") || "";
@@ -301,7 +305,7 @@ function openDrawer(r, rowEl) {
   document.getElementById("tw").classList.add("open");
   document.getElementById("dw").classList.add("open");
   document.getElementById("dwCaseNum").textContent = gv(r,"Case_Number") || "Case Detail";
-  document.getElementById("dwBadge").innerHTML = badge(gv(r,"Case_Status") || "—");
+  document.getElementById("dwBadge").innerHTML = badge(gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—");
 
   var iName = gv(r,"Impound_Yard_Name"), iAddr = gv(r,"Impound_Yard_Address");
   var amt   = gv(r,"External_Operator_Form_ID.Amount_Paid");
