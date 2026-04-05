@@ -183,13 +183,15 @@ ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
 
 /* ── FETCH ── */
 function fetchData() {
+  console.log("[FETCH] calling getRecords app_name:", APP, "report_name:", REPORT);
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP,
     report_name: REPORT,
     page:        1,
-    max_records: 200
+    max_records: 200,
+    from:        1
   }).then(function(resp) {
-    console.log("[FETCH] code:", resp.code, "records:", resp.data ? resp.data.length : 0);
+    console.log("[FETCH] code:", resp.code, "records:", resp.data ? resp.data.length : 0, "full resp:", JSON.stringify(resp).substring(0,300));
     if (resp.code === 3000 && resp.data) {
       allRecs = resp.data;
     } else {
@@ -197,7 +199,7 @@ function fetchData() {
     }
     applyAll();
   }).catch(function(e) {
-    console.error("[FETCH] error:", e);
+    console.error("[FETCH] error full:", JSON.stringify(e));
     setState("error");
   });
 }
