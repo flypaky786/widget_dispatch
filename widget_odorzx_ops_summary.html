@@ -447,14 +447,16 @@ function startWidget() {
   load();
 }
 
-/* Confirmed working pattern — same as dispatch + staffing widgets */
-ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
-  if (params && params.appLinkName) APP_NAME = params.appLinkName;
-  startWidget();
-}).catch(function(err) {
-  console.error("[widget] getInitParams failed:", err);
-  startWidget();
-});
+/* window.onload required — SDK must finish injecting before getInitParams is called */
+window.onload = function() {
+  ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+    if (params && params.appLinkName) APP_NAME = params.appLinkName;
+    startWidget();
+  }).catch(function(err) {
+    console.error("[widget] getInitParams failed:", err);
+    startWidget();
+  });
+};
 </script>
 </body>
 </html>
