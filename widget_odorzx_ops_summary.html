@@ -422,14 +422,14 @@ function render() {
 function load() {
   showLoading();
   var dateStr  = document.getElementById("filterDate").value || todayStr();
-  var z        = toZohoDate(dateStr);
-  var criteria = 'Completion_Timestamp >= "' + z + ' 00:00:00"'
-               + ' && Completion_Timestamp <= "' + z + ' 23:59:59"';
 
   document.getElementById("reportTitle").textContent =
     "Completed Jobs \u2014 " + dateStr;
 
-  fetchPage(criteria, 1, [], function(records) {
+  /* TEST: no criteria — confirm report is accessible, then we add date filter back */
+  fetchPage("", 1, [], function(records) {
+    console.log("[widget] success — total records:", records.length);
+    console.log("[widget] first record keys:", records.length > 0 ? Object.keys(records[0]).join(", ") : "none");
     allRecords = records;
     render();
   }, showError);
