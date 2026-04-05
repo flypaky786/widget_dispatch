@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://js.zohostatic.com/zohocreatorsdk/2.0/js/widgetsdk-min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -200,11 +199,17 @@ var sortDir      = "desc";
 var activeRow    = null;
 
 // ── SDK INIT ──────────────────────────────────────────────────────────────────
-window.onload = function() {
-  ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
-    loadData();
-  });
-};
+// Poll until ZOHO is injected by the host frame, then init
+function waitForZOHO() {
+  if (typeof ZOHO !== "undefined" && ZOHO.CREATOR && ZOHO.CREATOR.UTIL) {
+    ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
+      loadData();
+    });
+  } else {
+    setTimeout(waitForZOHO, 100);
+  }
+}
+waitForZOHO();
 
 // ── LOAD ──────────────────────────────────────────────────────────────────────
 function loadData() {
