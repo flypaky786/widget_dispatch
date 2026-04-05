@@ -1,41 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
 :root {
-  --bg:      #0d1117;
-  --s1:      #161b22;
-  --s2:      #1c2330;
-  --border:  #30363d;
-  --text:    #e6edf3;
-  --muted:   #7d8590;
-  --accent:  #f6c90e;
-  --pink:    #ff00bf;
-  --green:   #1bbc9b;
-  --orange:  #e6952a;
-  --red:     #e84c3d;
-  --gray:    #818c8e;
-  --mono:    'IBM Plex Mono', monospace;
-  --sans:    'IBM Plex Sans', sans-serif;
-  --r:       6px;
-  --pw:      540px;
+  --bg:#0d1117; --s1:#161b22; --s2:#1c2330; --border:#30363d;
+  --text:#e6edf3; --muted:#7d8590; --accent:#f6c90e; --pink:#ff00bf;
+  --green:#1bbc9b; --orange:#e6952a; --red:#e84c3d; --gray:#818c8e;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif; --r:6px; --pw:540px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 
-/* HEADER */
 .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0}
 .hdr-l{display:flex;align-items:center;gap:10px}
 .ltag{background:var(--pink);color:#fff;font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:2px;padding:3px 9px;border-radius:3px}
-.hdr h1{font-size:14px;font-weight:500;letter-spacing:.2px}
+.hdr h1{font-size:14px;font-weight:500}
 .hdr-r{display:flex;align-items:center;gap:8px}
-.sw{position:relative;display:flex;align-items:center}
-.sw svg{position:absolute;left:9px;color:var(--muted);pointer-events:none;flex-shrink:0}
+.sw{position:relative}
+.sw svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
 .si{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;padding:6px 10px 6px 29px;width:210px;outline:none;transition:border-color .15s}
 .si:focus{border-color:var(--accent)}
 .si::placeholder{color:var(--muted)}
@@ -44,7 +30,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex
 .rbtn{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--muted);cursor:pointer;padding:6px 9px;display:flex;align-items:center;transition:color .15s,border-color .15s}
 .rbtn:hover{color:var(--accent);border-color:var(--accent)}
 
-/* FILTER BAR */
 .fbar{display:flex;align-items:center;gap:5px;padding:8px 20px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
 .fbar::-webkit-scrollbar{height:0}
 .flbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-right:4px;white-space:nowrap}
@@ -52,17 +37,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex
 .fb:hover{border-color:var(--text);color:var(--text)}
 .fb.on{border-color:var(--accent);color:var(--accent);background:rgba(246,201,14,.08)}
 
-/* MAIN */
 .main{display:flex;flex:1;overflow:hidden}
 .tw{flex:1;overflow-y:auto;transition:margin-right .25s}
 .tw.open{margin-right:var(--pw)}
 
-/* TABLE */
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{background:var(--s1);color:var(--muted);font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none}
 thead th:hover{color:var(--text)}
-thead th .si2{margin-left:3px;opacity:.4}
-thead th.sorted .si2{opacity:1;color:var(--accent)}
+.sic{margin-left:3px;opacity:.4}
+thead th.sorted .sic{opacity:1;color:var(--accent)}
 tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
 tbody tr:hover{background:var(--s2)}
 tbody tr.act{background:rgba(246,201,14,.06)}
@@ -73,7 +56,6 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
 .mu{color:var(--muted)}
 .amt{font-family:var(--mono);font-size:11px;color:var(--green)}
 
-/* BADGES */
 .badge{display:inline-block;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:500;padding:2px 7px;white-space:nowrap}
 .bd{background:var(--green);color:#000}
 .bp{background:var(--gray);color:#fff}
@@ -82,20 +64,17 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
 .bc{background:var(--red);color:#fff}
 .bx{background:var(--s2);color:var(--muted);border:1px solid var(--border)}
 
-/* CHIPS */
 .chip{display:inline-block;border-radius:4px;font-family:var(--mono);font-size:10px;padding:2px 6px;border:1px solid var(--border);color:var(--muted)}
 .chip.yes{border-color:rgba(232,76,61,.35);background:rgba(232,76,61,.1);color:var(--red)}
 
-/* EMPTY / LOADING */
 .state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--muted);gap:10px}
 .state p{font-size:13px}
 .spin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* DRAWER */
 .dw{position:fixed;top:0;right:0;width:var(--pw);height:100%;background:var(--s1);border-left:1px solid var(--border);z-index:50;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
 .dw.open{transform:translateX(0)}
-.dw-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--s1)}
+.dw-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .dw-hl{display:flex;align-items:center;gap:8px}
 .dw-cn{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600}
 .dw-x{background:transparent;border:1px solid var(--border);border-radius:var(--r);color:var(--muted);cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
@@ -116,11 +95,10 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
-</style>
+  </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="hdr">
   <div class="hdr-l">
     <span class="ltag">LYFT</span>
@@ -129,16 +107,15 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
   <div class="hdr-r">
     <div class="sw">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input class="si" id="searchInput" type="text" placeholder="VIN, case #, renter…" oninput="onSearch(this.value)">
+      <input class="si" id="searchBox" type="text" placeholder="VIN, case #, renter…">
     </div>
-    <div class="cnt" id="countEl">Loading…</div>
-    <button class="rbtn" onclick="loadData()" title="Refresh">
+    <div class="cnt" id="cntEl">Loading…</div>
+    <button class="rbtn" onclick="fetchData()" title="Refresh">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     </button>
   </div>
 </div>
 
-<!-- FILTER BAR -->
 <div class="fbar">
   <span class="flbl">Status</span>
   <button class="fb on"  onclick="setFilter('all',this)">All</button>
@@ -150,18 +127,17 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
   <button class="fb" onclick="setFilter('Gone on Arrival (GOA)',this)">GOA</button>
 </div>
 
-<!-- MAIN -->
 <div class="main">
   <div class="tw" id="tw">
     <table id="tbl" style="display:none">
       <thead><tr>
-        <th onclick="sortBy('Case_Number')">Case # <span class="si2">↕</span></th>
-        <th onclick="sortBy('Added_Time')" class="sorted">Added <span class="si2">↓</span></th>
-        <th onclick="sortBy('Case_Status')">Status <span class="si2">↕</span></th>
-        <th onclick="sortBy('Tow_or_Impound_Request')">Type <span class="si2">↕</span></th>
-        <th onclick="sortBy('VIN')">VIN / License <span class="si2">↕</span></th>
+        <th onclick="sortBy('Case_Number')">Case # <span class="sic">↕</span></th>
+        <th onclick="sortBy('Added_Time')" class="sorted">Added <span class="sic">↓</span></th>
+        <th onclick="sortBy('Case_Status')">Status <span class="sic">↕</span></th>
+        <th onclick="sortBy('Tow_or_Impound_Request')">Type <span class="sic">↕</span></th>
+        <th onclick="sortBy('VIN')">VIN / License <span class="sic">↕</span></th>
         <th>Year / Make / Model</th>
-        <th onclick="sortBy('Renter_Name')">Renter <span class="si2">↕</span></th>
+        <th onclick="sortBy('Renter_Name')">Renter <span class="sic">↕</span></th>
         <th>Flatbed</th>
         <th>Est. Delivery</th>
         <th>Amt Paid</th>
@@ -173,201 +149,174 @@ td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white
       <p>Loading cases…</p>
     </div>
   </div>
-
-  <!-- DRAWER -->
   <div class="dw" id="dw">
     <div class="dw-hd">
       <div class="dw-hl">
-        <span class="dw-cn" id="dwCaseNum">—</span>
+        <span class="dw-cn" id="dwCN">—</span>
         <span id="dwBadge"></span>
       </div>
-      <button class="dw-x" onclick="closeDrawer()">✕</button>
+      <button class="dw-x" onclick="closeDw()">✕</button>
     </div>
     <div class="dw-body" id="dwBody"></div>
   </div>
 </div>
 
 <script>
-var APP   = "autoflowx";
+var APP    = "lax-abg";
 var REPORT = "LYFT_View_My_Cases1";
 
-var allRecs  = [];
-var filtered = [];
+var allRecs      = [];
+var filtered     = [];
 var activeFilter = "all";
 var searchVal    = "";
 var sortField    = "Added_Time";
 var sortDir      = "desc";
 var activeRow    = null;
 
-// ── SDK INIT ──────────────────────────────────────────────────────────────────
-ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
-  loadData();
+/* ── INIT — exact pattern from dispatcher ── */
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+  fetchData();
+}).catch(function(e) {
+  console.error("[INIT] failed:", e);
+  fetchData();
 });
 
-// ── LOAD ──────────────────────────────────────────────────────────────────────
-function loadData() {
-  setState("loading");
+/* ── FETCH ── */
+function fetchData() {
   ZOHO.CREATOR.DATA.getRecords({
-    appName:    APP,
-    reportName: REPORT,
-    page:       1,
-    pageSize:   200
-  }, function(resp) {
-    if (resp && resp.data) {
+    app_name:    APP,
+    report_name: REPORT,
+    page:        1,
+    max_records: 200
+  }).then(function(resp) {
+    console.log("[FETCH] code:", resp.code, "records:", resp.data ? resp.data.length : 0);
+    if (resp.code === 3000 && resp.data) {
       allRecs = resp.data;
-    } else if (resp && Array.isArray(resp)) {
-      allRecs = resp;
     } else {
       allRecs = [];
     }
     applyAll();
+  }).catch(function(e) {
+    console.error("[FETCH] error:", e);
+    setState("error");
   });
 }
 
-// ── FILTER + SORT + RENDER ────────────────────────────────────────────────────
+/* ── FILTER + SORT ── */
 function applyAll() {
   var q = searchVal.toLowerCase();
   filtered = [];
   for (var i = 0; i < allRecs.length; i++) {
     var r = allRecs[i];
-    // Case_Status may be a lookup object — check both forms
-    var s = gv(r, "Case_Status.Case_Status") || gv(r, "Case_Status") || "";
-    if (activeFilter !== "all") {
-      if (s !== activeFilter) continue;
-    }
+    var s = gv(r,"Case_Status") || "";
+    if (activeFilter !== "all" && s !== activeFilter) continue;
     if (q) {
-      var h = (gv(r,"Case_Number") + gv(r,"VIN") + gv(r,"Renter_Name") +
-               gv(r,"Vehicle_Make") + gv(r,"Vehicle_Model") + gv(r,"Pure_VIN")).toLowerCase();
+      var h = (gv(r,"Case_Number")+gv(r,"VIN")+gv(r,"Renter_Name")+
+               gv(r,"Vehicle_Make")+gv(r,"Vehicle_Model")+gv(r,"Pure_VIN")).toLowerCase();
       if (h.indexOf(q) === -1) continue;
     }
     filtered.push(r);
   }
-  // DEBUG — remove after confirming field structure
-  if (allRecs.length > 0) { console.log("FIRST RECORD:", JSON.stringify(allRecs[0])); }
-
-  filtered.sort(function(a, b) {
-    var va = gv(a, sortField), vb = gv(b, sortField);
+  filtered.sort(function(a,b) {
+    var va = gv(a,sortField), vb = gv(b,sortField);
     if (sortField === "Added_Time") { va = new Date(va); vb = new Date(vb); }
     return (va < vb ? -1 : va > vb ? 1 : 0) * (sortDir === "asc" ? 1 : -1);
   });
   render();
 }
 
+/* ── RENDER ── */
 function render() {
   var tbody = document.getElementById("tbody");
   tbody.innerHTML = "";
-
-  if (filtered.length === 0) {
-    setState("empty");
-    return;
-  }
+  if (!filtered.length) { setState("empty"); return; }
   setState("data");
-
   for (var i = 0; i < filtered.length; i++) {
     var r = filtered[i];
     var tr = document.createElement("tr");
-    var status  = gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—";
+    var status  = gv(r,"Case_Status") || "—";
     var flatbed = gv(r,"Flat_Bed_Required") || "";
     var est     = gv(r,"Case_Status.Estimated_Delivery_Date") || "";
     var amt     = gv(r,"External_Operator_Form_ID.Amount_Paid") || "";
     var ymm     = [gv(r,"Vehicle_Year"),gv(r,"Vehicle_Make"),gv(r,"Vehicle_Model")].filter(Boolean).join(" ") || "—";
     var yes     = flatbed.toLowerCase() === "yes";
-
     tr.innerHTML =
-      "<td class='cn'>"  + esc(gv(r,"Case_Number")||"—") + "</td>" +
-      "<td class='dt'>"  + fmtDate(gv(r,"Added_Time"))   + "</td>" +
-      "<td>"             + badge(status)                  + "</td>" +
-      "<td>"             + esc(gv(r,"Tow_or_Impound_Request")||"—") + "</td>" +
-      "<td class='mo'>"  + esc(gv(r,"VIN")||"—")         + "</td>" +
-      "<td>"             + esc(ymm)                       + "</td>" +
-      "<td>"             + esc(gv(r,"Renter_Name")||"—") + "</td>" +
-      "<td><span class='chip" + (yes?" yes":"") + "'>" + (yes?"YES":"No") + "</span></td>" +
-      "<td class='dt'>"  + (est ? fmtDate(est) : "—")    + "</td>" +
-      "<td>" + (amt ? "<span class='amt'>$"+esc(amt)+"</span>" : "<span class='mu'>—</span>") + "</td>";
-
-    (function(rec, row) {
-      row.onclick = function() { openDrawer(rec, row); };
-    })(r, tr);
+      "<td class='cn'>"  + esc(gv(r,"Case_Number")||"—")             + "</td>" +
+      "<td class='dt'>"  + fmtDate(gv(r,"Added_Time"))               + "</td>" +
+      "<td>"             + mkBadge(status)                            + "</td>" +
+      "<td>"             + esc(gv(r,"Tow_or_Impound_Request")||"—")  + "</td>" +
+      "<td class='mo'>"  + esc(gv(r,"VIN")||"—")                     + "</td>" +
+      "<td>"             + esc(ymm)                                   + "</td>" +
+      "<td>"             + esc(gv(r,"Renter_Name")||"—")             + "</td>" +
+      "<td><span class='chip"+(yes?" yes":"")+"'>"+(yes?"YES":"No")+"</span></td>" +
+      "<td class='dt'>"  + (est ? fmtDate(est) : "—")                + "</td>" +
+      "<td>"             + (amt?"<span class='amt'>$"+esc(amt)+"</span>":"<span class='mu'>—</span>") + "</td>";
+    (function(rec,row){ row.onclick = function(){ openDw(rec,row); }; })(r,tr);
     tbody.appendChild(tr);
   }
-
-  var el = document.getElementById("countEl");
-  el.innerHTML = "Showing <b>" + filtered.length + "</b> of <b>" + allRecs.length + "</b>";
+  document.getElementById("cntEl").innerHTML = "Showing <b>"+filtered.length+"</b> of <b>"+allRecs.length+"</b>";
 }
 
-// ── DRAWER ────────────────────────────────────────────────────────────────────
-function openDrawer(r, rowEl) {
+/* ── DRAWER ── */
+function openDw(r, rowEl) {
   if (activeRow) activeRow.classList.remove("act");
   activeRow = rowEl;
   rowEl.classList.add("act");
   document.getElementById("tw").classList.add("open");
   document.getElementById("dw").classList.add("open");
-  document.getElementById("dwCaseNum").textContent = gv(r,"Case_Number") || "Case Detail";
-  document.getElementById("dwBadge").innerHTML = badge(gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—");
+  document.getElementById("dwCN").textContent  = gv(r,"Case_Number") || "Case Detail";
+  document.getElementById("dwBadge").innerHTML = mkBadge(gv(r,"Case_Status")||"—");
 
-  var iName = gv(r,"Impound_Yard_Name"), iAddr = gv(r,"Impound_Yard_Address");
+  var iName = gv(r,"Impound_Yard_Name");
+  var iAddr = gv(r,"Impound_Yard_Address");
   var amt   = gv(r,"External_Operator_Form_ID.Amount_Paid");
   var notes = gv(r,"Additional_Notes_Rich") || gv(r,"Additional_Notes") || "—";
+  var flat  = gv(r,"Flat_Bed_Required"); var yes = flat.toLowerCase()==="yes";
 
-  var h = "";
-
-  // Overview
-  h += sec("Case Overview",
-    fld("Request Type", esc(gv(r,"Tow_or_Impound_Request")||"—")) +
-    fld("Added Time",   "<span class='mo'>" + fmtDate(gv(r,"Added_Time")) + "</span>") +
-    fld("Est. Delivery","<span class='mo'>" + fmtDate(gv(r,"Case_Status.Estimated_Delivery_Date")) + "</span>") +
-    fld("Requestor Email", "<span class='mo'>" + esc(gv(r,"Requestor_Email")||"—") + "</span>", true)
+  var h = mkSec("Case Overview",
+    mkFld("Request Type",  esc(gv(r,"Tow_or_Impound_Request")||"—")) +
+    mkFld("Added Time",    "<span class='mo'>"+fmtDate(gv(r,"Added_Time"))+"</span>") +
+    mkFld("Est. Delivery", "<span class='mo'>"+fmtDate(gv(r,"Case_Status.Estimated_Delivery_Date"))+"</span>") +
+    mkFld("Requestor Email","<span class='mo'>"+esc(gv(r,"Requestor_Email")||"—")+"</span>",true)
   );
-
-  // Vehicle
-  h += sec("Vehicle",
-    fld("VIN / License",  "<span class='mo'>" + esc(gv(r,"VIN")||"—") + "</span>") +
-    fld("Pure VIN",       "<span class='mo'>" + esc(gv(r,"Pure_VIN")||"—") + "</span>") +
-    fld("Year",  esc(gv(r,"Vehicle_Year")||"—")) +
-    fld("Make",  esc(gv(r,"Vehicle_Make")||"—")) +
-    fld("Model", esc(gv(r,"Vehicle_Model")||"—")) +
-    fld("Renter",esc(gv(r,"Renter_Name")||"—")) +
-    fld("Flatbed Required", (function(){var yes=gv(r,"Flat_Bed_Required").toLowerCase()==="yes";return "<span class='chip"+(yes?" yes":"")+"'>"+(yes?"YES":"No")+"</span>";})())
+  h += mkSec("Vehicle",
+    mkFld("VIN / License",  "<span class='mo'>"+esc(gv(r,"VIN")||"—")+"</span>") +
+    mkFld("Pure VIN",       "<span class='mo'>"+esc(gv(r,"Pure_VIN")||"—")+"</span>") +
+    mkFld("Year",  esc(gv(r,"Vehicle_Year")||"—")) +
+    mkFld("Make",  esc(gv(r,"Vehicle_Make")||"—")) +
+    mkFld("Model", esc(gv(r,"Vehicle_Model")||"—")) +
+    mkFld("Renter",esc(gv(r,"Renter_Name")||"—")) +
+    mkFld("Flatbed Required","<span class='chip"+(yes?" yes":"")+"'>"+(yes?"YES":"No")+"</span>")
   );
-
-  // Delivery
   h += "<div class='dw-sec'><div class='dw-st'>Delivery Info</div><div class='dcard del'><div class='dw-g'>" +
-    fld("Delivery Time", "<span class='mo'>" + fmtDate(gv(r,"Vehicle_Delivery_Form_ID.Final_Delivery_Datetime")) + "</span>") +
-    fld("Location", esc(gv(r,"Vehicle_Delivery_Form_ID.Added_Location")||"—")) +
-    fld("Notes / Exceptions", esc(gv(r,"Vehicle_Delivery_Form_ID.Delivery_Notes")||"—"), true) +
+    mkFld("Delivery Time","<span class='mo'>"+fmtDate(gv(r,"Vehicle_Delivery_Form_ID.Final_Delivery_Datetime"))+"</span>") +
+    mkFld("Location", esc(gv(r,"Vehicle_Delivery_Form_ID.Added_Location")||"—")) +
+    mkFld("Notes",    esc(gv(r,"Vehicle_Delivery_Form_ID.Delivery_Notes")||"—"),true) +
     "</div></div></div>";
-
-  // Impound (conditional)
   if (iName || iAddr) {
     h += "<div class='dw-sec'><div class='dw-st'>Impound Info</div><div class='dcard imp'><div class='dw-g'>" +
-      fld("Yard Name", esc(iName||"—")) +
-      fld("Type",      esc(gv(r,"Impound_Type")||"—")) +
-      fld("Reason",    esc(gv(r,"Type_of_Tow")||"—")) +
-      fld("Date",      "<span class='mo'>" + fmtDate(gv(r,"Date_of_Impound")) + "</span>") +
-      fld("Yard Address",    esc(iAddr||"—"), true) +
-      fld("Return / Drop-off", esc(gv(r,"Vehicle_Return_Drop_Off_Address")||"—"), true) +
+      mkFld("Yard Name", esc(iName||"—")) +
+      mkFld("Type",      esc(gv(r,"Impound_Type")||"—")) +
+      mkFld("Reason",    esc(gv(r,"Type_of_Tow")||"—")) +
+      mkFld("Date",      "<span class='mo'>"+fmtDate(gv(r,"Date_of_Impound"))+"</span>") +
+      mkFld("Yard Address",    esc(iAddr||"—"),true) +
+      mkFld("Return / Drop-off",esc(gv(r,"Vehicle_Return_Drop_Off_Address")||"—"),true) +
       "</div></div></div>";
   }
-
-  // Financial
-  h += sec("Financial",
-    fld("Amount Paid", amt ? "<span class='amt'>$"+esc(amt)+"</span>" : "<span class='mu'>—</span>")
-  );
-
-  // Notes
-  h += "<div class='dw-sec'><div class='dw-st'>Notes / Comments</div><div class='nbox'>" + esc(notes) + "</div></div>";
+  h += mkSec("Financial", mkFld("Amount Paid", amt?"<span class='amt'>$"+esc(amt)+"</span>":"—"));
+  h += "<div class='dw-sec'><div class='dw-st'>Notes / Comments</div><div class='nbox'>"+esc(notes)+"</div></div>";
 
   document.getElementById("dwBody").innerHTML = h;
   document.getElementById("dwBody").scrollTop = 0;
 }
 
-function closeDrawer() {
+function closeDw() {
   document.getElementById("tw").classList.remove("open");
   document.getElementById("dw").classList.remove("open");
   if (activeRow) { activeRow.classList.remove("act"); activeRow = null; }
 }
 
-// ── CONTROLS ──────────────────────────────────────────────────────────────────
+/* ── CONTROLS ── */
 function setFilter(f, btn) {
   activeFilter = f;
   var bs = document.querySelectorAll(".fb");
@@ -376,10 +325,10 @@ function setFilter(f, btn) {
   applyAll();
 }
 
-function onSearch(val) {
-  searchVal = val.trim();
+document.getElementById("searchBox").addEventListener("input", function() {
+  searchVal = this.value.trim();
   applyAll();
-}
+});
 
 function sortBy(field) {
   sortDir = (sortField === field && sortDir === "desc") ? "asc" : "desc";
@@ -388,7 +337,7 @@ function sortBy(field) {
   var map = ["Case_Number","Added_Time","Case_Status","Tow_or_Impound_Request","VIN",null,"Renter_Name",null,null,null];
   for (var i = 0; i < ths.length; i++) {
     ths[i].classList.remove("sorted");
-    var ic = ths[i].querySelector(".si2");
+    var ic = ths[i].querySelector(".sic");
     if (ic) ic.textContent = "↕";
     if (map[i] === field) {
       ths[i].classList.add("sorted");
@@ -398,28 +347,27 @@ function sortBy(field) {
   applyAll();
 }
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
+/* ── STATE ── */
 function setState(s) {
-  var tbl  = document.getElementById("tbl");
-  var el   = document.getElementById("stateEl");
-  var cEl  = document.getElementById("countEl");
+  var tbl = document.getElementById("tbl");
+  var el  = document.getElementById("stateEl");
   if (s === "loading") {
-    tbl.style.display = "none";
-    el.style.display  = "flex";
-    el.innerHTML      = "<div class='spin'></div><p>Loading cases…</p>";
-    cEl.innerHTML     = "Loading…";
+    tbl.style.display = "none"; el.style.display = "flex";
+    el.innerHTML = "<div class='spin'></div><p>Loading cases…</p>";
+    document.getElementById("cntEl").innerHTML = "Loading…";
   } else if (s === "empty") {
-    tbl.style.display = "none";
-    el.style.display  = "flex";
-    el.innerHTML      = "<p>No cases found</p>";
-    cEl.innerHTML     = "<b>0</b> cases";
+    tbl.style.display = "none"; el.style.display = "flex";
+    el.innerHTML = "<p>No cases found</p>";
+    document.getElementById("cntEl").innerHTML = "<b>0</b> cases";
+  } else if (s === "error") {
+    tbl.style.display = "none"; el.style.display = "flex";
+    el.innerHTML = "<p style='color:var(--red)'>Failed to load — check console</p>";
   } else {
-    tbl.style.display = "table";
-    el.style.display  = "none";
+    tbl.style.display = "table"; el.style.display = "none";
   }
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
+/* ── HELPERS ── */
 function gv(r, key) {
   if (!r || !key) return "";
   var v = r[key];
@@ -443,21 +391,21 @@ function fmtDate(d) {
            dt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true});
   } catch(e) { return d; }
 }
-function badge(s) {
+function mkBadge(s) {
   if (!s) return "<span class='badge bx'>—</span>";
   var c = "bx", sl = s.toLowerCase();
-  if (sl.indexOf("delivered") !== -1)     c = "bd";
-  else if (s === "In Progress")           c = "bp";
-  else if (s === "Not Started")           c = "bn";
-  else if (s === "Assigned")              c = "ba";
-  else if (sl.indexOf("cancel") !== -1 || sl.indexOf("goa") !== -1) c = "bc";
-  return "<span class='badge " + c + "'>" + esc(s) + "</span>";
+  if (sl.indexOf("delivered") !== -1)                          c = "bd";
+  else if (s === "In Progress")                                c = "bp";
+  else if (s === "Not Started")                                c = "bn";
+  else if (s === "Assigned")                                   c = "ba";
+  else if (sl.indexOf("cancel") !== -1||sl.indexOf("goa")!==-1) c = "bc";
+  return "<span class='badge "+c+"'>"+esc(s)+"</span>";
 }
-function fld(label, val, full) {
-  return "<div class='df" + (full?" full":"") + "'><label>" + label + "</label><div class='v'>" + val + "</div></div>";
+function mkFld(label, val, full) {
+  return "<div class='df"+(full?" full":"")+"'><label>"+label+"</label><div class='v'>"+val+"</div></div>";
 }
-function sec(title, content) {
-  return "<div class='dw-sec'><div class='dw-st'>" + title + "</div><div class='dw-g'>" + content + "</div></div>";
+function mkSec(title, content) {
+  return "<div class='dw-sec'><div class='dw-st'>"+title+"</div><div class='dw-g'>"+content+"</div></div>";
 }
 </script>
 </body>
