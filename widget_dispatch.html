@@ -1,464 +1,1107 @@
 <!DOCTYPE html>
-<html lang="en">
+<!--
+  DISPATCHER QUEUE WIDGET — v3
+  ============================
+  App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
+
+  CHANGES LOG (latest first):
+  v3:
+  - Rover/WAND API lookup integrated into Assign popup
+  - On 8-digit MVA entry (typed or scanned): auto-fetches vehicle data from
+    https://rover-proxy.autoflowx.workers.dev using thisapp.variables.key_cloudflare_wand
+  - Displays Year/Make/Model/Color + Status (bold) + StatusFull (italic, red/bold if hold/unavailable)
+  - "Next →" gate: dispatcher must view results before stall entry + assign button appear
+  - On API error/timeout (5s): warning shown, assign allowed to proceed
+  - After successful assign: creates/updates Avis_lookup_Requests record (keyed on MVA),
+    then writes resulting record ID to Avis_lookup_ID on the vehicle request
+  v2:
+  - Parameterized CONFIG block for all tunable values
+  - Upsell/Walk-up/One-Way labels configurable via CONFIG
+  - If loginUser email contains "pump", Stall auto-fills with CONFIG.PUMP_STALL_DEFAULT
+  - Font size 15px in table (th + td + badges)
+  - Sub_Acceptable column removed
+  - Vehicle cell: Vehicle Type + Specific + Upsell/Walk-up/One-Way stacked
+  - MVA + Stall merged into "Assignment" column
+  - Claimed_By_Email for Mark IP / Unclaim
+  - Priority sort: Upsell/Walk-up New records at top
+  - Barcode scanner: camera stays alive between scans
+  - Audio ding on new request (status = New)
+
+  TIMEOUT PERIODS (configurable in CONFIG):
+  - Assigned: hidden after ASSIGNED_HIDE_MS (default 5 min)
+  - Cancelled: hidden after ASSIGNED_HIDE_MS (default 5 min)
+  - Unassigned New: auto-deleted after UNASSIGNED_DELETE_MS (default 4 hrs)
+  - In Progress: never auto-hidden
+
+  SORT ORDER: Priority New → Normal New → In Progress → Assigned → Cancelled
+  VALIDATION: MVA must be exactly CONFIG.MVA_LENGTH digits. Stall required. Duplicate MVA check.
+-->
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:      #0d1117;
-  --s1:      #161b22;
-  --s2:      #1c2330;
-  --border:  #30363d;
-  --text:    #e6edf3;
-  --muted:   #7d8590;
-  --accent:  #f6c90e;
-  --pink:    #ff00bf;
-  --green:   #1bbc9b;
-  --orange:  #e6952a;
-  --red:     #e84c3d;
-  --gray:    #818c8e;
-  --mono:    'IBM Plex Mono', monospace;
-  --sans:    'IBM Plex Sans', sans-serif;
-  --r:       6px;
-  --pw:      540px;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    :root{--bg:#f0f2f5;--card:#fff;--header-bg:linear-gradient(135deg,#1a1f36 0%,#252d4a 100%);--th-bg:#f1f5f9;--th-text:#64748b;--border:#e8ecf1;--text:#1e293b;--text-muted:#64748b;--text-faint:#94a3b8;--accent:#3b82f6;--accent-hover:#2563eb;--purple:#7c3aed;--purple-hover:#6d28d9;--amber:#f59e0b;--amber-hover:#d97706;--gray-btn:#64748b;--gray-btn-hover:#475569;--green:#10b981;--red:#ef4444;--radius:12px;--radius-sm:8px;--shadow-sm:0 1px 2px rgba(0,0,0,.04),0 1px 3px rgba(0,0,0,.06);--shadow-md:0 4px 6px rgba(0,0,0,.04),0 2px 12px rgba(0,0,0,.06);--shadow-lg:0 8px 25px rgba(0,0,0,.1),0 4px 10px rgba(0,0,0,.06);--transition:.15s ease}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);padding:0;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+    .header{background:var(--header-bg);padding:20px 24px;display:flex;justify-content:space-between;align-items:center}
+    .header-left{display:flex;align-items:center;gap:10px}
+    .header h2{font-size:20px;font-weight:700;color:#fff;letter-spacing:-.3px}
+    .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+    .status-dot.live{background:var(--green);box-shadow:0 0 8px rgba(16,185,129,.6);animation:pulse 2s infinite}
+    .status-dot.error{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.6)}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .last-update{font-size:12px;color:var(--text-faint);font-weight:500}
+    .toolbar{padding:16px 24px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+    .search-box{flex:1;max-width:400px;padding:12px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:15px;font-family:inherit;outline:none;background:var(--card);color:var(--text);transition:border-color var(--transition),box-shadow var(--transition)}
+    .search-box:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(59,130,246,.1)}
+    .search-box::placeholder{color:var(--text-faint)}
+    .record-count{font-size:15px;font-weight:600;color:var(--text-muted);white-space:nowrap;background:var(--card);padding:8px 16px;border-radius:20px;box-shadow:var(--shadow-sm)}
+    .table-wrap{padding:0 24px 24px}
+    .table-container{background:var(--card);border-radius:var(--radius);overflow:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-md);max-height:80vh}
+    table{width:100%;border-collapse:collapse;min-width:640px}
+    thead{position:sticky;top:0;z-index:10}
+    th{background:var(--th-bg);color:var(--th-text);padding:12px 10px;text-align:left;font-size:15px;font-weight:600;letter-spacing:.3px;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid #e2e8f0;transition:background var(--transition)}
+    th:hover{background:#e2e8f0}th.no-sort{cursor:default}th.no-sort:hover{background:var(--th-bg)}
+    .sort-arrow{font-size:10px;margin-left:3px;opacity:.35}
+    th.sort-active{color:#1e293b}th.sort-active .sort-arrow{opacity:1;color:var(--accent)}
+    td{padding:10px 10px;font-size:15px;vertical-align:middle;border-bottom:1px solid var(--border);transition:background var(--transition)}
+    tr:last-child td{border-bottom:none}tr:hover td{background:#f8fafc}
+    tr.row-ip td{background:rgba(124,58,237,.03)}tr.row-ip:hover td{background:rgba(124,58,237,.06)}
+    tr.row-assigned td{background:rgba(59,130,246,.03)}tr.row-assigned:hover td{background:rgba(59,130,246,.06)}
+    tr.row-cancelled td{background:rgba(239,68,68,.03);opacity:.7}tr.row-cancelled:hover td{background:rgba(239,68,68,.06)}
+    tr.group-divider td{border-top:2px solid var(--border);padding-top:16px}
+    .badge{padding:4px 10px;border-radius:6px;font-size:15px;font-weight:700;letter-spacing:.3px;display:inline-block}
+    .badge.new{background:#fef3c7;color:#92400e}.badge.pending{background:#fef3c7;color:#92400e}
+    .badge.in-progress{background:#ede9fe;color:#6d28d9}.badge.assigned{background:#d1fae5;color:#065f46;font-weight:800}
+    .badge.dispatched{background:#dbeafe;color:#1e40af}.badge.en-route{background:#d1fae5;color:#065f46}
+    .badge.completed{background:#e5e7eb;color:#374151}.badge.cancelled{background:#fee2e2;color:#b91c1c}
+    .age-badge{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+    .age-ok{color:#059669}.age-warn{color:#d97706}
+    .age-urgent{color:#dc2626;animation:urgentPulse 1.5s ease-in-out infinite}
+    @keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .priority-tag{font-weight:700;color:#dc2626;font-size:16px}
+    .oneway-tag{font-size:13px;color:var(--text-muted)}
+    .spec-tag{font-size:13px;color:var(--text-muted)}
+    .flash{animation:flashRow 1.2s ease-out}
+    @keyframes flashRow{0%{background:rgba(251,191,36,.25)}100%{background:transparent}}
+    .btn-assign,.btn-reassign,.btn-markip,.btn-unclaim{border:none;padding:8px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:all var(--transition);-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+    .btn-assign{background:var(--accent);color:#fff;box-shadow:0 1px 3px rgba(59,130,246,.3)}.btn-assign:hover{background:var(--accent-hover);transform:translateY(-1px)}.btn-assign:active{transform:translateY(0)}
+    .btn-reassign{background:var(--amber);color:#fff;box-shadow:0 1px 3px rgba(245,158,11,.3)}.btn-reassign:hover{background:var(--amber-hover);transform:translateY(-1px)}.btn-reassign:active{transform:translateY(0)}
+    .btn-markip{background:var(--purple);color:#fff;box-shadow:0 1px 3px rgba(124,58,237,.3)}.btn-markip:hover{background:var(--purple-hover);transform:translateY(-1px)}.btn-markip:active{transform:translateY(0)}
+    .btn-unclaim{background:var(--gray-btn);color:#fff;box-shadow:0 1px 3px rgba(100,116,139,.3)}.btn-unclaim:hover{background:var(--gray-btn-hover);transform:translateY(-1px)}.btn-unclaim:active{transform:translateY(0)}
+    .btn-group{display:flex;gap:6px;flex-wrap:nowrap}
+    .claimed-label{font-size:13px;color:var(--purple);font-weight:600;font-style:italic;padding:10px 0}
+    .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:center}.overlay.active{display:flex}
+    .popup{background:var(--card);border-radius:16px;padding:32px;max-width:480px;width:92%;box-shadow:var(--shadow-lg);animation:popIn .2s ease-out;max-height:90vh;overflow-y:auto}
+    @keyframes popIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+    .popup h3{margin:0 0 4px;font-size:20px;font-weight:700;color:var(--text)}.popup .subtitle{margin:0 0 24px;font-size:14px;color:var(--text-muted)}
+    .form-group{margin-bottom:20px}.form-group label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+    .form-group input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:16px;font-family:inherit;box-sizing:border-box;outline:none;color:var(--text);transition:border-color var(--transition),box-shadow var(--transition)}
+    .form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(59,130,246,.1)}
+    .popup-buttons{display:flex;gap:12px;justify-content:flex-end;margin-top:24px}
+    .popup-buttons button{padding:14px 28px;border-radius:var(--radius);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;border:none;min-height:48px;transition:all var(--transition)}
+    .btn-cancel{background:#f1f5f9;color:var(--text-muted)}.btn-cancel:hover{background:#e2e8f0}
+    .btn-submit{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.3)}.btn-submit:hover{background:var(--accent-hover);transform:translateY(-1px)}.btn-submit:disabled{background:#93c5fd;cursor:not-allowed;transform:none;box-shadow:none}
+    .btn-next{background:linear-gradient(135deg,#059669,#10b981);color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.35);padding:14px 28px;border-radius:var(--radius);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;border:none;min-height:48px;transition:all var(--transition);display:flex;align-items:center;gap:6px}
+    .btn-next:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(16,185,129,.45)}.btn-next:active{transform:translateY(0)}
+    .popup-error{display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px 16px;border-radius:var(--radius-sm);font-size:14px;margin-top:16px;font-weight:500}.popup-error.active{display:block}
+    .no-results{text-align:center;padding:40px 24px;color:var(--text-faint);font-size:15px}
+    .btn-scan{background:var(--text);color:#fff;border:none;padding:14px 18px;border-radius:var(--radius);font-size:15px;font-family:inherit;font-weight:600;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;min-height:48px;transition:all var(--transition)}.btn-scan:hover{background:#0f172a}
 
-/* HEADER */
-.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0}
-.hdr-l{display:flex;align-items:center;gap:10px}
-.ltag{background:var(--pink);color:#fff;font-family:var(--mono);font-weight:600;font-size:10px;letter-spacing:2px;padding:3px 9px;border-radius:3px}
-.hdr h1{font-size:14px;font-weight:500;letter-spacing:.2px}
-.hdr-r{display:flex;align-items:center;gap:8px}
-.sw{position:relative;display:flex;align-items:center}
-.sw svg{position:absolute;left:9px;color:var(--muted);pointer-events:none;flex-shrink:0}
-.si{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:12px;padding:6px 10px 6px 29px;width:210px;outline:none;transition:border-color .15s}
-.si:focus{border-color:var(--accent)}
-.si::placeholder{color:var(--muted)}
-.cnt{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 11px;white-space:nowrap}
-.cnt b{color:var(--accent)}
-.rbtn{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--muted);cursor:pointer;padding:6px 9px;display:flex;align-items:center;transition:color .15s,border-color .15s}
-.rbtn:hover{color:var(--accent);border-color:var(--accent)}
+    /* ── ROVER LOOKUP CARD ── */
+    .rover-loading{display:none;align-items:center;gap:12px;padding:16px;background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px}
+    .rover-loading.active{display:flex}
+    .rover-spinner{width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .rover-loading-text{font-size:14px;color:var(--text-muted);font-weight:500}
 
-/* FILTER BAR */
-.fbar{display:flex;align-items:center;gap:5px;padding:8px 20px;background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
-.fbar::-webkit-scrollbar{height:0}
-.flbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-right:4px;white-space:nowrap}
-.fb{background:transparent;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;font-family:var(--sans);font-size:11px;padding:3px 12px;white-space:nowrap;transition:all .15s}
-.fb:hover{border-color:var(--text);color:var(--text)}
-.fb.on{border-color:var(--accent);color:var(--accent);background:rgba(246,201,14,.08)}
+    .rover-card{display:none;border-radius:var(--radius);overflow:hidden;margin-bottom:20px;border:1px solid var(--border)}
+    .rover-card.active{display:block}
+    .rover-card-header{background:linear-gradient(135deg,#1a1f36,#252d4a);padding:14px 18px;display:flex;align-items:center;gap:8px}
+    .rover-card-header span{font-size:12px;font-weight:700;letter-spacing:.8px;color:#94a3b8;text-transform:uppercase}
+    .rover-card-header .rover-badge{background:rgba(59,130,246,.25);color:#93c5fd;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:.5px}
+    .rover-card-body{padding:16px 18px;background:#fff}
+    .rover-vehicle-line{font-size:18px;font-weight:700;color:var(--text);margin-bottom:10px;line-height:1.3}
+    .rover-status-line{font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px}
+    .rover-status-full{font-size:13px;font-style:italic;color:var(--text-muted);line-height:1.5}
+    .rover-status-full.alert{color:#b91c1c;font-weight:700;font-style:italic}
+    .rover-class-chip{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:700;margin-bottom:8px}
+    .rover-class-match{color:#059669}
+    .rover-class-sub{color:#1e40af}
+    .rover-class-invalid{color:#dc2626}
+    .rover-class-sub-label{font-size:12px;font-weight:600;opacity:.8}
 
-/* MAIN */
-.main{display:flex;flex:1;overflow:hidden}
-.tw{flex:1;overflow-y:auto;transition:margin-right .25s}
-.tw.open{margin-right:var(--pw)}
+    .rover-warn{display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:20px;align-items:flex-start;gap:8px}
+    .rover-warn.active{display:flex}
+    .rover-warn-icon{flex-shrink:0;font-size:16px}
 
-/* TABLE */
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{background:var(--s1);color:var(--muted);font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none}
-thead th:hover{color:var(--text)}
-thead th .si2{margin-left:3px;opacity:.4}
-thead th.sorted .si2{opacity:1;color:var(--accent)}
-tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
-tbody tr:hover{background:var(--s2)}
-tbody tr.act{background:rgba(246,201,14,.06)}
-td{padding:9px 14px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
-.cn{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600}
-.dt{font-family:var(--mono);font-size:11px;color:var(--muted)}
-.mo{font-family:var(--mono);font-size:11px}
-.mu{color:var(--muted)}
-.amt{font-family:var(--mono);font-size:11px;color:var(--green)}
-
-/* BADGES */
-.badge{display:inline-block;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:500;padding:2px 7px;white-space:nowrap}
-.bd{background:var(--green);color:#000}
-.bp{background:var(--gray);color:#fff}
-.bn{background:#3a3f45;color:#aaa;border:1px solid #555}
-.ba{background:rgba(230,149,42,.18);color:var(--orange);border:1px solid var(--orange)}
-.bc{background:var(--red);color:#fff}
-.bx{background:var(--s2);color:var(--muted);border:1px solid var(--border)}
-
-/* CHIPS */
-.chip{display:inline-block;border-radius:4px;font-family:var(--mono);font-size:10px;padding:2px 6px;border:1px solid var(--border);color:var(--muted)}
-.chip.yes{border-color:rgba(232,76,61,.35);background:rgba(232,76,61,.1);color:var(--red)}
-
-/* EMPTY / LOADING */
-.state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--muted);gap:10px}
-.state p{font-size:13px}
-.spin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* DRAWER */
-.dw{position:fixed;top:0;right:0;width:var(--pw);height:100%;background:var(--s1);border-left:1px solid var(--border);z-index:50;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
-.dw.open{transform:translateX(0)}
-.dw-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--s1)}
-.dw-hl{display:flex;align-items:center;gap:8px}
-.dw-cn{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600}
-.dw-x{background:transparent;border:1px solid var(--border);border-radius:var(--r);color:var(--muted);cursor:pointer;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
-.dw-x:hover{color:var(--text);border-color:var(--text)}
-.dw-body{flex:1;overflow-y:auto;padding:18px}
-.dw-sec{margin-bottom:20px}
-.dw-st{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--border)}
-.dw-g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.df label{font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
-.df .v{font-size:12px;color:var(--text);word-break:break-word}
-.df.full{grid-column:1/-1}
-.dcard{border-radius:var(--r);padding:12px}
-.dcard.del{background:rgba(27,188,155,.06);border:1px solid rgba(27,188,155,.2)}
-.dcard.imp{background:rgba(230,149,42,.06);border:1px solid rgba(230,149,42,.2)}
-.nbox{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.6;min-height:44px}
-
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:var(--muted)}
-</style>
+    @media(max-width:1024px){.header{padding:16px}.toolbar{padding:12px 16px}.table-wrap{padding:0 16px 16px}th{padding:12px 10px;font-size:14px}td{padding:10px 8px;font-size:15px}}
+  </style>
 </head>
 <body>
+<div class="header"><div class="header-left"><span class="status-dot live" id="statusDot"></span><h2>Dispatcher Queue</h2></div><span class="last-update" id="lastUpdate">Connecting...</span></div>
+<div class="toolbar"><input type="text" class="search-box" id="searchBox" placeholder="Search vehicles, desk ID, MVA, stall..."><span class="record-count" id="recordCount"></span></div>
+<div class="table-wrap"><div class="table-container"><table>
+<thead><tr id="headerRow">
+  <th data-col="age">Age <span class="sort-arrow">▼</span></th>
+  <th data-col="requested">Requested <span class="sort-arrow">▼</span></th>
+  <th data-col="vehicle">Vehicle <span class="sort-arrow">▼</span></th>
+  <th data-col="desk">Desk <span class="sort-arrow">▼</span></th>
+  <th data-col="status">Status <span class="sort-arrow">▼</span></th>
+  <th class="no-sort">Actions</th>
+  <th data-col="mva">Assignment <span class="sort-arrow">▼</span></th>
+  <th data-col="assigntime">Assigned <span class="sort-arrow">▼</span></th>
+</tr></thead>
+<tbody id="dispatchBody"><tr><td colspan="8" class="no-results">Loading...</td></tr></tbody>
+</table></div></div>
 
-<!-- HEADER -->
-<div class="hdr">
-  <div class="hdr-l">
-    <span class="ltag">LYFT</span>
-    <h1>View My Cases</h1>
-  </div>
-  <div class="hdr-r">
-    <div class="sw">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input class="si" id="searchInput" type="text" placeholder="VIN, case #, renter…" oninput="onSearch(this.value)">
-    </div>
-    <div class="cnt" id="countEl">Loading…</div>
-    <button class="rbtn" onclick="loadData()" title="Refresh">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-    </button>
-  </div>
-</div>
+<!-- ═══════════════════════════════════════════════════
+     ASSIGN POPUP
+     ═══════════════════════════════════════════════════ -->
+<div class="overlay" id="assignOverlay"><div class="popup">
+  <h3 id="popupTitle">Assign Vehicle</h3>
+  <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
 
-<!-- FILTER BAR -->
-<div class="fbar">
-  <span class="flbl">Status</span>
-  <button class="fb on"  onclick="setFilter('all',this)">All</button>
-  <button class="fb" onclick="setFilter('Not Started',this)">Not Started</button>
-  <button class="fb" onclick="setFilter('Assigned',this)">Assigned</button>
-  <button class="fb" onclick="setFilter('In Progress',this)">In Progress</button>
-  <button class="fb" onclick="setFilter('Delivered',this)">Delivered</button>
-  <button class="fb" onclick="setFilter('Cancelled by Client',this)">Cancelled</button>
-  <button class="fb" onclick="setFilter('Gone on Arrival (GOA)',this)">GOA</button>
-</div>
-
-<!-- MAIN -->
-<div class="main">
-  <div class="tw" id="tw">
-    <table id="tbl" style="display:none">
-      <thead><tr>
-        <th onclick="sortBy('Case_Number')">Case # <span class="si2">↕</span></th>
-        <th onclick="sortBy('Added_Time')" class="sorted">Added <span class="si2">↓</span></th>
-        <th onclick="sortBy('Case_Status')">Status <span class="si2">↕</span></th>
-        <th onclick="sortBy('Tow_or_Impound_Request')">Type <span class="si2">↕</span></th>
-        <th onclick="sortBy('VIN')">VIN / License <span class="si2">↕</span></th>
-        <th>Year / Make / Model</th>
-        <th onclick="sortBy('Renter_Name')">Renter <span class="si2">↕</span></th>
-        <th>Flatbed</th>
-        <th>Est. Delivery</th>
-        <th>Amt Paid</th>
-      </tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="state" id="stateEl">
-      <div class="spin"></div>
-      <p>Loading cases…</p>
+  <!-- MVA input + scan button -->
+  <div class="form-group">
+    <label for="inputMva">MVA Number</label>
+    <div style="display:flex;gap:10px;align-items:stretch">
+      <input type="text" id="inputMva" placeholder="Enter or scan MVA" style="flex:1" autocomplete="off">
+      <button type="button" class="btn-scan" onclick="startScanner()">&#128247; Scan</button>
     </div>
   </div>
 
-  <!-- DRAWER -->
-  <div class="dw" id="dw">
-    <div class="dw-hd">
-      <div class="dw-hl">
-        <span class="dw-cn" id="dwCaseNum">—</span>
-        <span id="dwBadge"></span>
+  <!-- Scanner overlay (unchanged from v2) -->
+  <div id="scannerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:2000;flex-direction:column;justify-content:center;align-items:center">
+    <div style="position:relative;width:90%;max-width:420px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="color:#fff;font-size:16px;font-weight:600">Scan Barcode</span>
+        <button onclick="stopScanner()" style="background:#ef4444;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Close</button>
       </div>
-      <button class="dw-x" onclick="closeDrawer()">✕</button>
+      <div id="scannerView" style="width:100%;border-radius:12px;overflow:hidden;background:#000;min-height:280px"></div>
+      <p id="scannerStatus" style="color:#94a3b8;font-size:13px;text-align:center;margin-top:12px">Initializing camera...</p>
     </div>
-    <div class="dw-body" id="dwBody"></div>
   </div>
-</div>
+
+  <!-- Rover loading indicator -->
+  <div class="rover-loading" id="roverLoading">
+    <div class="rover-spinner"></div>
+    <span class="rover-loading-text">Looking up vehicle in WAND...</span>
+  </div>
+
+  <!-- Rover result card -->
+  <div class="rover-card" id="roverCard">
+    <div class="rover-card-header">
+      <span>WAND Lookup</span>
+      <span class="rover-badge" id="roverCardMva"></span>
+    </div>
+    <div class="rover-card-body">
+      <div class="rover-vehicle-line" id="roverVehicleLine"></div>
+      <div class="rover-class-chip" id="roverClassChip"></div>
+      <div class="rover-status-line" id="roverStatusLine"></div>
+      <div class="rover-status-full" id="roverStatusFull"></div>
+      <div class="rover-color-chip" id="roverColorChip"></div>
+    </div>
+  </div>
+
+  <!-- Rover warning (error / timeout) -->
+  <div class="rover-warn" id="roverWarn">
+    <span class="rover-warn-icon">⚠️</span>
+    <span id="roverWarnText">Could not retrieve vehicle data from WAND. You may still assign.</span>
+  </div>
+
+  <!-- Stall field — hidden until "Next" clicked -->
+  <div class="form-group" id="stallGroup" style="display:none">
+    <label for="inputStall">Stall #</label>
+    <input type="text" id="inputStall" placeholder="Enter stall number">
+  </div>
+
+  <div class="popup-error" id="popupError"></div>
+
+  <div class="popup-buttons" id="popupButtons">
+    <button class="btn-cancel" onclick="closeAssignPopup()">Cancel</button>
+    <!-- Next button: visible after rover result, before stall entry -->
+    <button class="btn-next" id="btnNext" onclick="showStallStep()" style="display:none">Next &rarr;</button>
+    <!-- Assign button: hidden until Next clicked (or rover failed) -->
+    <button class="btn-submit" id="btnSubmitAssign" onclick="submitAssign()" style="display:none">Assign</button>
+  </div>
+</div></div>
 
 <script>
-var APP   = "autoflowx";
-var REPORT = "LYFT_View_My_Cases1";
+/* ============================================================
+   CONFIG
+   ============================================================ */
+var CONFIG = {
+  APP_NAME: "lax-abg",
+  REPORT_NAME: "All_Vehicle_Requests",
+  AVIS_LOOKUP_FORM: "Avis_lookup_Requests",
+  AVIS_LOOKUP_REPORT: "All_Avis_Lookup_Requests",
+  SUB_RULES_REPORT:   "All_Vehicle_Substitution_Rules",
 
-var allRecs  = [];
-var filtered = [];
-var activeFilter = "all";
-var searchVal    = "";
-var sortField    = "Added_Time";
-var sortDir      = "desc";
-var activeRow    = null;
+  POLL_INTERVAL: 4000,
+  MAX_RECORDS: 200,
+  ASSIGNED_HIDE_MS: 5 * 60 * 1000,
+  UNASSIGNED_DELETE_MS: 4 * 60 * 60 * 1000,
+  MVA_LENGTH: 8,
+  PUMP_KEYWORD: "pump",
+  PUMP_STALL_DEFAULT: "LZ",
+  AGE_WARN_MIN: 10,
+  AGE_URGENT_MIN: 20,
+  UPSELL_LABEL: "Upsell (99)",
+  WALKUP_LABEL: "Walk Up (49)",
+  ONEWAY_LABEL: "One-Way Rental",
+  DING_FREQ_1: 880,
+  DING_FREQ_2: 1175,
 
-// ── SDK INIT ──────────────────────────────────────────────────────────────────
-ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
-  loadData();
-});
+  /* Rover proxy */
+  ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
+  ROVER_TIMEOUT_MS: 9000  // give up and allow assign after 9s
+};
 
-// ── LOAD ──────────────────────────────────────────────────────────────────────
-function loadData() {
-  setState("loading");
-  ZOHO.CREATOR.DATA.getRecords({
-    appName:    APP,
-    reportName: REPORT,
-    page:       1,
-    pageSize:   200
-  }, function(resp) {
-    if (resp && resp.data) {
-      allRecs = resp.data;
-    } else if (resp && Array.isArray(resp)) {
-      allRecs = resp;
-    } else {
-      allRecs = [];
-    }
-    applyAll();
-  });
+/* ============================================================
+   STATE
+   ============================================================ */
+var previousData={},currentRecords=[],displayRecords=[];
+var assignRecordId=null,isReassign=false,firstLoadComplete=false;
+var deletingIds={},previousRecordIds={},loggedInUser="",sdkReady=false;
+var sortCol=null,sortDir="desc";
+var audioCtx=null,audioUnlocked=false;
+
+/* Rover state */
+var roverApiKey="";         // unused — worker validates by Origin
+var roverData=null;
+var roverLookupDone=false;
+var roverLookupFailed=false;
+var currentLookupMva="";
+var requestedClass="";      // vehicle class from the dispatch request (full string e.g. "V-Minivan")
+var subRules=null;          // null = not loaded, [] = loaded but no rules, [...] = allowed prefixes
+var subRulesLoaded=false;   // true once query completed
+
+/* ============================================================
+   AUDIO
+   ============================================================ */
+function unlockAudio(){if(audioUnlocked)return;try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume().then(function(){audioUnlocked=true});}catch(e){}}
+document.addEventListener("click",unlockAudio,{once:true});
+document.addEventListener("touchstart",unlockAudio,{once:true});
+document.addEventListener("keydown",unlockAudio,{once:true});
+function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=CONFIG.DING_FREQ_1;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=CONFIG.DING_FREQ_2;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
+
+/* ============================================================
+   DING — fires once when new record with status=New appears
+   ============================================================ */
+function checkForNewRequests(recs){if(!firstLoadComplete){for(var k=0;k<recs.length;k++){var kid=recs[k].ID?recs[k].ID.toString():"";if(kid)previousRecordIds[kid]=true;}return;}var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var st=(rec.Dispatch_Status||"").toLowerCase();if(!previousRecordIds[id]&&st.indexOf("new")>=0){if(!dinged){playDing();dinged=true;}}previousRecordIds[id]=true;}}
+
+/* ============================================================
+   STATUS HELPERS
+   ============================================================ */
+function isBool(v){return v===true||v==="true";}
+function isPriority(r){return isBool(r.Upsell)||isBool(r.Walk_Up_Customer);}
+function badgeClass(s){s=(s||"").toLowerCase();if(s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0)return"in-progress";if(s.indexOf("new")>=0)return"new";if(s.indexOf("pending")>=0)return"pending";if(s.indexOf("assign")>=0)return"assigned";if(s.indexOf("dispatch")>=0)return"dispatched";if(s.indexOf("route")>=0)return"en-route";if(s.indexOf("complet")>=0)return"completed";if(s.indexOf("cancel")>=0)return"cancelled";return"pending";}
+function rowClass(s){if(isAssignedStatus(s))return"row-assigned";if(isInProgressStatus(s))return"row-ip";if(isCancelledStatus(s))return"row-cancelled";return"row-new";}
+function isAssignedStatus(s){s=(s||"").toLowerCase();return s.indexOf("assign")>=0||s.indexOf("dispatch")>=0;}
+function isInProgressStatus(s){s=(s||"").toLowerCase();return s.indexOf("in progress")>=0||s.indexOf("in-progress")>=0;}
+function isNewStatus(s){return!isAssignedStatus(s)&&!isInProgressStatus(s)&&!isCancelledStatus(s)&&(s||"").toLowerCase().indexOf("complet")<0;}
+function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
+
+/* ============================================================
+   DATE HELPERS
+   ============================================================ */
+function parseZohoDate(d){if(!d)return null;try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;}}
+function formatTime(d){var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a;}
+function getAge(d){var dt=parseZohoDate(d);if(!dt)return{text:"—",cls:"age-ok",minutes:0};var m=Math.floor((Date.now()-dt.getTime())/60000);if(m<0)m=0;var c="age-ok";if(m>=CONFIG.AGE_WARN_MIN)c="age-warn";if(m>=CONFIG.AGE_URGENT_MIN)c="age-urgent";return{text:m+"m",cls:c,minutes:m};}
+function showPopupError(m){var e=document.getElementById("popupError");e.textContent=m;e.classList.add("active");}
+function clearPopupError(){document.getElementById("popupError").classList.remove("active");}
+
+/* ============================================================
+   CELL BUILDERS
+   ============================================================ */
+function buildVehicleCell(rec){
+  var lines=[];
+  lines.push('<strong>'+(rec.Vehicle_Type||'—')+'</strong>');
+  var spec=rec.Specific_Make_Model_optional||'';
+  if(spec)lines.push('<span class="spec-tag">'+spec+'</span>');
+  if(isBool(rec.Upsell))lines.push('<span class="priority-tag">'+CONFIG.UPSELL_LABEL+'</span>');
+  if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">'+CONFIG.WALKUP_LABEL+'</span>');
+  if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">'+CONFIG.ONEWAY_LABEL+'</span>');
+  return lines.join('<br>');
+}
+function buildAssignCell(rec){
+  var mva=rec.Assigned_MVA||'',stall=rec.Stall_Number||'';
+  var line1=mva&&stall?mva+' / '+stall:mva||stall||'';
+  if(!isAssignedStatus(rec.Dispatch_Status))return line1;
+  var av=rec.Avis_lookup_ID;
+  if(!av||!av.zc_display_value)return line1;
+  var line2='<span style="font-size:12px;color:#64748b">'+av.zc_display_value+'</span>';
+  return line1+'<br>'+line2;
 }
 
-// ── FILTER + SORT + RENDER ────────────────────────────────────────────────────
-function applyAll() {
-  var q = searchVal.toLowerCase();
-  filtered = [];
-  for (var i = 0; i < allRecs.length; i++) {
-    var r = allRecs[i];
-    // Case_Status may be a lookup object — check both forms
-    var s = gv(r, "Case_Status.Case_Status") || gv(r, "Case_Status") || "";
-    if (activeFilter !== "all") {
-      if (s !== activeFilter) continue;
-    }
-    if (q) {
-      var h = (gv(r,"Case_Number") + gv(r,"VIN") + gv(r,"Renter_Name") +
-               gv(r,"Vehicle_Make") + gv(r,"Vehicle_Model") + gv(r,"Pure_VIN")).toLowerCase();
-      if (h.indexOf(q) === -1) continue;
-    }
-    filtered.push(r);
+/* ============================================================
+   SORT
+   ============================================================ */
+function defaultSort(records){
+  var priNew=[],normNew=[],ip=[],assigned=[],cancelled=[];
+  for(var i=0;i<records.length;i++){var r=records[i];
+    if(isCancelledStatus(r.Dispatch_Status))cancelled.push(r);
+    else if(isAssignedStatus(r.Dispatch_Status))assigned.push(r);
+    else if(isInProgressStatus(r.Dispatch_Status))ip.push(r);
+    else if(isPriority(r))priNew.push(r);
+    else normNew.push(r);
   }
-  // DEBUG — remove after confirming field structure
-  if (allRecs.length > 0) { console.log("FIRST RECORD:", JSON.stringify(allRecs[0])); }
+  var byAdded=function(a,b){return(parseZohoDate(a.Added_Time)||0)-(parseZohoDate(b.Added_Time)||0);};
+  priNew.sort(byAdded);normNew.sort(byAdded);ip.sort(byAdded);cancelled.sort(byAdded);
+  assigned.sort(function(x,y){var da=parseZohoDate(x.Assignment_Time),db=parseZohoDate(y.Assignment_Time);return(db?db.getTime():0)-(da?da.getTime():0);});
+  return priNew.concat(normNew).concat(ip).concat(assigned).concat(cancelled);
+}
+function getSortValue(r,col){switch(col){case"age":return getAge(r.Added_Time).minutes;case"requested":var d=parseZohoDate(r.Added_Time);return d?d.getTime():0;case"vehicle":return(r.Vehicle_Type||"").toLowerCase();case"desk":return(r.Your_desk_ID||"").toLowerCase();case"status":return(r.Dispatch_Status||"").toLowerCase();case"mva":return(r.Assigned_MVA||"").toString();case"assigntime":var at=parseZohoDate(r.Assignment_Time);return at?at.getTime():0;default:return"";}}
+function columnSort(records,col,dir){var s=records.slice();s.sort(function(a,b){var va=getSortValue(a,col),vb=getSortValue(b,col),c=0;if(typeof va==="number"&&typeof vb==="number")c=va-vb;else c=va.toString().localeCompare(vb.toString());return dir==="desc"?-c:c;});return s;}
+function updateSortHeaders(){var ths=document.querySelectorAll("#headerRow th[data-col]");for(var i=0;i<ths.length;i++){var th=ths[i],ar=th.querySelector(".sort-arrow");if(sortCol&&th.getAttribute("data-col")===sortCol){th.classList.add("sort-active");ar.textContent=sortDir==="desc"?"▼":"▲";}else{th.classList.remove("sort-active");ar.textContent="▼";}}}
 
-  filtered.sort(function(a, b) {
-    var va = gv(a, sortField), vb = gv(b, sortField);
-    if (sortField === "Added_Time") { va = new Date(va); vb = new Date(vb); }
-    return (va < vb ? -1 : va > vb ? 1 : 0) * (sortDir === "asc" ? 1 : -1);
-  });
-  render();
+/* ============================================================
+   SEARCH
+   ============================================================ */
+function getSearchTerm(){return(document.getElementById("searchBox").value||"").toLowerCase().trim();}
+function matchesSearch(r,t){if(!t)return true;var f=[r.Vehicle_Type,r.Specific_Make_Model_optional,r.Your_desk_ID,r.Dispatch_Status,r.Assigned_MVA,r.Stall_Number,r.Added_Time,r.Assignment_Time,getAge(r.Added_Time).text];if(isBool(r.Upsell))f.push("upsell");if(isBool(r.Walk_Up_Customer))f.push("walk-up");if(isBool(r.One_Way_Rental))f.push("one-way");for(var i=0;i<f.length;i++){if((f[i]||"").toString().toLowerCase().indexOf(t)>=0)return true;}return false;}
+
+/* ============================================================
+   REFRESH TABLE
+   ============================================================ */
+function refreshTable(){
+  var t=getSearchTerm(),filtered=currentRecords.filter(function(r){return matchesSearch(r,t);});
+  var sorted=sortCol?columnSort(filtered,sortCol,sortDir):defaultSort(filtered);
+  displayRecords=sorted;updateSortHeaders();renderTable(sorted);
+  var ce=document.getElementById("recordCount");
+  if(t)ce.textContent=sorted.length+" of "+currentRecords.length+" shown";
+  else{var uc=sorted.filter(function(r){return!isAssignedStatus(r.Dispatch_Status)&&!isCancelledStatus(r.Dispatch_Status);}).length;ce.textContent=uc+" active request"+(uc!==1?"s":"");}
 }
 
-function render() {
-  var tbody = document.getElementById("tbody");
-  tbody.innerHTML = "";
+/* ============================================================
+   VALIDATION
+   ============================================================ */
+function validateAssignment(mva,stall,rid,live,reass){
+  var mvaRegex=new RegExp("^\\d{"+CONFIG.MVA_LENGTH+"}$");
+  if(!mva||!mva.length)return"MVA number is required.";
+  if(!mvaRegex.test(mva))return"MVA must be exactly "+CONFIG.MVA_LENGTH+" digits.";
+  if(!stall||!stall.length)return"Stall is required.";
+  var target=null;for(var t=0;t<live.length;t++){if(live[t].ID&&live[t].ID.toString()===rid.toString()){target=live[t];break;}}
+  if(!target)return"Request deleted or completed. Refreshing...";
+  if(!reass){var ts=(target.Dispatch_Status||"").toLowerCase();if(ts.indexOf("assigned")>=0||ts.indexOf("dispatch")>=0||ts.indexOf("complet")>=0)return"Updated by another dispatcher. Refreshing...";}
+  for(var i=0;i<live.length;i++){var r=live[i],ri=r.ID?r.ID.toString():"",rm=r.Assigned_MVA?r.Assigned_MVA.toString().trim():"",rs=r.Dispatch_Status?r.Dispatch_Status.toString().toLowerCase():"";if(ri===rid.toString())continue;if(rm===mva&&rs.indexOf("assigned")>=0)return"MVA "+mva+" already assigned.";}
+  return null;
+}
+function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseText);if(p.alert_message)return p.alert_message;if(p.message&&p.message!=="error")return p.message;}if(r.message&&r.message!=="error")return r.message;}catch(e){}return"Operation failed.";}
+function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,page:1,max_records:CONFIG.MAX_RECORDS});}
 
-  if (filtered.length === 0) {
-    setState("empty");
+/* ============================================================
+   ROVER / WAND LOOKUP
+   ============================================================ */
+
+/* isAlertStatus: returns true if statusFull contains hold or unavailable keywords */
+function isAlertStatus(sf){
+  if(!sf)return false;
+  var u=sf.toUpperCase();
+  return u.indexOf("HOLD")>=0||u.indexOf("UNAVAILABLE")>=0||u.indexOf("HOLD DATE")>=0||u.indexOf("HOLD RSN")>=0;
+}
+
+/* classPrefix: extracts the letter code from a full class string
+   "V-Minivan" → "V",  "XC-Hybrid / Electric" → "XC",  "V" → "V" */
+function classPrefix(str){
+  if(!str)return"";
+  var s=str.trim();
+  var dash=s.indexOf("-");
+  return dash>0?s.substring(0,dash).trim().toUpperCase():s.toUpperCase();
+}
+
+/* loadSubRules: queries substitution rules for the requested vehicle type,
+   filtered to rules in effect on or before today. Resolves subRules to an
+   array of allowed class prefixes, or null if no rules apply (any sub OK). */
+function loadSubRules(requestedFullClass){
+  subRules=null;subRulesLoaded=false;
+  if(!requestedFullClass){subRulesLoaded=true;return;}
+
+  var today=new Date();
+  var dd=("0"+today.getDate()).slice(-2);
+  var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var todayStr=dd+"-"+months[today.getMonth()]+"-"+today.getFullYear();
+
+  console.log("[SUB] Loading rules for Vehicle_Type:",requestedFullClass,"| today:",todayStr);
+
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name: CONFIG.APP_NAME,
+    report_name: CONFIG.SUB_RULES_REPORT,
+    criteria: 'Vehicle_Type == "'+requestedFullClass+'"',
+    page: 1,
+    max_records: 200
+  }).then(function(resp){
+    console.log("[SUB] getRecords code:",resp.code,"| count:",resp.data?resp.data.length:0);
+    if(resp.code!==3000||!resp.data||!resp.data.length){
+      subRules=null;subRulesLoaded=true; // no rules → any sub allowed
+      console.log("[SUB] No rules found — any substitution allowed.");
+      return;
+    }
+    // Filter to rules where Date_in_Effect <= today, pick most recent
+    // Date_in_Effect is a date-only field e.g. "02-Apr-2026" — parse directly
+    var valid=[];
+    var todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    for(var i=0;i<resp.data.length;i++){
+      var r=resp.data[i];
+      var raw=r.Date_in_Effect||"";
+      // Try parseZohoDate first (datetime), then parse date-only "DD-Mon-YYYY"
+      var d=parseZohoDate(raw);
+      if(!d&&raw){
+        try{
+          var dp=raw.trim().split("-");
+          if(dp.length===3){
+            var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            var mi=months2.indexOf(dp[1]);
+            if(mi>=0)d=new Date(parseInt(dp[2]),mi,parseInt(dp[0]));
+          }
+        }catch(pe){}
+      }
+      console.log("[SUB] Rule date raw:",raw,"parsed:",d,"todayMidnight:",todayMidnight);
+      if(d&&d.getTime()<=todayMidnight.getTime())valid.push({date:d,rec:r});
+    }
+    if(!valid.length){
+      subRules=null;subRulesLoaded=true;
+      console.log("[SUB] No in-effect rules for today — any substitution allowed.");
+      return;
+    }
+    // Sort descending, take most recent
+    valid.sort(function(a,b){return b.date.getTime()-a.date.getTime();});
+    var best=valid[0].rec;
+    var types=best.Acceptable_Substitution_Types;
+    // types is an array of full strings e.g. ["B-Compact","C-Intermediate (Mid-size)"]
+    var prefixes=[];
+    if(Array.isArray(types)){
+      for(var j=0;j<types.length;j++){prefixes.push(classPrefix(types[j]));}
+    } else if(types){
+      prefixes.push(classPrefix(types.toString()));
+    }
+    subRules=prefixes;
+    subRulesLoaded=true;
+    console.log("[SUB] Rules in effect. Allowed prefixes:",prefixes);
+    // Re-render card if rover result already showing
+    if(roverData)renderRoverCard(roverData,currentLookupMva);
+  }).catch(function(e){
+    try{
+      var p=JSON.parse(e.responseText||'{}');
+      if(p.code===9280){
+        console.log("[SUB] No rules found (9280) — any substitution allowed.");
+        subRules=null;subRulesLoaded=true;
+        return;
+      }
+    }catch(pe){}
+    console.warn("[SUB] Rules query failed — treating as no rules:",JSON.stringify(e));
+    subRules=null;subRulesLoaded=true;
+    if(roverData)renderRoverCard(roverData,currentLookupMva);
+  });
+}
+
+/* renderRoverCard: populates and shows the lookup result card */
+function renderRoverCard(data,mva){
+  document.getElementById("roverCardMva").textContent="MVA "+mva;
+
+  // Year / Make / Model + Color inline
+  var parts=[];
+  if(data.year)parts.push(data.year);
+  if(data.make)parts.push(data.make);
+  if(data.model)parts.push(data.model);
+  if(data.color)parts.push("🎨 "+data.color);
+  document.getElementById("roverVehicleLine").textContent=parts.join(" ")||(data.vehicle||"—");
+
+  // Hide standalone color chip — now inline above
+  document.getElementById("roverColorChip").textContent="";
+
+  // Class chip — prefix-based comparison + substitution rule check
+  var classEl=document.getElementById("roverClassChip");
+  var roverPrefix=classPrefix(data.class||"");
+  var reqPrefix=classPrefix(requestedClass||"");
+  if(roverPrefix){
+    var isSame=reqPrefix&&roverPrefix===reqPrefix;
+    var isSub=reqPrefix&&roverPrefix!==reqPrefix;
+    var subAllowed=true; // default: allowed when no rules loaded yet or no rules exist
+    if(isSub&&subRulesLoaded&&subRules!==null){
+      // Rules exist — check if roverPrefix is in allowed list
+      subAllowed=false;
+      for(var si=0;si<subRules.length;si++){
+        if(subRules[si]===roverPrefix){subAllowed=true;break;}
+      }
+    }
+    if(isSame){
+      classEl.className="rover-class-chip rover-class-match";
+      classEl.innerHTML="Class: "+roverPrefix;
+    } else if(isSub&&subRulesLoaded&&subRules!==null&&!subAllowed){
+      classEl.className="rover-class-chip rover-class-invalid";
+      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub) &#9888; not allowed</span>';
+    } else if(isSub){
+      classEl.className="rover-class-chip rover-class-sub";
+      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub)</span>';
+    } else {
+      // No requested class to compare against
+      classEl.className="rover-class-chip";
+      classEl.innerHTML="Class: "+roverPrefix;
+    }
+  } else {
+    classEl.textContent="";
+  }
+
+  // Status — first line only (data.status is already shortStatus from the worker)
+  document.getElementById("roverStatusLine").textContent=data.status||"—";
+
+  // StatusFull — show the hold/extra parts only (everything after the first segment)
+  // Format: "STATUS | HOLD DATE 25FEB26 | HOLD RSN RETITLE NC TO FL"
+  // We strip the first segment so we don't repeat the status line above
+  var sfEl=document.getElementById("roverStatusFull");
+  var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});
+  // Remove first part (same as status), keep hold date / reason / other messages
+  var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
+  if(extraParts.length>0){
+    sfEl.textContent=extraParts.join(" | ");
+    sfEl.style.display="";
+    if(isAlertStatus(data.statusFull)){sfEl.classList.add("alert");}
+    else{sfEl.classList.remove("alert");}
+  } else {
+    sfEl.textContent="";
+    sfEl.style.display="none";
+  }
+
+  document.getElementById("roverCard").classList.add("active");
+}
+
+/* doRoverLookup: called whenever MVA reaches 8 digits */
+function doRoverLookup(mva){
+  // Don't re-fetch same MVA
+  if(mva===currentLookupMva&&roverLookupDone){
+    console.log("[ROVER] Same MVA already looked up ("+mva+"), skipping.");
     return;
   }
-  setState("data");
+  currentLookupMva=mva;
+  console.log("[ROVER] Starting lookup for MVA:", mva);
 
-  for (var i = 0; i < filtered.length; i++) {
-    var r = filtered[i];
-    var tr = document.createElement("tr");
-    var status  = gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—";
-    var flatbed = gv(r,"Flat_Bed_Required") || "";
-    var est     = gv(r,"Case_Status.Estimated_Delivery_Date") || "";
-    var amt     = gv(r,"External_Operator_Form_ID.Amount_Paid") || "";
-    var ymm     = [gv(r,"Vehicle_Year"),gv(r,"Vehicle_Make"),gv(r,"Vehicle_Model")].filter(Boolean).join(" ") || "—";
-    var yes     = flatbed.toLowerCase() === "yes";
+  // Reset card state
+  document.getElementById("roverCard").classList.remove("active");
+  document.getElementById("roverWarn").classList.remove("active");
+  document.getElementById("btnNext").style.display="none";
+  document.getElementById("btnSubmitAssign").style.display="none";
+  document.getElementById("stallGroup").style.display="none";
+  roverLookupDone=false;roverLookupFailed=false;
+  // Note: roverData intentionally NOT cleared here — preserved until new result arrives
 
-    tr.innerHTML =
-      "<td class='cn'>"  + esc(gv(r,"Case_Number")||"—") + "</td>" +
-      "<td class='dt'>"  + fmtDate(gv(r,"Added_Time"))   + "</td>" +
-      "<td>"             + badge(status)                  + "</td>" +
-      "<td>"             + esc(gv(r,"Tow_or_Impound_Request")||"—") + "</td>" +
-      "<td class='mo'>"  + esc(gv(r,"VIN")||"—")         + "</td>" +
-      "<td>"             + esc(ymm)                       + "</td>" +
-      "<td>"             + esc(gv(r,"Renter_Name")||"—") + "</td>" +
-      "<td><span class='chip" + (yes?" yes":"") + "'>" + (yes?"YES":"No") + "</span></td>" +
-      "<td class='dt'>"  + (est ? fmtDate(est) : "—")    + "</td>" +
-      "<td>" + (amt ? "<span class='amt'>$"+esc(amt)+"</span>" : "<span class='mu'>—</span>") + "</td>";
+  // Show spinner
+  document.getElementById("roverLoading").classList.add("active");
+  document.getElementById("inputMva").disabled=true;
 
-    (function(rec, row) {
-      row.onclick = function() { openDrawer(rec, row); };
-    })(r, tr);
-    tbody.appendChild(tr);
-  }
+  // Build URL — use key_cloudflare_wand variable loaded at init
+  var url=CONFIG.ROVER_BASE_URL+"/rover?mva="+encodeURIComponent(mva);
+  console.log("[ROVER] Fetch URL:", CONFIG.ROVER_BASE_URL+"/rover?mva="+mva, "| Timeout:", CONFIG.ROVER_TIMEOUT_MS+"ms");
 
-  var el = document.getElementById("countEl");
-  el.innerHTML = "Showing <b>" + filtered.length + "</b> of <b>" + allRecs.length + "</b>";
+  var timedOut=false;
+  var timeoutHandle=setTimeout(function(){
+    timedOut=true;
+    console.error("[ROVER] Timeout after "+CONFIG.ROVER_TIMEOUT_MS+"ms for MVA", mva);
+    onRoverError("WAND lookup timed out after "+CONFIG.ROVER_TIMEOUT_MS/1000+"s. You may still assign.");
+  },CONFIG.ROVER_TIMEOUT_MS);
+
+  fetch(url,{method:"GET"})
+    .then(function(res){
+      if(timedOut)return;
+      clearTimeout(timeoutHandle);
+      console.log("[ROVER] HTTP response:", res.status, res.ok?"OK":"NOT OK");
+      if(!res.ok)throw new Error("HTTP "+res.status);
+      return res.json();
+    })
+    .then(function(json){
+      if(timedOut)return;
+      if(!json||json.error){
+        console.error("[ROVER] API returned error or empty:", json);
+        onRoverError(json&&json.error?"WAND: "+json.error:"No data returned from WAND.");
+        return;
+      }
+      console.log("[ROVER] Success for MVA", mva, ":", json);
+      roverData=json;
+      roverLookupDone=true;
+      roverLookupFailed=false;
+      document.getElementById("roverLoading").classList.remove("active");
+      document.getElementById("inputMva").disabled=false;
+      renderRoverCard(json,mva);
+      // Show Next button — stall stays hidden until dispatcher clicks Next
+      document.getElementById("btnNext").style.display="flex";
+    })
+    .catch(function(err){
+      if(timedOut)return;
+      clearTimeout(timeoutHandle);
+      console.error("[ROVER] fetch() exception:", err);
+      onRoverError("WAND lookup failed: "+(err.message||"network error")+". You may still assign.");
+    });
 }
 
-// ── DRAWER ────────────────────────────────────────────────────────────────────
-function openDrawer(r, rowEl) {
-  if (activeRow) activeRow.classList.remove("act");
-  activeRow = rowEl;
-  rowEl.classList.add("act");
-  document.getElementById("tw").classList.add("open");
-  document.getElementById("dw").classList.add("open");
-  document.getElementById("dwCaseNum").textContent = gv(r,"Case_Number") || "Case Detail";
-  document.getElementById("dwBadge").innerHTML = badge(gv(r,"Case_Status.Case_Status") || gv(r,"Case_Status") || "—");
-
-  var iName = gv(r,"Impound_Yard_Name"), iAddr = gv(r,"Impound_Yard_Address");
-  var amt   = gv(r,"External_Operator_Form_ID.Amount_Paid");
-  var notes = gv(r,"Additional_Notes_Rich") || gv(r,"Additional_Notes") || "—";
-
-  var h = "";
-
-  // Overview
-  h += sec("Case Overview",
-    fld("Request Type", esc(gv(r,"Tow_or_Impound_Request")||"—")) +
-    fld("Added Time",   "<span class='mo'>" + fmtDate(gv(r,"Added_Time")) + "</span>") +
-    fld("Est. Delivery","<span class='mo'>" + fmtDate(gv(r,"Case_Status.Estimated_Delivery_Date")) + "</span>") +
-    fld("Requestor Email", "<span class='mo'>" + esc(gv(r,"Requestor_Email")||"—") + "</span>", true)
-  );
-
-  // Vehicle
-  h += sec("Vehicle",
-    fld("VIN / License",  "<span class='mo'>" + esc(gv(r,"VIN")||"—") + "</span>") +
-    fld("Pure VIN",       "<span class='mo'>" + esc(gv(r,"Pure_VIN")||"—") + "</span>") +
-    fld("Year",  esc(gv(r,"Vehicle_Year")||"—")) +
-    fld("Make",  esc(gv(r,"Vehicle_Make")||"—")) +
-    fld("Model", esc(gv(r,"Vehicle_Model")||"—")) +
-    fld("Renter",esc(gv(r,"Renter_Name")||"—")) +
-    fld("Flatbed Required", (function(){var yes=gv(r,"Flat_Bed_Required").toLowerCase()==="yes";return "<span class='chip"+(yes?" yes":"")+"'>"+(yes?"YES":"No")+"</span>";})())
-  );
-
-  // Delivery
-  h += "<div class='dw-sec'><div class='dw-st'>Delivery Info</div><div class='dcard del'><div class='dw-g'>" +
-    fld("Delivery Time", "<span class='mo'>" + fmtDate(gv(r,"Vehicle_Delivery_Form_ID.Final_Delivery_Datetime")) + "</span>") +
-    fld("Location", esc(gv(r,"Vehicle_Delivery_Form_ID.Added_Location")||"—")) +
-    fld("Notes / Exceptions", esc(gv(r,"Vehicle_Delivery_Form_ID.Delivery_Notes")||"—"), true) +
-    "</div></div></div>";
-
-  // Impound (conditional)
-  if (iName || iAddr) {
-    h += "<div class='dw-sec'><div class='dw-st'>Impound Info</div><div class='dcard imp'><div class='dw-g'>" +
-      fld("Yard Name", esc(iName||"—")) +
-      fld("Type",      esc(gv(r,"Impound_Type")||"—")) +
-      fld("Reason",    esc(gv(r,"Type_of_Tow")||"—")) +
-      fld("Date",      "<span class='mo'>" + fmtDate(gv(r,"Date_of_Impound")) + "</span>") +
-      fld("Yard Address",    esc(iAddr||"—"), true) +
-      fld("Return / Drop-off", esc(gv(r,"Vehicle_Return_Drop_Off_Address")||"—"), true) +
-      "</div></div></div>";
-  }
-
-  // Financial
-  h += sec("Financial",
-    fld("Amount Paid", amt ? "<span class='amt'>$"+esc(amt)+"</span>" : "<span class='mu'>—</span>")
-  );
-
-  // Notes
-  h += "<div class='dw-sec'><div class='dw-st'>Notes / Comments</div><div class='nbox'>" + esc(notes) + "</div></div>";
-
-  document.getElementById("dwBody").innerHTML = h;
-  document.getElementById("dwBody").scrollTop = 0;
+function onRoverError(msg){
+  roverLookupDone=true;roverLookupFailed=true;
+  document.getElementById("roverLoading").classList.remove("active");
+  document.getElementById("inputMva").disabled=false;
+  showRoverWarning(msg);
+  revealAssignButton();
 }
 
-function closeDrawer() {
-  document.getElementById("tw").classList.remove("open");
-  document.getElementById("dw").classList.remove("open");
-  if (activeRow) { activeRow.classList.remove("act"); activeRow = null; }
+function showRoverWarning(msg){
+  var w=document.getElementById("roverWarn");
+  document.getElementById("roverWarnText").textContent=msg;
+  w.classList.add("active");
 }
 
-// ── CONTROLS ──────────────────────────────────────────────────────────────────
-function setFilter(f, btn) {
-  activeFilter = f;
-  var bs = document.querySelectorAll(".fb");
-  for (var i = 0; i < bs.length; i++) bs[i].classList.remove("on");
-  btn.classList.add("on");
-  applyAll();
+/* showStallStep: called when dispatcher clicks "Next →" */
+function showStallStep(){
+  document.getElementById("btnNext").style.display="none";
+  document.getElementById("stallGroup").style.display="block";
+  revealAssignButton();
+  setTimeout(function(){document.getElementById("inputStall").focus();},100);
 }
 
-function onSearch(val) {
-  searchVal = val.trim();
-  applyAll();
+/* revealAssignButton: makes the Assign button visible and clickable */
+function revealAssignButton(){
+  var btn=document.getElementById("btnSubmitAssign");
+  btn.style.display="inline-flex";
+  btn.disabled=false;
+  btn.textContent=isReassign?"Re-assign":"Assign";
 }
 
-function sortBy(field) {
-  sortDir = (sortField === field && sortDir === "desc") ? "asc" : "desc";
-  sortField = field;
-  var ths = document.querySelectorAll("thead th");
-  var map = ["Case_Number","Added_Time","Case_Status","Tow_or_Impound_Request","VIN",null,"Renter_Name",null,null,null];
-  for (var i = 0; i < ths.length; i++) {
-    ths[i].classList.remove("sorted");
-    var ic = ths[i].querySelector(".si2");
-    if (ic) ic.textContent = "↕";
-    if (map[i] === field) {
-      ths[i].classList.add("sorted");
-      if (ic) ic.textContent = sortDir === "asc" ? "↑" : "↓";
+/* MVA input watcher — triggers lookup at exactly 8 digits */
+document.getElementById("inputMva").addEventListener("input",function(){
+  clearPopupError();
+  var val=this.value.replace(/\D/g,"").substring(0,CONFIG.MVA_LENGTH);
+  this.value=val;
+  if(val.length===CONFIG.MVA_LENGTH){
+    doRoverLookup(val);
+  } else {
+    // Only reset if user is editing away from the previously looked-up MVA
+    if(roverData&&val!==currentLookupMva.substring(0,val.length)){
+      roverData=null;currentLookupMva="";
+      roverLookupDone=false;roverLookupFailed=false;
+      document.getElementById("roverCard").classList.remove("active");
+      document.getElementById("roverLoading").classList.remove("active");
+      document.getElementById("roverWarn").classList.remove("active");
+      document.getElementById("btnNext").style.display="none";
+      document.getElementById("btnSubmitAssign").style.display="none";
+      document.getElementById("stallGroup").style.display="none";
     }
   }
-  applyAll();
+});
+
+/* ============================================================
+   AVIS LOOKUP RECORD — create or update in Avis_lookup_Requests
+   Returns a Promise that resolves with the record ID (string)
+   ============================================================ */
+function saveAvisLookup(mva,data,vehicleRequestId){
+  return new Promise(function(resolve,reject){
+    if(!data){resolve(null);return;}
+
+    var payload={
+      MVA: mva,
+      Vehicle_Request_Form_ID: vehicleRequestId||"",
+      Rover_Model: data.model||"",
+      Rover_Make: data.make||"",
+      Rover_Color: data.color||"",
+      Rover_Class: data.class||"",
+      Rover_VIN: data.vin||"",
+      Rover_Plate: data.plate||"",
+      RA: data.raNumber||"",
+      Status: data.status||"",
+      Status_Full: data.statusFull||""
+    };
+
+    // Key on MVA + Vehicle_Request_Form_ID — same vehicle request re-assign = update,
+    // different vehicle request for same MVA = new record
+    var criteria='MVA == "'+mva+'" && Vehicle_Request_Form_ID == "'+vehicleRequestId+'"';
+    console.log("[AVIS] Querying report:", CONFIG.AVIS_LOOKUP_REPORT, "criteria:", criteria);
+    ZOHO.CREATOR.DATA.getRecords({
+      app_name: CONFIG.APP_NAME,
+      report_name: CONFIG.AVIS_LOOKUP_REPORT,
+      criteria: criteria,
+      page: 1,
+      max_records: 200
+    }).then(function(resp){
+      console.log("[AVIS] getRecords response code:", resp.code, "| records found:", resp.data?resp.data.length:0, resp);
+      if(resp.code===3000&&resp.data&&resp.data.length>0){
+        var existingId=resp.data[0].ID.toString();
+        console.log("[AVIS] Existing record found, updating ID:", existingId);
+        ZOHO.CREATOR.DATA.updateRecordById({
+          app_name: CONFIG.APP_NAME,
+          report_name: CONFIG.AVIS_LOOKUP_REPORT,
+          id: existingId,
+          payload: {data: payload}
+        }).then(function(ur){
+          console.log("[AVIS] updateRecordById code:", ur.code, ur);
+          if(ur.code===3000){resolve(existingId);}
+          else{console.warn("[AVIS] Update failed, returning existing ID anyway:", existingId);resolve(existingId);}
+        }).catch(function(e){
+          console.error("[AVIS] updateRecordById exception:", e);
+          resolve(existingId);
+        });
+      } else {
+        doAddAvisRecord(payload, resolve);
+      }
+    }).catch(function(e){
+      // code 9280 = no records found — treat as empty, not a real error
+      try {
+        var parsed = JSON.parse(e.responseText||'{}');
+        if(parsed.code===9280){
+          console.log("[AVIS] No existing record (9280) — creating new.");
+          doAddAvisRecord(payload, resolve);
+          return;
+        }
+      } catch(pe){}
+      console.error("[AVIS] getRecords unexpected exception — falling back to addRecords:", JSON.stringify(e));
+      doAddAvisRecord(payload, resolve);
+    });
+  });
 }
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-function setState(s) {
-  var tbl  = document.getElementById("tbl");
-  var el   = document.getElementById("stateEl");
-  var cEl  = document.getElementById("countEl");
-  if (s === "loading") {
-    tbl.style.display = "none";
-    el.style.display  = "flex";
-    el.innerHTML      = "<div class='spin'></div><p>Loading cases…</p>";
-    cEl.innerHTML     = "Loading…";
-  } else if (s === "empty") {
-    tbl.style.display = "none";
-    el.style.display  = "flex";
-    el.innerHTML      = "<p>No cases found</p>";
-    cEl.innerHTML     = "<b>0</b> cases";
+/* helper: add a new Avis lookup record and resolve with its ID */
+function doAddAvisRecord(payload, resolve){
+  console.log("[AVIS] Creating new record in form:", CONFIG.AVIS_LOOKUP_FORM, "Payload:", JSON.stringify(payload));
+  ZOHO.CREATOR.DATA.addRecords({
+    app_name: CONFIG.APP_NAME,
+    form_name: CONFIG.AVIS_LOOKUP_FORM,
+    payload: {data: payload}
+  }).then(function(ar){
+    console.log("[AVIS] addRecords code:", ar.code, "Full response:", JSON.stringify(ar));
+    if(ar.code===3000&&ar.data&&ar.data.ID){
+      console.log("[AVIS] New record created, ID:", ar.data.ID);
+      resolve(ar.data.ID.toString());
+    } else {
+      console.warn("[AVIS] addRecords did not return ID:", JSON.stringify(ar));
+      resolve(null);
+    }
+  }).catch(function(e){
+    console.error("[AVIS] addRecords failed:", JSON.stringify(e));
+    resolve(null);
+  });
+}
+
+/* ============================================================
+   AUTO-DELETE: removes New records older than UNASSIGNED_DELETE_MS
+   ============================================================ */
+function autoDeleteExpired(all){var now=Date.now();for(var i=0;i<all.length;i++){var r=all[i],id=r.ID?r.ID.toString():"";if(!id||deletingIds[id])continue;if(isAssignedStatus(r.Dispatch_Status)||isInProgressStatus(r.Dispatch_Status)||isCancelledStatus(r.Dispatch_Status))continue;if((r.Dispatch_Status||"").toLowerCase().indexOf("complet")>=0)continue;var ad=parseZohoDate(r.Added_Time);if(!ad||(now-ad.getTime())<=CONFIG.UNASSIGNED_DELETE_MS)continue;deletingIds[id]=true;ZOHO.CREATOR.DATA.deleteRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id}).then(function(){delete deletingIds[id];}).catch(function(){delete deletingIds[id];});break;}}
+
+/* ============================================================
+   MARK IN PROGRESS
+   ============================================================ */
+function markInProgress(id){if(!loggedInUser){alert("Could not determine identity.");return;}ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"In Progress",Claimed_By_Email:loggedInUser}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else{var msg="Operation failed.";try{if(resp.error)for(var i=0;i<resp.error.length;i++)if(resp.error[i].alert_message){msg=resp.error[i].alert_message;break;}}catch(e){}alert("Mark IP failed: "+msg);}}).catch(function(){alert("Failed to mark In Progress.");});}
+
+/* ============================================================
+   UNCLAIM
+   ============================================================ */
+function unclaimRecord(id){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"New",Claimed_By_Email:""}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));}).catch(function(){alert("Failed to unclaim.");});}
+
+/* ============================================================
+   ACTION BUTTONS PER ROW
+   ============================================================ */
+function buildActionButtons(rec){
+  var id=rec.ID,status=rec.Dispatch_Status||"New";
+  var claimedBy=(rec.Claimed_By_Email||"").toLowerCase().trim();
+  var isMe=loggedInUser&&claimedBy===loggedInUser.toLowerCase().trim();
+  var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
+  var vc=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
+  var cm=(rec.Assigned_MVA||'').toString().replace(/'/g,"\\'");
+  var cs=(rec.Stall_Number||'').toString().replace(/'/g,"\\'");
+  if(isCancelledStatus(status))return'';
+  if(isAssignedStatus(status))return'<button class="btn-reassign" onclick="openReassignPopup(\''+id+'\',\''+ve+'\',\''+cm+'\',\''+cs+'\',\''+vc+'\')">Re-assign</button>';
+  if(isInProgressStatus(status)){
+    if(isMe)return'<div class="btn-group"><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button><button class="btn-unclaim" onclick="unclaimRecord(\''+id+'\')">Unclaim</button></div>';
+    var cn=claimedBy?claimedBy.split("@")[0]:"someone";
+    return'<span class="claimed-label">Claimed by '+cn+'</span>';
+  }
+  return'<div class="btn-group"><button class="btn-markip" onclick="markInProgress(\''+id+'\')">Mark IP</button><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button></div>';
+}
+
+/* ============================================================
+   RENDER TABLE
+   ============================================================ */
+function renderTable(records){
+  var tbody=document.getElementById("dispatchBody");
+  if(!records||!records.length){tbody.innerHTML='<tr><td colspan="8" class="no-results">'+(getSearchTerm()?'No results':'No requests in queue')+'</td></tr>';return;}
+  var html="",prevGroup="";
+  records.forEach(function(rec){
+    var id=rec.ID,recStr=JSON.stringify(rec),changed=previousData[id]&&previousData[id]!==recStr;previousData[id]=recStr;
+    var status=rec.Dispatch_Status||"New",age=getAge(rec.Added_Time);
+    var curGroup=rowClass(status),divider=(prevGroup&&curGroup!==prevGroup)?" group-divider":"";prevGroup=curGroup;
+    html+='<tr class="'+curGroup+divider+(changed?' flash':'')+'">';
+    html+='<td><span class="age-badge '+age.cls+'">'+age.text+'</span></td>';
+    html+='<td>'+formatTime(rec.Added_Time)+'</td>';
+    html+='<td>'+buildVehicleCell(rec)+'</td>';
+    html+='<td>'+(rec.Your_desk_ID||'')+'</td>';
+    html+='<td><span class="badge '+badgeClass(status)+'">'+status+'</span></td>';
+    html+='<td>'+buildActionButtons(rec)+'</td>';
+    html+='<td>'+buildAssignCell(rec)+'</td>';
+    html+='<td>'+formatTime(rec.Assignment_Time)+'</td>';
+    html+='</tr>';
+  });
+  tbody.innerHTML=html;
+}
+
+/* ============================================================
+   SORT HEADER CLICKS + SEARCH
+   ============================================================ */
+document.getElementById("headerRow").addEventListener("click",function(e){var th=e.target.closest("th[data-col]");if(!th)return;var col=th.getAttribute("data-col");if(col===sortCol)sortDir=sortDir==="desc"?"asc":"desc";else{sortCol=col;sortDir="desc";}refreshTable();});
+var searchTimeout=null;document.getElementById("searchBox").addEventListener("input",function(){clearTimeout(searchTimeout);searchTimeout=setTimeout(refreshTable,150);});
+
+/* ============================================================
+   ASSIGN POPUP — OPEN / CLOSE
+   ============================================================ */
+function resetPopupRoverState(){
+  // Do NOT wipe roverData or currentLookupMva here — they persist so
+  // submitAssign can still use a lookup that completed before this open.
+  // They only reset when the MVA input changes to a different value.
+  roverLookupDone=false;roverLookupFailed=false;
+  subRules=null;subRulesLoaded=false;
+  document.getElementById("roverCard").classList.remove("active");
+  document.getElementById("roverLoading").classList.remove("active");
+  document.getElementById("roverWarn").classList.remove("active");
+  document.getElementById("btnNext").style.display="none";
+  document.getElementById("btnSubmitAssign").style.display="none";
+  document.getElementById("stallGroup").style.display="none";
+  document.getElementById("inputMva").disabled=false;
+}
+
+function openAssignPopup(id,v,vc){
+  assignRecordId=id;isReassign=false;
+  requestedClass=vc||"";
+  document.getElementById("popupTitle").textContent="Assign Vehicle";
+  document.getElementById("assignVehicle").textContent=v;
+  document.getElementById("inputMva").value="";
+  document.getElementById("inputStall").value=loggedInUser.toLowerCase().indexOf(CONFIG.PUMP_KEYWORD)>=0?CONFIG.PUMP_STALL_DEFAULT:"";
+  document.getElementById("btnSubmitAssign").textContent="Assign";
+  clearPopupError();
+  resetPopupRoverState();
+  loadSubRules(requestedClass);
+  document.getElementById("assignOverlay").classList.add("active");
+  setTimeout(function(){document.getElementById("inputMva").focus();},100);
+}
+
+function openReassignPopup(id,v,m,s,vc){
+  assignRecordId=id;isReassign=true;
+  requestedClass=vc||"";
+  document.getElementById("popupTitle").textContent="Re-assign Vehicle";
+  document.getElementById("assignVehicle").textContent=v;
+  document.getElementById("inputMva").value=m;
+  document.getElementById("inputStall").value=s;
+  document.getElementById("btnSubmitAssign").textContent="Re-assign";
+  clearPopupError();
+  resetPopupRoverState();
+  loadSubRules(requestedClass);
+  document.getElementById("assignOverlay").classList.add("active");
+  if(m&&m.length===CONFIG.MVA_LENGTH){
+    setTimeout(function(){doRoverLookup(m);},200);
   } else {
-    tbl.style.display = "table";
-    el.style.display  = "none";
+    document.getElementById("stallGroup").style.display="block";
+    revealAssignButton();
   }
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function gv(r, key) {
-  if (!r || !key) return "";
-  var v = r[key];
-  if (v !== undefined && v !== null) return String(v);
-  var parts = key.split("."), cur = r;
-  for (var i = 0; i < parts.length; i++) {
-    if (!cur || typeof cur !== "object") return "";
-    cur = cur[parts[i]];
+function closeAssignPopup(){
+  assignRecordId=null;isReassign=false;
+  document.getElementById("assignOverlay").classList.remove("active");
+  resetPopupRoverState();
+}
+
+/* ============================================================
+   SUBMIT ASSIGN
+   Workflow: validate → update vehicle request → save Avis lookup →
+             write Avis_lookup_ID back to vehicle request
+   ============================================================ */
+function submitAssign(){
+  if(!assignRecordId)return;
+  var mva=document.getElementById("inputMva").value.trim();
+  var stall=document.getElementById("inputStall").value.trim();
+  clearPopupError();
+
+  var mvaRegex=new RegExp("^\\d{"+CONFIG.MVA_LENGTH+"}$");
+  if(!firstLoadComplete){showPopupError("Still loading.");return;}
+  if(!mva||mva.length!==CONFIG.MVA_LENGTH){showPopupError("MVA must be "+CONFIG.MVA_LENGTH+" digits.");return;}
+  if(!mvaRegex.test(mva)){showPopupError("MVA must be exactly "+CONFIG.MVA_LENGTH+" digits.");return;}
+  if(!stall){showPopupError("Stall is required.");return;}
+
+  // Substitution rule check — block if rules exist and class is not allowed
+  if(roverData&&subRulesLoaded&&subRules!==null&&requestedClass){
+    var roverP=classPrefix(roverData.class||"");
+    var reqP=classPrefix(requestedClass);
+    if(roverP&&reqP&&roverP!==reqP){
+      var allowed=false;
+      for(var si=0;si<subRules.length;si++){if(subRules[si]===roverP){allowed=true;break;}}
+      if(!allowed){
+        showPopupError("Class "+roverP+" is not an approved substitution for "+reqP+". Allowed: "+subRules.join(", ")+".");
+        return;
+      }
+    }
   }
-  return (cur !== undefined && cur !== null) ? String(cur) : "";
+
+  var btn=document.getElementById("btnSubmitAssign");
+  btn.textContent="Checking...";btn.disabled=true;
+
+  fetchLatestRecords().then(function(response){
+    if(response.code!==3000){
+      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
+      showPopupError("Could not verify queue.");return;
+    }
+    var live=response.data||[];currentRecords=applyFilter(live);
+    var error=validateAssignment(mva,stall,assignRecordId,live,isReassign);
+    if(error){
+      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
+      showPopupError(error);
+      if(error.indexOf("another")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);
+      return;
+    }
+
+    btn.textContent=isReassign?"Re-assigning...":"Assigning...";
+
+    var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
+    var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
+    var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
+    var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
+
+    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+
+    var capturedRecordId=assignRecordId; // close over before async
+
+    ZOHO.CREATOR.DATA.updateRecordById({
+      app_name:CONFIG.APP_NAME,
+      report_name:CONFIG.REPORT_NAME,
+      id:capturedRecordId,
+      payload:{data:payload}
+    }).then(function(ur){
+      btn.textContent=isReassign?"Re-assign":"Assign";
+      btn.disabled=false;
+      if(ur.code===3000){
+        closeAssignPopup();
+        fetchDispatches();
+        // ── Save Avis lookup record (fire-and-forget, non-blocking) ──
+        console.log("[ASSIGN] At submit: roverData=", roverData, "currentLookupMva=", currentLookupMva, "mva=", mva);
+        if(roverData){
+          console.log("[ASSIGN] Assign succeeded (recordId:", capturedRecordId, "). Saving Avis lookup for MVA:", mva);
+          saveAvisLookup(mva,roverData,capturedRecordId).then(function(avisId){
+            if(!avisId){
+              console.warn("[ASSIGN] saveAvisLookup returned null — Avis_lookup_ID not written.");
+              return;
+            }
+            console.log("[ASSIGN] saveAvisLookup returned ID:", avisId, "— writing Avis_lookup_ID to vehicle request", capturedRecordId);
+            // Write Avis_lookup_ID back to the vehicle request
+            ZOHO.CREATOR.DATA.updateRecordById({
+              app_name:CONFIG.APP_NAME,
+              report_name:CONFIG.REPORT_NAME,
+              id:capturedRecordId,
+              payload:{data:{Avis_lookup_ID:avisId}}
+            }).then(function(r){
+              if(r.code===3000){console.log("[ASSIGN] Avis_lookup_ID written OK. Value:", avisId);}
+              else{console.warn("[ASSIGN] Avis_lookup_ID write failed:", r);}
+            }).catch(function(e){console.error("[ASSIGN] Avis_lookup_ID write exception:", e);});
+          });
+        } else {
+          console.log("[ASSIGN] No roverData — skipping Avis lookup save.");
+        }
+      } else {
+        showPopupError(parseUpdateError(ur));
+      }
+    }).catch(function(ue){
+      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
+      showPopupError(parseUpdateError(ue));
+    });
+  }).catch(function(){
+    btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
+    showPopupError("Could not verify queue.");
+  });
 }
-function esc(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+document.getElementById("inputStall").addEventListener("input",clearPopupError);
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape")closeAssignPopup();
+  if(e.key==="Enter"&&assignRecordId){
+    // Only allow Enter to submit if Assign button is visible/enabled
+    var btn=document.getElementById("btnSubmitAssign");
+    if(btn&&btn.style.display!=="none"&&!btn.disabled)submitAssign();
+  }
+});
+
+/* ============================================================
+   FILTER: applies timeout periods from CONFIG
+   ============================================================ */
+function applyFilter(all){var now=Date.now();return all.filter(function(r){var s=(r.Dispatch_Status||"").toLowerCase();
+  if(s.indexOf("complet")>=0)return false;
+  if(isAssignedStatus(r.Dispatch_Status)){var md=parseZohoDate(r.Modified_Time);if(md&&(now-md.getTime())>CONFIG.ASSIGNED_HIDE_MS)return false;}
+  if(isCancelledStatus(r.Dispatch_Status)){var cd=parseZohoDate(r.Modified_Time);if(cd&&(now-cd.getTime())>CONFIG.ASSIGNED_HIDE_MS)return false;}
+  if(isNewStatus(r.Dispatch_Status)){var ad=parseZohoDate(r.Added_Time);if(ad&&(now-ad.getTime())>CONFIG.UNASSIGNED_DELETE_MS)return false;}
+  return true;});}
+
+/* ============================================================
+   POLLING
+   ============================================================ */
+function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(function(response){if(response.code===3000){var all=response.data||[];autoDeleteExpired(all);currentRecords=applyFilter(all);checkForNewRequests(currentRecords);firstLoadComplete=true;refreshTable();document.getElementById("statusDot").className="status-dot live";document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();}}).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});}
+
+/* ============================================================
+   INIT — load Zoho variable for Rover API key
+   ============================================================ */
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
+  loggedInUser=params.loginUser||"";
+  sdkReady=true;
+  console.log("[INIT] SDK ready. loginUser:", loggedInUser);
+
+  // Load Cloudflare Rover API key from app variable
+  roverApiKey = ""; // unused — worker validates by Origin header
+
+  fetchDispatches();
+  setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
+}).catch(function(e){
+  console.error("[INIT] getInitParams failed:", e);
+  sdkReady=true;
+  fetchDispatches();
+  setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
+});
+</script>
+
+<!-- ── BARCODE SCANNER (unchanged from v2) ── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script>
+var html5QrCode=null,scannerActive=false,scannerPaused=false;
+function startScanner(){
+  var o=document.getElementById("scannerOverlay");
+  o.style.display="flex";
+  if(scannerActive&&html5QrCode){scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning...";return;}
+  document.getElementById("scannerStatus").textContent="Initializing camera...";
+  html5QrCode=new Html5Qrcode("scannerView");
+  html5QrCode.start(
+    {facingMode:"environment"},
+    {fps:10,qrbox:{width:280,height:120},aspectRatio:1.5,
+     formatsToSupport:[Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,
+       Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,
+       Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,
+       Html5QrcodeSupportedFormats.ITF,Html5QrcodeSupportedFormats.CODABAR,
+       Html5QrcodeSupportedFormats.QR_CODE]},
+    function(d){
+      if(scannerPaused)return;
+      scannerPaused=true;
+      var clean=d.replace(/\D/g,"");
+      document.getElementById("inputMva").value=clean;
+      clearPopupError();
+      document.getElementById("scannerOverlay").style.display="none";
+      // Trigger lookup after scan if 8 digits
+      if(clean.length===CONFIG.MVA_LENGTH){
+        doRoverLookup(clean);
+      } else {
+        setTimeout(function(){document.getElementById("inputStall").focus();},200);
+      }
+    },
+    function(){}
+  ).then(function(){
+    scannerActive=true;scannerPaused=false;
+    document.getElementById("scannerStatus").textContent="Scanning...";
+  }).catch(function(){
+    document.getElementById("scannerStatus").textContent="Camera unavailable";
+    setTimeout(function(){document.getElementById("scannerOverlay").style.display="none";},3000);
+  });
 }
-function fmtDate(d) {
-  if (!d) return "—";
-  try {
-    var dt = new Date(d);
-    if (isNaN(dt.getTime())) return d;
-    return dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) + " " +
-           dt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true});
-  } catch(e) { return d; }
-}
-function badge(s) {
-  if (!s) return "<span class='badge bx'>—</span>";
-  var c = "bx", sl = s.toLowerCase();
-  if (sl.indexOf("delivered") !== -1)     c = "bd";
-  else if (s === "In Progress")           c = "bp";
-  else if (s === "Not Started")           c = "bn";
-  else if (s === "Assigned")              c = "ba";
-  else if (sl.indexOf("cancel") !== -1 || sl.indexOf("goa") !== -1) c = "bc";
-  return "<span class='badge " + c + "'>" + esc(s) + "</span>";
-}
-function fld(label, val, full) {
-  return "<div class='df" + (full?" full":"") + "'><label>" + label + "</label><div class='v'>" + val + "</div></div>";
-}
-function sec(title, content) {
-  return "<div class='dw-sec'><div class='dw-st'>" + title + "</div><div class='dw-g'>" + content + "</div></div>";
-}
+function stopScanner(){scannerPaused=true;document.getElementById("scannerOverlay").style.display="none";}
 </script>
 </body>
 </html>
