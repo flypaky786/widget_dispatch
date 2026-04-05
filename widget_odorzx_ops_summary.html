@@ -332,13 +332,16 @@ function showError(msg) {
 
 /* ── Fetch ─────────────────────────────────────── */
 function fetchPage(criteria, fromIdx, acc, done, fail) {
-  ZOHO.CREATOR.DATA.getRecords({
+  var params = {
     appName:    APP_NAME,
     reportName: REPORT_NAME,
     criteria:   criteria,
     from:       fromIdx,
     limit:      200
-  }).then(function(resp) {
+  };
+  console.log("[widget] getRecords params:", JSON.stringify(params));
+  ZOHO.CREATOR.DATA.getRecords(params).then(function(resp) {
+    console.log("[widget] getRecords raw response:", JSON.stringify(resp));
     var page = [];
     if (resp && resp.data)        page = resp.data;
     else if (resp && resp.result) page = resp.result;
@@ -349,6 +352,7 @@ function fetchPage(criteria, fromIdx, acc, done, fail) {
       done(combined);
     }
   }).catch(function(err) {
+    console.log("[widget] getRecords error raw:", JSON.stringify(err));
     var msg = (err && err.error && err.error.message)
            || (err && err.message)
            || JSON.stringify(err);
@@ -450,7 +454,9 @@ function startWidget() {
 /* window.onload required — SDK must finish injecting before getInitParams is called */
 window.onload = function() {
   ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+    console.log("[widget] getInitParams response:", JSON.stringify(params));
     if (params && params.appLinkName) APP_NAME = params.appLinkName;
+    console.log("[widget] APP_NAME set to:", APP_NAME);
     startWidget();
   }).catch(function(err) {
     console.error("[widget] getInitParams failed:", err);
