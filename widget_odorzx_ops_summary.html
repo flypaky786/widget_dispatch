@@ -7,19 +7,14 @@
   <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
   <style>
     :root {
-      --col-header:  #3a4a5c;
-      --col-accent:  #2e6da4;
-      --col-foot:    #e8ecf2;
-      --col-border:  #dde3ec;
-      --col-alt:     #f7f9fc;
-      --col-muted:   #8a9bb0;
-      --col-good:    #27845a;
-      --col-warn:    #b07d1c;
-      --col-bad:     #c0392b;
+      --col-header: #3a4a5c;
+      --col-accent: #2e6da4;
+      --col-foot:   #e8ecf2;
+      --col-border: #dde3ec;
+      --col-alt:    #f7f9fc;
+      --col-muted:  #8a9bb0;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 13px;
@@ -27,8 +22,6 @@
       color: #1e2a38;
       padding: 14px;
     }
-
-    /* ── Filter bar ── */
     .filter-bar {
       display: flex;
       gap: 10px;
@@ -78,13 +71,10 @@
       font-weight: 700;
       cursor: pointer;
       margin-top: 17px;
-      letter-spacing: .3px;
       transition: background .15s;
     }
     .btn-refresh:hover  { background: #245a8e; }
     .btn-refresh:active { background: #1c4870; }
-
-    /* ── Sub-header ── */
     .sub-header {
       display: flex;
       align-items: center;
@@ -94,8 +84,6 @@
     }
     .sub-header h2 { font-size: 13px; font-weight: 700; color: #2d3d4f; }
     .rec-count { font-size: 11px; color: var(--col-muted); }
-
-    /* ── Table ── */
     .table-wrap {
       background: #fff;
       border-radius: 7px;
@@ -104,7 +92,6 @@
       overflow: hidden;
     }
     table { width: 100%; border-collapse: collapse; }
-
     thead tr { background: var(--col-header); }
     thead th {
       padding: 9px 13px;
@@ -117,7 +104,6 @@
     }
     thead th:first-child       { text-align: left; }
     thead th:not(:first-child) { text-align: right; }
-
     tbody tr { border-bottom: 1px solid var(--col-border); transition: background .08s; }
     tbody tr:last-child      { border-bottom: none; }
     tbody tr:nth-child(even) { background: var(--col-alt); }
@@ -125,13 +111,10 @@
     tbody td                 { padding: 8px 13px; }
     tbody td:first-child     { font-weight: 600; }
     tbody td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-
     tfoot tr { background: var(--col-foot); border-top: 2px solid #c8d1de; }
     tfoot td { padding: 9px 13px; font-weight: 700; }
     tfoot td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-
     .zero { color: var(--col-muted); font-weight: 400; }
-
     .status-box {
       padding: 32px 20px;
       text-align: center;
@@ -149,7 +132,6 @@
       margin-right: 8px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-
     .err-box {
       margin: 10px;
       padding: 10px 14px;
@@ -171,7 +153,6 @@
 </head>
 <body>
 
-<!-- Filters -->
 <div class="filter-bar">
   <div class="fg">
     <label>Completed Date</label>
@@ -275,13 +256,11 @@
   <button class="btn-refresh" id="btnRefresh">&#8635; Refresh</button>
 </div>
 
-<!-- Sub-header -->
 <div class="sub-header">
   <h2 id="reportTitle">Completed Jobs</h2>
   <span class="rec-count" id="recCount"></span>
 </div>
 
-<!-- Table -->
 <div class="table-wrap">
   <div id="loadBox" class="status-box"><span class="spinner"></span> Loading records…</div>
   <div id="errBox"   class="err-box"></div>
@@ -300,15 +279,12 @@
 </div>
 
 <script>
-/* ── Config ──────────────────────────────────────── */
-var REPORT_NAME     = "Standard_Job_Search";
-var COMPLETE_STATUS = "Completed";
-/* ─────────────────────────────────────────────────── */
+var REPORT_NAME = "Standard_Job_Search";
+var APP_NAME    = "autoflowx";
+var allRecords  = [];
+var _started    = false;
 
-var APP_NAME   = "autoflowx";
-var allRecords = [];
-
-/* ── Utilities ───────────────────────────────────── */
+/* ── Utilities ─────────────────────────────────── */
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
 function todayStr() {
@@ -323,20 +299,17 @@ function toZohoDate(ymd) {
 
 function esc(s) {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/* ── UI helpers ──────────────────────────────────── */
+/* ── UI ────────────────────────────────────────── */
 function showLoading() {
   document.getElementById("loadBox").style.display   = "block";
   document.getElementById("errBox").style.display    = "none";
   document.getElementById("emptyBox").style.display  = "none";
   document.getElementById("mainTable").style.display = "none";
 }
-
 function showTable(hasRows) {
   document.getElementById("loadBox").style.display  = "none";
   document.getElementById("errBox").style.display   = "none";
@@ -348,7 +321,6 @@ function showTable(hasRows) {
     document.getElementById("mainTable").style.display = "none";
   }
 }
-
 function showError(msg) {
   document.getElementById("loadBox").style.display   = "none";
   document.getElementById("mainTable").style.display = "none";
@@ -358,7 +330,7 @@ function showError(msg) {
   b.textContent   = "Error: " + msg;
 }
 
-/* ── Paginated fetch ─────────────────────────────── */
+/* ── Fetch ─────────────────────────────────────── */
 function fetchPage(criteria, fromIdx, acc, done, fail) {
   ZOHO.CREATOR.DATA.getRecords({
     appName:    APP_NAME,
@@ -370,7 +342,6 @@ function fetchPage(criteria, fromIdx, acc, done, fail) {
     var page = [];
     if (resp && resp.data)        page = resp.data;
     else if (resp && resp.result) page = resp.result;
-
     var combined = acc.concat(page);
     if (page.length === 200) {
       fetchPage(criteria, fromIdx + 200, combined, done, fail);
@@ -385,14 +356,7 @@ function fetchPage(criteria, fromIdx, acc, done, fail) {
   });
 }
 
-/* ── Build criteria ──────────────────────────────── */
-function makeCriteria(dateStr) {
-  var z = toZohoDate(dateStr);
-  return 'Completion_Timestamp >= "' + z + ' 00:00:00"'
-       + ' && Completion_Timestamp <= "' + z + ' 23:59:59"';
-}
-
-/* ── Render ──────────────────────────────────────── */
+/* ── Render ────────────────────────────────────── */
 function render() {
   var selSite = document.getElementById("filterSite").value;
   var selRole = document.getElementById("filterRole").value;
@@ -417,11 +381,10 @@ function render() {
 
   var sites = Object.keys(groups).sort();
 
-  if (sites.length === 0) {
-    showTable(false);
-    document.getElementById("recCount").textContent = "0 records";
-    return;
-  }
+  document.getElementById("recCount").textContent =
+    filtered.length + " record" + (filtered.length !== 1 ? "s" : "");
+
+  if (sites.length === 0) { showTable(false); return; }
 
   var tbody = document.getElementById("tBody");
   var tfoot = document.getElementById("tFoot");
@@ -429,15 +392,13 @@ function render() {
   tfoot.innerHTML = "";
 
   var totC = 0, totSeats = 0;
-
   for (var k = 0; k < sites.length; k++) {
     var sn       = sites[k];
     var g        = groups[sn];
     totC        += g.c;
     totSeats    += g.seats;
     var seatsStr = g.seats > 0 ? g.seats : '<span class="zero">&mdash;</span>';
-
-    var tr = document.createElement("tr");
+    var tr       = document.createElement("tr");
     tr.innerHTML =
       "<td>" + esc(sn) + "</td>" +
       "<td>" + g.c + "</td>" +
@@ -446,23 +407,20 @@ function render() {
   }
 
   tfoot.innerHTML =
-    "<tr>" +
-    "<td>Total &mdash; " + sites.length + " site" + (sites.length !== 1 ? "s" : "") + "</td>" +
+    "<tr><td>Total &mdash; " + sites.length + " site" + (sites.length !== 1 ? "s" : "") + "</td>" +
     "<td>" + totC + "</td>" +
-    "<td>" + (totSeats > 0 ? totSeats : '<span class="zero">&mdash;</span>') + "</td>" +
-    "</tr>";
-
-  document.getElementById("recCount").textContent =
-    filtered.length + " record" + (filtered.length !== 1 ? "s" : "");
+    "<td>" + (totSeats > 0 ? totSeats : '<span class="zero">&mdash;</span>') + "</td></tr>";
 
   showTable(true);
 }
 
-/* ── Load ────────────────────────────────────────── */
+/* ── Load ──────────────────────────────────────── */
 function load() {
   showLoading();
   var dateStr  = document.getElementById("filterDate").value || todayStr();
-  var criteria = makeCriteria(dateStr);
+  var z        = toZohoDate(dateStr);
+  var criteria = 'Completion_Timestamp >= "' + z + ' 00:00:00"'
+               + ' && Completion_Timestamp <= "' + z + ' 23:59:59"';
 
   document.getElementById("reportTitle").textContent =
     "Completed Jobs \u2014 " + dateStr;
@@ -473,19 +431,29 @@ function load() {
   }, showError);
 }
 
-/* ── SDK init ────────────────────────────────────── */
-ZOHO.CREATOR.UTIL.getInitParams(function(initParams) {
-  if (initParams && initParams.appLinkName) {
-    APP_NAME = initParams.appLinkName;
-  }
-
+/* ── Setup UI events ───────────────────────────── */
+function setupEvents() {
   document.getElementById("filterDate").value = todayStr();
-
   document.getElementById("btnRefresh").addEventListener("click",  load);
   document.getElementById("filterSite").addEventListener("change", render);
   document.getElementById("filterRole").addEventListener("change", render);
+}
 
+/* ── Init: try both patterns, fallback on timeout  */
+function startWidget() {
+  if (_started) return;
+  _started = true;
+  setupEvents();
   load();
+}
+
+/* Confirmed working pattern — same as dispatch + staffing widgets */
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+  if (params && params.appLinkName) APP_NAME = params.appLinkName;
+  startWidget();
+}).catch(function(err) {
+  console.error("[widget] getInitParams failed:", err);
+  startWidget();
 });
 </script>
 </body>
