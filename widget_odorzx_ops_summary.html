@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Jobs Summary</title>
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    /* ── CONFIG: edit these if needed ───────────────────── */
+    :root {
+      --col-header: #3a4a5c;
+      --col-header-text: #ffffff;
+      --col-row-alt: #f7f9fc;
+      --col-foot: #e8ecf2;
+      --col-accent: #2e6da4;
+      --col-good: #27845a;
+      --col-warn: #b07d1c;
+      --col-bad:  #c0392b;
+      --col-muted: #8a9bb0;
+      --col-border: #dde3ec;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      background: #f0f3f8;
+      color: #1e2a38;
+      padding: 14px;
+    }
+
+    /* ── Filter bar ──────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      background: #fff;
+      padding: 10px 14px;
+      border-radius: 7px;
+      margin-bottom: 12px;
+      border: 1px solid var(--col-border);
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .fg { display: flex; flex-direction: column; gap: 3px; }
+    .fg label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--col-muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .fg select,
+    .fg input[type=date] {
+      border: 1px solid var(--col-border);
+      border-radius: 5px;
+      padding: 5px 9px;
+      font-size: 13px;
+      color: #1e2a38;
+      background: #fff;
+      min-width: 130px;
+      height: 31px;
+    }
+    .fg select:focus,
+    .fg input[type=date]:focus {
+      outline: none;
+      border-color: var(--col-accent);
+      box-shadow: 0 0 0 2px rgba(46,109,164,.18);
+    }
+    .btn-refresh {
+      padding: 0 16px;
+      height: 31px;
+      background: var(--col-accent);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .3px;
+      margin-top: 17px;
+      transition: background .15s;
+    }
+    .btn-refresh:hover { background: #245a8e; }
+    .btn-refresh:active { background: #1c4870; }
+
+    /* ── Sub-header ──────────────────────────────────────── */
+    .sub-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px;
+      padding: 0 2px;
+    }
+    .sub-header h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #2d3d4f;
+    }
+    .rec-count {
+      font-size: 11px;
+      color: var(--col-muted);
+    }
+
+    /* ── Table shell ─────────────────────────────────────── */
+    .table-wrap {
+      background: #fff;
+      border-radius: 7px;
+      border: 1px solid var(--col-border);
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    /* Head */
+    thead tr {
+      background: var(--col-header);
+    }
+    thead th {
+      padding: 9px 13px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--col-header-text);
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    thead th:first-child { text-align: left; }
+    thead th:not(:first-child) { text-align: right; }
+
+    /* Body */
+    tbody tr {
+      border-bottom: 1px solid var(--col-border);
+      transition: background .08s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:nth-child(even) { background: var(--col-row-alt); }
+    tbody tr:hover { background: #edf3fa; }
+    tbody td { padding: 8px 13px; }
+    tbody td:first-child { font-weight: 600; color: #1e2a38; }
+    tbody td:not(:first-child) {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Foot */
+    tfoot tr {
+      background: var(--col-foot);
+      border-top: 2px solid #c8d1de;
+    }
+    tfoot td {
+      padding: 9px 13px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    tfoot td:first-child { color: #2d3d4f; }
+    tfoot td:not(:first-child) {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Completion rate badge */
+    .rate {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      margin-left: 5px;
+      padding: 1px 5px;
+      border-radius: 9px;
+    }
+    .rate-good { color: var(--col-good); background: #e6f4ee; }
+    .rate-warn { color: var(--col-warn); background: #fdf4e0; }
+    .rate-bad  { color: var(--col-bad);  background: #fdecea; }
+
+    /* Muted zero value */
+    .zero { color: var(--col-muted); font-weight: 400; }
+
+    /* Loading / error */
+    .status-box {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--col-muted);
+      font-size: 13px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2.5px solid var(--col-border);
+      border-top-color: var(--col-accent);
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-box {
+      margin: 12px;
+      padding: 10px 14px;
+      background: #fdecea;
+      border: 1px solid #f5c6c2;
+      border-radius: 5px;
+      color: #912b23;
+      font-size: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Filters ──────────────────────────────────────────────── -->
+<div class="filter-bar">
+  <div class="fg">
+    <label>Date (Added Time)</label>
+    <input type="date" id="filterDate">
+  </div>
+  <div class="fg">
+    <label>Site</label>
+    <select id="filterSite">
+      <option value="">All Sites</option>
+    </select>
+  </div>
+  <div class="fg">
+    <label>Role</label>
+    <select id="filterRole">
+      <option value="">All Roles</option>
+    </select>
+  </div>
+  <button class="btn-refresh" id="btnRefresh">↺ Refresh</button>
+</div>
+
+<!-- ── Sub-header ───────────────────────────────────────────── -->
+<div class="sub-header">
+  <h2 id="reportTitle">Daily Jobs Summary</h2>
+  <span class="rec-count" id="recCount"></span>
+</div>
+
+<!-- ── Table ────────────────────────────────────────────────── -->
+<div class="table-wrap">
+  <div id="loadBox" class="status-box">
+    <span class="spinner"></span> Loading records…
+  </div>
+  <div id="errBox" class="error-box"></div>
+  <table id="mainTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>Site</th>
+        <th>Starting MVAs</th>
+        <th>Completed MVAs</th>
+        <th>Total Car Seats</th>
+      </tr>
+    </thead>
+    <tbody id="tBody"></tbody>
+    <tfoot id="tFoot"></tfoot>
+  </table>
+</div>
+
+<script>
+/* ── CONFIG — adjust these if report link name differs ── */
+var REPORT_NAME = "Summary_Ops_Report_for_Managers";
+/* Completed when Job_Status matches this value */
+var COMPLETE_STATUS = "Job Completed";
+/* ────────────────────────────────────────────────────── */
+
+var APP_NAME    = "";
+var allRecords  = [];
+
+/* ── Helpers ──────────────────────────────────────────── */
+function pad(n) { return n < 10 ? "0" + n : "" + n; }
+
+function todayInputStr() {
+  var d = new Date();
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+function inputToZoho(ymd) {
+  /* YYYY-MM-DD  →  MM/DD/YYYY */
+  var p = ymd.split("-");
+  return p[1] + "/" + p[2] + "/" + p[0];
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+function showLoading(on) {
+  document.getElementById("loadBox").style.display  = on ? "block" : "none";
+  document.getElementById("mainTable").style.display = on ? "none"  : "table";
+}
+
+function showError(msg) {
+  showLoading(false);
+  var box = document.getElementById("errBox");
+  box.style.display = "block";
+  box.textContent   = "Error: " + msg;
+  document.getElementById("mainTable").style.display = "none";
+}
+
+function hideError() {
+  document.getElementById("errBox").style.display = "none";
+}
+
+/* ── Paginated fetch ──────────────────────────────────── */
+function fetchPage(criteria, fromIdx, acc, done, fail) {
+  ZOHO.CREATOR.DATA.getRecords({
+    appName:    APP_NAME,
+    reportName: REPORT_NAME,
+    criteria:   criteria,
+    from:       fromIdx,
+    limit:      200
+  }).then(function(resp) {
+    var page = [];
+    if (resp && resp.data) {
+      page = resp.data;
+    } else if (resp && resp.result) {
+      page = resp.result;
+    }
+    var combined = acc.concat(page);
+    if (page.length === 200) {
+      fetchPage(criteria, fromIdx + 200, combined, done, fail);
+    } else {
+      done(combined);
+    }
+  }).catch(function(err) {
+    /* Zoho wraps errors in nested objects */
+    var msg = (err && err.error && err.error.message)
+           || (err && err.message)
+           || JSON.stringify(err);
+    fail(msg);
+  });
+}
+
+/* ── Build criteria string ────────────────────────────── */
+function makeCriteria(dateStr) {
+  var z = inputToZoho(dateStr);
+  return 'Added_Time >= "' + z + ' 00:00:00" && Added_Time <= "' + z + ' 23:59:59"';
+}
+
+/* ── Render ───────────────────────────────────────────── */
+function render() {
+  hideError();
+
+  var selSite = document.getElementById("filterSite").value;
+  var selRole = document.getElementById("filterRole").value;
+
+  /* Client-side filter on top of already-fetched data */
+  var filtered = [];
+  for (var i = 0; i < allRecords.length; i++) {
+    var r = allRecords[i];
+    var site = (r.Site || "").trim();
+    var role = (r.Role || "").trim();
+    if (selSite && site !== selSite) continue;
+    if (selRole && role !== selRole) continue;
+    filtered.push(r);
+  }
+
+  /* Group by site */
+  var groups = {};
+  for (var j = 0; j < filtered.length; j++) {
+    var rec    = filtered[j];
+    var sName  = (rec.Site || "Unknown").trim();
+    var status = rec.Job_Status || "";
+    var seats  = parseInt(rec.Number_of_Car_Seats, 10) || 0;
+    var done   = (status === COMPLETE_STATUS) ||
+                 (rec.Completion_Timestamp && rec.Completion_Timestamp !== "");
+
+    if (!groups[sName]) { groups[sName] = { s: 0, c: 0, seats: 0 }; }
+    groups[sName].s++;
+    if (done) groups[sName].c++;
+    groups[sName].seats += seats;
+  }
+
+  var sites = Object.keys(groups).sort();
+
+  var tbody = document.getElementById("tBody");
+  var tfoot = document.getElementById("tFoot");
+  tbody.innerHTML = "";
+  tfoot.innerHTML = "";
+
+  var totS = 0, totC = 0, totSeats = 0;
+
+  for (var k = 0; k < sites.length; k++) {
+    var sn  = sites[k];
+    var g   = groups[sn];
+    totS     += g.s;
+    totC     += g.c;
+    totSeats += g.seats;
+
+    var pct      = g.s > 0 ? Math.round((g.c / g.s) * 100) : 0;
+    var rCls     = pct >= 90 ? "rate-good" : pct >= 70 ? "rate-warn" : "rate-bad";
+    var seatsStr = g.seats > 0 ? g.seats : '<span class="zero">—</span>';
+
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      "<td>" + esc(sn) + "</td>" +
+      "<td>" + g.s + "</td>" +
+      "<td>" + g.c + '<span class="rate ' + rCls + '">' + pct + "%</span></td>" +
+      "<td>" + seatsStr + "</td>";
+    tbody.appendChild(tr);
+  }
+
+  /* Footer totals */
+  var tPct  = totS > 0 ? Math.round((totC / totS) * 100) : 0;
+  var tRCls = tPct >= 90 ? "rate-good" : tPct >= 70 ? "rate-warn" : "rate-bad";
+  tfoot.innerHTML =
+    "<tr>" +
+    "<td>Total &mdash; " + sites.length + " site" + (sites.length !== 1 ? "s" : "") + "</td>" +
+    "<td>" + totS + "</td>" +
+    "<td>" + totC + '<span class="rate ' + tRCls + '">' + tPct + "%</span></td>" +
+    "<td>" + (totSeats > 0 ? totSeats : '<span class="zero">—</span>') + "</td>" +
+    "</tr>";
+
+  document.getElementById("recCount").textContent =
+    filtered.length + " record" + (filtered.length !== 1 ? "s" : "");
+
+  showLoading(false);
+}
+
+/* ── Populate dropdowns from raw records ──────────────── */
+function populateDropdowns() {
+  var siteSel = document.getElementById("filterSite");
+  var roleSel = document.getElementById("filterRole");
+  var curSite = siteSel.value;
+  var curRole = roleSel.value;
+
+  var sMap = {}, rMap = {};
+  for (var i = 0; i < allRecords.length; i++) {
+    var r = allRecords[i];
+    if (r.Site) sMap[(r.Site || "").trim()] = 1;
+    if (r.Role) rMap[(r.Role || "").trim()] = 1;
+  }
+
+  var sKeys = Object.keys(sMap).sort();
+  var rKeys = Object.keys(rMap).sort();
+
+  siteSel.innerHTML = '<option value="">All Sites</option>';
+  for (var s = 0; s < sKeys.length; s++) {
+    siteSel.innerHTML +=
+      '<option value="' + esc(sKeys[s]) + '"' +
+      (curSite === sKeys[s] ? " selected" : "") + ">" +
+      esc(sKeys[s]) + "</option>";
+  }
+
+  roleSel.innerHTML = '<option value="">All Roles</option>';
+  for (var r2 = 0; r2 < rKeys.length; r2++) {
+    roleSel.innerHTML +=
+      '<option value="' + esc(rKeys[r2]) + '"' +
+      (curRole === rKeys[r2] ? " selected" : "") + ">" +
+      esc(rKeys[r2]) + "</option>";
+  }
+}
+
+/* ── Load (fetch + render) ────────────────────────────── */
+function load() {
+  showLoading(true);
+  hideError();
+
+  var dateStr = document.getElementById("filterDate").value || todayInputStr();
+  var criteria = makeCriteria(dateStr);
+
+  /* Update title */
+  document.getElementById("reportTitle").textContent =
+    "Daily Jobs Summary — " + dateStr;
+
+  fetchPage(criteria, 1, [], function(records) {
+    allRecords = records;
+    populateDropdowns();
+    render();
+  }, function(errMsg) {
+    showError(errMsg);
+  });
+}
+
+/* ── Init ─────────────────────────────────────────────── */
+ZOHO.CREATOR.init().then(function(initData) {
+  APP_NAME = (initData && initData.appName) ? initData.appName : "autoflowx";
+
+  /* Default date = today */
+  document.getElementById("filterDate").value = todayInputStr();
+
+  /* Wire up controls */
+  document.getElementById("btnRefresh").addEventListener("click", load);
+  document.getElementById("filterSite").addEventListener("change", render);
+  document.getElementById("filterRole").addEventListener("change", render);
+
+  load();
+
+}).catch(function(e) {
+  showError("SDK init failed — " + JSON.stringify(e));
+});
+</script>
+</body>
+</html>
