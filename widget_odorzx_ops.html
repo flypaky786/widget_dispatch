@@ -252,9 +252,18 @@ function showError(msg) {
 
 /* ── Paginated fetch — snake_case matches working dispatcher ── */
 function fetchPage(pageNum, acc, done, fail) {
+  var d = new Date();
+  var mm = ("0"+(d.getMonth()+1)).slice(-2);
+  var dd = ("0"+d.getDate()).slice(-2);
+  var yyyy = d.getFullYear();
+  var todayZoho = mm + "/" + dd + "/" + yyyy;
+  var criteria = 'Added_Time >= "' + todayZoho + ' 00:00:00" && Added_Time <= "' + todayZoho + ' 23:59:59"';
+  console.log("[widget] criteria:", criteria);
+
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: REPORT_NAME,
+    criteria:    criteria,
     page:        pageNum,
     max_records: 200
   }).then(function(resp) {
@@ -653,9 +662,18 @@ function showError(msg) {
 
 /* ── Paginated fetch — snake_case matches working dispatcher ── */
 function fetchPage(pageNum, acc, done, fail) {
+  var d = new Date();
+  var mm = ("0"+(d.getMonth()+1)).slice(-2);
+  var dd = ("0"+d.getDate()).slice(-2);
+  var yyyy = d.getFullYear();
+  var todayZoho = mm + "/" + dd + "/" + yyyy;
+  var criteria = 'Added_Time >= "' + todayZoho + ' 00:00:00" && Added_Time <= "' + todayZoho + ' 23:59:59"';
+  console.log("[widget] criteria:", criteria);
+
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: REPORT_NAME,
+    criteria:    criteria,
     page:        pageNum,
     max_records: 200
   }).then(function(resp) {
