@@ -111,11 +111,6 @@
     tfoot td { padding: 9px 13px; font-weight: 700; }
     tfoot td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
     .zero { color: var(--col-muted); font-weight: 400; }
-    .expander { font-size: 9px; color: var(--col-muted); margin-right: 5px; display: inline-block; width: 10px; }
-    .site-row td { background: inherit; }
-    .user-row td { background: #f8fafd; }
-    .user-row:hover td { background: #edf3fa !important; }
-    .user-cell { padding-left: 32px !important; color: #5a6a7e; font-weight: 400 !important; }
     .status-box { padding: 32px 20px; text-align: center; color: var(--col-muted); font-size: 13px; }
     .spinner {
       display: inline-block;
@@ -134,7 +129,10 @@
       border-radius: 5px; color: #912b23; font-size: 12px;
       display: none; word-break: break-all;
     }
-    .empty-box { padding: 28px; text-align: center; color: var(--col-muted); font-size: 13px; display: none; }
+    .empty-box {
+      padding: 28px; text-align: center;
+      color: var(--col-muted); font-size: 13px; display: none;
+    }
   </style>
 </head>
 <body>
@@ -213,12 +211,9 @@
 </div>
 
 <script>
-/* ── Config ───────────────────────────────────── */
 var APP_NAME    = "autoflowx";
 var REPORT_NAME = "All_Jobs_Report_Standard_today";
-/* ─────────────────────────────────────────────── */
-
-var allRecords = [];
+var allRecords  = [];
 
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 function todayStr() {
@@ -228,7 +223,6 @@ function todayStr() {
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
-
 function showLoading() {
   document.getElementById("loadBox").style.display   = "block";
   document.getElementById("errBox").style.display    = "none";
@@ -236,8 +230,8 @@ function showLoading() {
   document.getElementById("mainTable").style.display = "none";
 }
 function showTable(hasRows) {
-  document.getElementById("loadBox").style.display  = "none";
-  document.getElementById("errBox").style.display   = "none";
+  document.getElementById("loadBox").style.display   = "none";
+  document.getElementById("errBox").style.display    = "none";
   document.getElementById("emptyBox").style.display  = hasRows ? "none"  : "block";
   document.getElementById("mainTable").style.display = hasRows ? "table" : "none";
 }
@@ -250,27 +244,13 @@ function showError(msg) {
   b.textContent   = "Error: " + msg;
 }
 
-/* ── Paginated fetch — snake_case matches working dispatcher ── */
 function fetchPage(pageNum, acc, done, fail) {
-  var d = new Date();
-  var mm = ("0"+(d.getMonth()+1)).slice(-2);
-  var dd = ("0"+d.getDate()).slice(-2);
-  var yyyy = d.getFullYear();
-  var todayZoho = mm + "/" + dd + "/" + yyyy;
-  var criteria = 'Added_Time >= "' + todayZoho + ' 00:00:00" && Added_Time <= "' + todayZoho + ' 23:59:59"';
-  console.log("[widget] criteria:", criteria);
-
   ZOHO.CREATOR.DATA.getRecords({
     app_name:    APP_NAME,
     report_name: REPORT_NAME,
-    criteria:    criteria,
     page:        pageNum,
     max_records: 200
   }).then(function(resp) {
-    console.log("[widget] page", pageNum, "code:", resp && resp.code, "count:", resp && resp.data ? resp.data.length : 0);
-    if (pageNum === 1 && resp && resp.data && resp.data.length > 0) {
-      console.log("[widget] field names:", Object.keys(resp.data[0]).join(", "));
-    }
     var page     = (resp && resp.data) ? resp.data : [];
     var combined = acc.concat(page);
     if (page.length === 200) {
@@ -279,12 +259,10 @@ function fetchPage(pageNum, acc, done, fail) {
       done(combined);
     }
   }).catch(function(err) {
-    console.log("[widget] getRecords error:", JSON.stringify(err));
     fail((err && err.message) || JSON.stringify(err));
   });
 }
 
-/* ── Render ──────────────────────────────────────────── */
 function render() {
   var selSite = document.getElementById("filterSite").value;
   var selRole = document.getElementById("filterRole").value;
@@ -299,27 +277,19 @@ function render() {
     if (selDate) {
       var ts = r.Completion_Timestamp.toString();
       var m  = ts.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (m) {
-        var recDate = m[3] + "-" + m[1] + "-" + m[2];
-        if (recDate !== selDate) continue;
-      }
+      if (m && (m[3] + "-" + m[1] + "-" + m[2]) !== selDate) continue;
     }
     filtered.push(r);
   }
 
-  /* Group by site, sub-group by user */
   var groups = {};
   for (var j = 0; j < filtered.length; j++) {
     var rec   = filtered[j];
     var sName = (rec.Site || "Unknown").trim();
-    var uName = (rec.Added_User || "Unknown").trim();
     var seats = parseInt(rec.Number_of_Car_Seats, 10) || 0;
-    if (!groups[sName]) groups[sName] = { c: 0, seats: 0, users: {} };
+    if (!groups[sName]) groups[sName] = { c: 0, seats: 0 };
     groups[sName].c++;
     groups[sName].seats += seats;
-    if (!groups[sName].users[uName]) groups[sName].users[uName] = { c: 0, seats: 0 };
-    groups[sName].users[uName].c++;
-    groups[sName].users[uName].seats += seats;
   }
 
   var sites = Object.keys(groups).sort();
@@ -332,475 +302,29 @@ function render() {
   var totC = 0, totS = 0;
 
   for (var k = 0; k < sites.length; k++) {
-    var sn = sites[k];
-    var g  = groups[sn];
+    var g  = groups[sites[k]];
     totC  += g.c;
     totS  += g.seats;
-
-    /* Site row */
     var tr = document.createElement("tr");
-    tr.className = "site-row";
-    tr.style.cursor = "pointer";
-    tr.setAttribute("data-site", sn);
-    tr.setAttribute("data-expanded", "0");
-    var seatsCell = g.seats > 0 ? g.seats : "<span class=\"zero\">&mdash;</span>";
-    tr.innerHTML = "<td><span class=\"expander\">&#9654;</span> " + esc(sn) + "</td>"
-                 + "<td>" + g.c + "</td><td>" + seatsCell + "</td>";
+    tr.innerHTML = "<td>" + esc(sites[k]) + "</td><td>" + g.c + "</td><td>" +
+      (g.seats > 0 ? g.seats : '<span class="zero">&mdash;</span>') + "</td>";
     tbody.appendChild(tr);
-
-    /* User rows (hidden) */
-    var users = Object.keys(g.users).sort();
-    for (var u = 0; u < users.length; u++) {
-      var un  = users[u];
-      var ud  = g.users[un];
-      var utr = document.createElement("tr");
-      utr.className = "user-row";
-      utr.setAttribute("data-site", sn);
-      utr.style.display = "none";
-      var uSeats = ud.seats > 0 ? ud.seats : "<span class=\"zero\">&mdash;</span>";
-      utr.innerHTML = "<td class=\"user-cell\">" + esc(un) + "</td>"
-                    + "<td>" + ud.c + "</td><td>" + uSeats + "</td>";
-      tbody.appendChild(utr);
-    }
-
-    /* Toggle handler */
-    (function(siteName, siteRow) {
-      siteRow.addEventListener("click", function() {
-        var exp = siteRow.getAttribute("data-expanded") === "1";
-        siteRow.setAttribute("data-expanded", exp ? "0" : "1");
-        siteRow.querySelector(".expander").innerHTML = exp ? "&#9654;" : "&#9660;";
-        var uRows = tbody.querySelectorAll(".user-row[data-site]");
-        for (var i = 0; i < uRows.length; i++) {
-          if (uRows[i].getAttribute("data-site") === siteName) {
-            uRows[i].style.display = exp ? "none" : "";
-          }
-        }
-      });
-    })(sn, tr);
   }
-
-  tfoot.innerHTML = "<tr><td>Total &mdash; " + sites.length + " sites</td>"
-    + "<td>" + totC + "</td>"
-    + "<td>" + (totS > 0 ? totS : "<span class=\"zero\">&mdash;</span>") + "</td></tr>";
-  showTable(true);
-}
-
-/* ── Load ───────────────────────────────────────────────── */
-function load() {
-  showLoading();
-  document.getElementById("reportTitle").textContent =
-    "Completed Jobs \u2014 " + (document.getElementById("filterDate").value || todayStr());
-  fetchPage(1, [], function(records) {
-    console.log("[widget] total records:", records.length);
-    allRecords = records;
-    render();
-  }, showError);
-}
-
-/* ── Init ───────────────────────────────────────────────── */
-window.onload = function() {
-  ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
-    if (params && params.appLinkName) APP_NAME = params.appLinkName;
-    document.getElementById("filterDate").value = todayStr();
-    document.getElementById("btnRefresh").addEventListener("click", load);
-    document.getElementById("filterSite").addEventListener("change", render);
-    document.getElementById("filterRole").addEventListener("change", render);
-    load();
-  }).catch(function() {
-    document.getElementById("filterDate").value = todayStr();
-    document.getElementById("btnRefresh").addEventListener("click", load);
-    document.getElementById("filterSite").addEventListener("change", render);
-    document.getElementById("filterRole").addEventListener("change", render);
-    load();
-  });
-};
-</script>
-  <style>
-    :root {
-      --col-header: #3a4a5c;
-      --col-accent: #2e6da4;
-      --col-foot:   #e8ecf2;
-      --col-border: #dde3ec;
-      --col-alt:    #f7f9fc;
-      --col-muted:  #8a9bb0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      background: #f0f3f8;
-      color: #1e2a38;
-      padding: 14px;
-    }
-    .filter-bar {
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-      flex-wrap: wrap;
-      background: #fff;
-      padding: 10px 14px;
-      border-radius: 7px;
-      margin-bottom: 12px;
-      border: 1px solid var(--col-border);
-      box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    }
-    .fg { display: flex; flex-direction: column; gap: 3px; }
-    .fg label {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--col-muted);
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-    .fg select, .fg input[type=date] {
-      border: 1px solid var(--col-border);
-      border-radius: 5px;
-      padding: 5px 9px;
-      font-size: 13px;
-      color: #1e2a38;
-      background: #fff;
-      height: 31px;
-    }
-    .fg select { min-width: 160px; }
-    .fg input[type=date] { min-width: 138px; }
-    .fg select:focus, .fg input[type=date]:focus {
-      outline: none;
-      border-color: var(--col-accent);
-      box-shadow: 0 0 0 2px rgba(46,109,164,.18);
-    }
-    .btn-refresh {
-      padding: 0 16px;
-      height: 31px;
-      background: var(--col-accent);
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 17px;
-      transition: background .15s;
-    }
-    .btn-refresh:hover { background: #245a8e; }
-    .sub-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 7px;
-    }
-    .sub-header h2 { font-size: 13px; font-weight: 700; color: #2d3d4f; }
-    .rec-count { font-size: 11px; color: var(--col-muted); }
-    .table-wrap {
-      background: #fff;
-      border-radius: 7px;
-      border: 1px solid var(--col-border);
-      box-shadow: 0 1px 4px rgba(0,0,0,.06);
-      overflow: hidden;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    thead tr { background: var(--col-header); }
-    thead th {
-      padding: 9px 13px;
-      font-size: 11px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: .4px;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-    thead th:first-child { text-align: left; }
-    thead th:not(:first-child) { text-align: right; }
-    tbody tr { border-bottom: 1px solid var(--col-border); }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:nth-child(even) { background: var(--col-alt); }
-    tbody tr:hover { background: #edf3fa; }
-    tbody td { padding: 8px 13px; }
-    tbody td:first-child { font-weight: 600; }
-    tbody td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-    tfoot tr { background: var(--col-foot); border-top: 2px solid #c8d1de; }
-    tfoot td { padding: 9px 13px; font-weight: 700; }
-    tfoot td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-    .zero { color: var(--col-muted); font-weight: 400; }
-    .expander { font-size: 9px; color: var(--col-muted); margin-right: 5px; display: inline-block; width: 10px; }
-    .site-row td { background: inherit; }
-    .user-row td { background: #f8fafd; }
-    .user-row:hover td { background: #edf3fa !important; }
-    .user-cell { padding-left: 32px !important; color: #5a6a7e; font-weight: 400 !important; }
-    .status-box { padding: 32px 20px; text-align: center; color: var(--col-muted); font-size: 13px; }
-    .spinner {
-      display: inline-block;
-      width: 18px; height: 18px;
-      border: 2.5px solid var(--col-border);
-      border-top-color: var(--col-accent);
-      border-radius: 50%;
-      animation: spin .65s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .err-box {
-      margin: 10px; padding: 10px 14px;
-      background: #fdecea; border: 1px solid #f5c6c2;
-      border-radius: 5px; color: #912b23; font-size: 12px;
-      display: none; word-break: break-all;
-    }
-    .empty-box { padding: 28px; text-align: center; color: var(--col-muted); font-size: 13px; display: none; }
-  </style>
-</head>
-<body>
-
-<div class="filter-bar">
-  <div class="fg">
-    <label>Completed Date</label>
-    <input type="date" id="filterDate">
-  </div>
-  <div class="fg">
-    <label>Site</label>
-    <select id="filterSite">
-      <option value="">All Sites</option>
-      <option>ABQ-ABG</option><option>Anaheim-SIXT</option><option>ATL-ABG</option>
-      <option>AUS-ABG</option><option>AUS-FOX</option><option>Beverly-SIXT</option>
-      <option>BOS-ABG</option><option>BOS-SIXT</option><option>BOS-SIXT-Local-562</option>
-      <option>BOS-SIXT-Local-647</option><option>BUR-ABG</option><option>CMH-ABG</option>
-      <option>DAL-ABG</option><option>DFW-ABG</option><option>DTLA-LYF</option>
-      <option>DTLA-SIXT</option><option>DTW-ABG</option><option>FAT-ABG</option>
-      <option>GRR-ABG</option><option>Huntington-SIXT</option><option>IAH-ABG</option>
-      <option>LAS-ABG</option><option>LAS-Budget</option><option>LAS-SIXT</option>
-      <option>LAX-ABG</option><option>LAX-ABG-CONRAC</option><option>LAX-SIXT</option>
-      <option>LGB-ABG</option><option>LGB-SIXT</option><option>MAF-ABG</option>
-      <option>MCI-ABG</option><option>MCO-SIXT</option><option>MDW-ABG</option>
-      <option>MKE-ABG</option><option>MONROVIA-LYF</option><option>MSP-ABG</option>
-      <option>MSP-SIXT</option><option>MSY-ABG</option><option>MSY-LocalMkt</option>
-      <option>NewportB-SIXT</option><option>ONT-ABG</option><option>ORD-ABG</option>
-      <option>Pasadena-SIXT</option><option>PHX-SIXT</option><option>PSP-ABG</option>
-      <option>RDU-ABG</option><option>Redondo-SIXT</option><option>SaMo-SIXT</option>
-      <option>SAN-ABG</option><option>SAN-LYF</option><option>SAN-PAY</option>
-      <option>SAN-SIXT</option><option>SAT-ABG</option><option>SAT-FOX</option>
-      <option>SBA-ABG</option><option>SFO-ABG</option><option>SJC-ABG</option>
-      <option>SNA-ABG</option><option>SNA-SIXT</option><option>STL-ABG</option>
-      <option>StudioC-SIXT</option><option>Venice-SIXT</option><option>WeHo-SIXT</option>
-      <option>Z:ATL-RESLA-CAMPCREEK</option><option>Z:DFW-RESLA-BELTLINE</option>
-      <option>Z:DFW-RESLA-FIELD</option><option>Z:DFW-RESLA-LAMAR</option>
-      <option>Z:HOU-RESLA-WESTHEIMER</option><option>Z:MCI-RESLA-TIFFANYSPR</option>
-      <option>Z:STL-RESLA-FORESTPARK</option><option>Z:STL-RESLA-MCBRIDE</option>
-      <option>Z:STL-RESLA-SCOUNTY</option>
-    </select>
-  </div>
-  <div class="fg">
-    <label>Role</label>
-    <select id="filterRole">
-      <option value="">All Roles</option>
-      <option>Avis First</option><option>Bus (Cleaning)</option>
-      <option>Car Seat Cleaning</option><option>Driver</option>
-      <option>EV Charging</option><option>Full Detail</option>
-      <option>Lot Coord/Security</option><option>PDI (License Plates)</option>
-      <option>PDI (Unwrap)</option><option>Quick Flip</option><option>VSA</option>
-    </select>
-  </div>
-  <button class="btn-refresh" id="btnRefresh">&#8635; Refresh</button>
-</div>
-
-<div class="sub-header">
-  <h2 id="reportTitle">Completed Jobs</h2>
-  <span class="rec-count" id="recCount"></span>
-</div>
-
-<div class="table-wrap">
-  <div id="loadBox" class="status-box"><span class="spinner"></span> Loading…</div>
-  <div id="errBox" class="err-box"></div>
-  <div id="emptyBox" class="empty-box">No completed jobs found.</div>
-  <table id="mainTable" style="display:none;">
-    <thead>
-      <tr>
-        <th>Site</th>
-        <th>Completed MVAs</th>
-        <th>Total Car Seats</th>
-      </tr>
-    </thead>
-    <tbody id="tBody"></tbody>
-    <tfoot id="tFoot"></tfoot>
-  </table>
-</div>
-
-<script>
-/* ── Config ───────────────────────────────────── */
-var APP_NAME    = "autoflowx";
-var REPORT_NAME = "All_Jobs_Report_Standard_today";
-/* ─────────────────────────────────────────────── */
-
-var allRecords = [];
-
-function pad(n) { return n < 10 ? "0" + n : "" + n; }
-function todayStr() {
-  var d = new Date();
-  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
-}
-function esc(s) {
-  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-}
-
-function showLoading() {
-  document.getElementById("loadBox").style.display   = "block";
-  document.getElementById("errBox").style.display    = "none";
-  document.getElementById("emptyBox").style.display  = "none";
-  document.getElementById("mainTable").style.display = "none";
-}
-function showTable(hasRows) {
-  document.getElementById("loadBox").style.display  = "none";
-  document.getElementById("errBox").style.display   = "none";
-  document.getElementById("emptyBox").style.display  = hasRows ? "none"  : "block";
-  document.getElementById("mainTable").style.display = hasRows ? "table" : "none";
-}
-function showError(msg) {
-  document.getElementById("loadBox").style.display   = "none";
-  document.getElementById("mainTable").style.display = "none";
-  document.getElementById("emptyBox").style.display  = "none";
-  var b = document.getElementById("errBox");
-  b.style.display = "block";
-  b.textContent   = "Error: " + msg;
-}
-
-/* ── Paginated fetch — snake_case matches working dispatcher ── */
-function fetchPage(pageNum, acc, done, fail) {
-  var d = new Date();
-  var mm = ("0"+(d.getMonth()+1)).slice(-2);
-  var dd = ("0"+d.getDate()).slice(-2);
-  var yyyy = d.getFullYear();
-  var todayZoho = mm + "/" + dd + "/" + yyyy;
-  var criteria = 'Added_Time >= "' + todayZoho + ' 00:00:00" && Added_Time <= "' + todayZoho + ' 23:59:59"';
-  console.log("[widget] criteria:", criteria);
-
-  ZOHO.CREATOR.DATA.getRecords({
-    app_name:    APP_NAME,
-    report_name: REPORT_NAME,
-    criteria:    criteria,
-    page:        pageNum,
-    max_records: 200
-  }).then(function(resp) {
-    console.log("[widget] page", pageNum, "code:", resp && resp.code, "count:", resp && resp.data ? resp.data.length : 0);
-    if (pageNum === 1 && resp && resp.data && resp.data.length > 0) {
-      console.log("[widget] field names:", Object.keys(resp.data[0]).join(", "));
-    }
-    var page     = (resp && resp.data) ? resp.data : [];
-    var combined = acc.concat(page);
-    if (page.length === 200) {
-      fetchPage(pageNum + 1, combined, done, fail);
-    } else {
-      done(combined);
-    }
-  }).catch(function(err) {
-    console.log("[widget] getRecords error:", JSON.stringify(err));
-    fail((err && err.message) || JSON.stringify(err));
-  });
-}
-
-/* ── Render ────────────────────────────────────── */
-function render() {
-  var selSite = document.getElementById("filterSite").value;
-  var selRole = document.getElementById("filterRole").value;
-  var selDate = document.getElementById("filterDate").value;
-
-  var filtered = [];
-  for (var i = 0; i < allRecords.length; i++) {
-    var r = allRecords[i];
-    if (!r.Completion_Timestamp || r.Completion_Timestamp === "") continue;
-    if (selSite && (r.Site || "").trim() !== selSite) continue;
-    if (selRole && (r.Role || "").trim() !== selRole) continue;
-    if (selDate) {
-      var ts = r.Completion_Timestamp.toString();
-      var m  = ts.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (m) {
-        var recDate = m[3] + "-" + m[1] + "-" + m[2];
-        if (recDate !== selDate) continue;
-      }
-    }
-    filtered.push(r);
-  }
-
-  var groups = {};
-  for (var j = 0; j < filtered.length; j++) {
-    var rec   = filtered[j];
-    var sName = (rec.Site || "Unknown").trim();
-    var uName = (rec.Added_User || "Unknown").trim();
-    var seats = parseInt(rec.Number_of_Car_Seats, 10) || 0;
-    if (!groups[sName]) groups[sName] = { c: 0, seats: 0, users: {} };
-    groups[sName].c++;
-    groups[sName].seats += seats;
-    if (!groups[sName].users[uName]) groups[sName].users[uName] = { c: 0, seats: 0 };
-    groups[sName].users[uName].c++;
-    groups[sName].users[uName].seats += seats;
-  }
-
-  var sites = Object.keys(groups).sort();
-  document.getElementById("recCount").textContent = filtered.length + " records";
-  if (!sites.length) { showTable(false); return; }
-
-  var tbody = document.getElementById("tBody");
-  var tfoot = document.getElementById("tFoot");
-  tbody.innerHTML = tfoot.innerHTML = "";
-  var totC = 0, totS = 0;
-
-  for (var k = 0; k < sites.length; k++) {
-    var sn = sites[k];
-    var g  = groups[sn];
-    totC  += g.c; totS += g.seats;
-
-    var tr = document.createElement("tr");
-    tr.className = "site-row";
-    tr.setAttribute("data-site", sn);
-    tr.innerHTML =
-      "<td><span class=\'expander\'>&#9654;</span> " + esc(sn) + "</td>" +
-      "<td>" + g.c + "</td>" +
-      "<td>" + (g.seats > 0 ? g.seats : "<span class=\"zero\">&mdash;</span>") + "</td>";
-    tbody.appendChild(tr);
-
-    var users = Object.keys(g.users).sort();
-    for (var u = 0; u < users.length; u++) {
-      var un  = users[u];
-      var ud  = g.users[un];
-      var utr = document.createElement("tr");
-      utr.className = "user-row";
-      utr.setAttribute("data-site", sn);
-      utr.style.display = "none";
-      utr.innerHTML =
-        "<td class=\"user-cell\">" + esc(un) + "</td>" +
-        "<td>" + ud.c + "</td>" +
-        "<td>" + (ud.seats > 0 ? ud.seats : "<span class=\"zero\">&mdash;</span>") + "</td>";
-      tbody.appendChild(utr);
-    }
-
-    (function(siteName, siteRow) {
-      siteRow.style.cursor = "pointer";
-      siteRow.addEventListener("click", function() {
-        var expanded = siteRow.getAttribute("data-expanded") === "1";
-        siteRow.setAttribute("data-expanded", expanded ? "0" : "1");
-        siteRow.querySelector(".expander").innerHTML = expanded ? "&#9654;" : "&#9660;";
-        var uRows = tbody.querySelectorAll(".user-row[data-site='" + siteName + "']");
-        for (var i = 0; i < uRows.length; i++) {
-          uRows[i].style.display = expanded ? "none" : "";
-        }
-      });
-    })(sn, tr);
-  }
-
   tfoot.innerHTML = "<tr><td>Total &mdash; " + sites.length + " sites</td><td>" + totC +
-    "</td><td>" + (totS > 0 ? totS : "<span class=\"zero\">&mdash;</span>") + "</td></tr>";
+    "</td><td>" + (totS > 0 ? totS : '<span class="zero">&mdash;</span>') + "</td></tr>";
   showTable(true);
 }
 
-/* ── Load ──────────────────────────────────────── */
 function load() {
   showLoading();
   document.getElementById("reportTitle").textContent =
     "Completed Jobs \u2014 " + (document.getElementById("filterDate").value || todayStr());
   fetchPage(1, [], function(records) {
-    console.log("[widget] total records:", records.length);
     allRecords = records;
     render();
   }, showError);
 }
 
-/* ── Init — window.onload + getInitParams().then() ── */
 window.onload = function() {
   ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
     if (params && params.appLinkName) APP_NAME = params.appLinkName;
