@@ -277,7 +277,7 @@ function showError(msg) {
 
 /* ── Fetch one page via REST API (relative URL, no auth header needed) ── */
 function fetchPage(fromIdx, acc, done, fail) {
-  var url = "/creator/v2.1/data/" + ACCOUNT_OWNER + "/" + APP_LINK
+  var url = "https://creatorapp.zoho.com/creator/v2.1/data/" + ACCOUNT_OWNER + "/" + APP_LINK
           + "/report/" + REPORT_LINK
           + "?from=" + fromIdx + "&limit=200";
 
