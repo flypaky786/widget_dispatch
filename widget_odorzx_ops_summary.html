@@ -54,8 +54,7 @@
     }
     .fg select { min-width: 160px; }
     .fg input[type=date] { min-width: 138px; }
-    .fg select:focus,
-    .fg input[type=date]:focus {
+    .fg select:focus, .fg input[type=date]:focus {
       outline: none;
       border-color: var(--col-accent);
       box-shadow: 0 0 0 2px rgba(46,109,164,.18);
@@ -141,6 +140,7 @@
       color: #912b23;
       font-size: 12px;
       display: none;
+      word-break: break-all;
     }
     .empty-box {
       padding: 28px;
@@ -162,77 +162,31 @@
     <label>Site</label>
     <select id="filterSite">
       <option value="">All Sites</option>
-      <option>ABQ-ABG</option>
-      <option>Anaheim-SIXT</option>
-      <option>ATL-ABG</option>
-      <option>AUS-ABG</option>
-      <option>AUS-FOX</option>
-      <option>Beverly-SIXT</option>
-      <option>BOS-ABG</option>
-      <option>BOS-SIXT</option>
-      <option>BOS-SIXT-Local-562</option>
-      <option>BOS-SIXT-Local-647</option>
-      <option>BUR-ABG</option>
-      <option>CMH-ABG</option>
-      <option>DAL-ABG</option>
-      <option>DFW-ABG</option>
-      <option>DTLA-LYF</option>
-      <option>DTLA-SIXT</option>
-      <option>DTW-ABG</option>
-      <option>FAT-ABG</option>
-      <option>GRR-ABG</option>
-      <option>Huntington-SIXT</option>
-      <option>IAH-ABG</option>
-      <option>LAS-ABG</option>
-      <option>LAS-Budget</option>
-      <option>LAS-SIXT</option>
-      <option>LAX-ABG</option>
-      <option>LAX-ABG-CONRAC</option>
-      <option>LAX-SIXT</option>
-      <option>LGB-ABG</option>
-      <option>LGB-SIXT</option>
-      <option>MAF-ABG</option>
-      <option>MCI-ABG</option>
-      <option>MCO-SIXT</option>
-      <option>MDW-ABG</option>
-      <option>MKE-ABG</option>
-      <option>MONROVIA-LYF</option>
-      <option>MSP-ABG</option>
-      <option>MSP-SIXT</option>
-      <option>MSY-ABG</option>
-      <option>MSY-LocalMkt</option>
-      <option>NewportB-SIXT</option>
-      <option>ONT-ABG</option>
-      <option>ORD-ABG</option>
-      <option>Pasadena-SIXT</option>
-      <option>PHX-SIXT</option>
-      <option>PSP-ABG</option>
-      <option>RDU-ABG</option>
-      <option>Redondo-SIXT</option>
-      <option>SaMo-SIXT</option>
-      <option>SAN-ABG</option>
-      <option>SAN-LYF</option>
-      <option>SAN-PAY</option>
-      <option>SAN-SIXT</option>
-      <option>SAT-ABG</option>
-      <option>SAT-FOX</option>
-      <option>SBA-ABG</option>
-      <option>SFO-ABG</option>
-      <option>SJC-ABG</option>
-      <option>SNA-ABG</option>
-      <option>SNA-SIXT</option>
-      <option>STL-ABG</option>
-      <option>StudioC-SIXT</option>
-      <option>Venice-SIXT</option>
-      <option>WeHo-SIXT</option>
-      <option>Z:ATL-RESLA-CAMPCREEK</option>
-      <option>Z:DFW-RESLA-BELTLINE</option>
-      <option>Z:DFW-RESLA-FIELD</option>
-      <option>Z:DFW-RESLA-LAMAR</option>
-      <option>Z:HOU-RESLA-WESTHEIMER</option>
-      <option>Z:MCI-RESLA-TIFFANYSPR</option>
-      <option>Z:STL-RESLA-FORESTPARK</option>
-      <option>Z:STL-RESLA-MCBRIDE</option>
+      <option>ABQ-ABG</option><option>Anaheim-SIXT</option><option>ATL-ABG</option>
+      <option>AUS-ABG</option><option>AUS-FOX</option><option>Beverly-SIXT</option>
+      <option>BOS-ABG</option><option>BOS-SIXT</option><option>BOS-SIXT-Local-562</option>
+      <option>BOS-SIXT-Local-647</option><option>BUR-ABG</option><option>CMH-ABG</option>
+      <option>DAL-ABG</option><option>DFW-ABG</option><option>DTLA-LYF</option>
+      <option>DTLA-SIXT</option><option>DTW-ABG</option><option>FAT-ABG</option>
+      <option>GRR-ABG</option><option>Huntington-SIXT</option><option>IAH-ABG</option>
+      <option>LAS-ABG</option><option>LAS-Budget</option><option>LAS-SIXT</option>
+      <option>LAX-ABG</option><option>LAX-ABG-CONRAC</option><option>LAX-SIXT</option>
+      <option>LGB-ABG</option><option>LGB-SIXT</option><option>MAF-ABG</option>
+      <option>MCI-ABG</option><option>MCO-SIXT</option><option>MDW-ABG</option>
+      <option>MKE-ABG</option><option>MONROVIA-LYF</option><option>MSP-ABG</option>
+      <option>MSP-SIXT</option><option>MSY-ABG</option><option>MSY-LocalMkt</option>
+      <option>NewportB-SIXT</option><option>ONT-ABG</option><option>ORD-ABG</option>
+      <option>Pasadena-SIXT</option><option>PHX-SIXT</option><option>PSP-ABG</option>
+      <option>RDU-ABG</option><option>Redondo-SIXT</option><option>SaMo-SIXT</option>
+      <option>SAN-ABG</option><option>SAN-LYF</option><option>SAN-PAY</option>
+      <option>SAN-SIXT</option><option>SAT-ABG</option><option>SAT-FOX</option>
+      <option>SBA-ABG</option><option>SFO-ABG</option><option>SJC-ABG</option>
+      <option>SNA-ABG</option><option>SNA-SIXT</option><option>STL-ABG</option>
+      <option>StudioC-SIXT</option><option>Venice-SIXT</option><option>WeHo-SIXT</option>
+      <option>Z:ATL-RESLA-CAMPCREEK</option><option>Z:DFW-RESLA-BELTLINE</option>
+      <option>Z:DFW-RESLA-FIELD</option><option>Z:DFW-RESLA-LAMAR</option>
+      <option>Z:HOU-RESLA-WESTHEIMER</option><option>Z:MCI-RESLA-TIFFANYSPR</option>
+      <option>Z:STL-RESLA-FORESTPARK</option><option>Z:STL-RESLA-MCBRIDE</option>
       <option>Z:STL-RESLA-SCOUNTY</option>
     </select>
   </div>
@@ -240,17 +194,11 @@
     <label>Role</label>
     <select id="filterRole">
       <option value="">All Roles</option>
-      <option>Avis First</option>
-      <option>Bus (Cleaning)</option>
-      <option>Car Seat Cleaning</option>
-      <option>Driver</option>
-      <option>EV Charging</option>
-      <option>Full Detail</option>
-      <option>Lot Coord/Security</option>
-      <option>PDI (License Plates)</option>
-      <option>PDI (Unwrap)</option>
-      <option>Quick Flip</option>
-      <option>VSA</option>
+      <option>Avis First</option><option>Bus (Cleaning)</option>
+      <option>Car Seat Cleaning</option><option>Driver</option>
+      <option>EV Charging</option><option>Full Detail</option>
+      <option>Lot Coord/Security</option><option>PDI (License Plates)</option>
+      <option>PDI (Unwrap)</option><option>Quick Flip</option><option>VSA</option>
     </select>
   </div>
   <button class="btn-refresh" id="btnRefresh">&#8635; Refresh</button>
@@ -279,12 +227,14 @@
 </div>
 
 <script>
-var REPORT_NAME = "All_Jobs_Report_Standard_today";
-var APP_NAME    = "autoflowx";
-var allRecords  = [];
-var _started    = false;
+/* ── Config ──────────────────────────────────────────────── */
+var ACCOUNT_OWNER = "autoflowx";   /* Zoho account login name */
+var APP_LINK      = "autoflowx";   /* app link name */
+var REPORT_LINK   = "All_Jobs_Report_Standard_today"; /* report link name */
+/* ────────────────────────────────────────────────────────── */
 
-/* ── Utilities ─────────────────────────────────── */
+var allRecords = [];
+
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 
 function todayStr() {
@@ -292,18 +242,13 @@ function todayStr() {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 }
 
-function toZohoDate(ymd) {
-  var p = ymd.split("-");
-  return p[1] + "/" + p[2] + "/" + p[0];
-}
-
 function esc(s) {
   return String(s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-/* ── UI ────────────────────────────────────────── */
+/* ── UI helpers ──────────────────────────────────────────── */
 function showLoading() {
   document.getElementById("loadBox").style.display   = "block";
   document.getElementById("errBox").style.display    = "none";
@@ -330,46 +275,59 @@ function showError(msg) {
   b.textContent   = "Error: " + msg;
 }
 
-/* ── Fetch ─────────────────────────────────────── */
-function fetchPage(criteria, fromIdx, acc, done, fail) {
-  var params = {
-    appName:    APP_NAME,
-    reportName: REPORT_NAME,
-    criteria:   criteria,
-    from:       fromIdx,
-    limit:      200
-  };
-  console.log("[widget] getRecords params:", JSON.stringify(params));
-  ZOHO.CREATOR.DATA.getRecords(params).then(function(resp) {
-    console.log("[widget] getRecords raw response:", JSON.stringify(resp));
-    var page = [];
-    if (resp && resp.data)        page = resp.data;
-    else if (resp && resp.result) page = resp.result;
-    var combined = acc.concat(page);
-    if (page.length === 200) {
-      fetchPage(criteria, fromIdx + 200, combined, done, fail);
-    } else {
-      done(combined);
-    }
-  }).catch(function(err) {
-    console.log("[widget] getRecords error raw:", JSON.stringify(err));
-    var msg = (err && err.error && err.error.message)
-           || (err && err.message)
-           || JSON.stringify(err);
-    fail(msg);
-  });
+/* ── Fetch one page via REST API (relative URL, no auth header needed) ── */
+function fetchPage(fromIdx, acc, done, fail) {
+  var url = "/creator/v2.1/data/" + ACCOUNT_OWNER + "/" + APP_LINK
+          + "/report/" + REPORT_LINK
+          + "?from=" + fromIdx + "&limit=200";
+
+  console.log("[widget] fetch URL:", url);
+
+  fetch(url, { credentials: "include" })
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
+      console.log("[widget] fetch response code:", json.code, "count:", json.data ? json.data.length : 0);
+      if (json.code !== 3000) {
+        fail("API code " + json.code + ": " + (json.message || JSON.stringify(json)));
+        return;
+      }
+      var page    = json.data || [];
+      var combined = acc.concat(page);
+      if (page.length === 200) {
+        fetchPage(fromIdx + 200, combined, done, fail);
+      } else {
+        done(combined);
+      }
+    })
+    .catch(function(err) {
+      fail(err.toString());
+    });
 }
 
-/* ── Render ────────────────────────────────────── */
+/* ── Render ──────────────────────────────────────────────── */
 function render() {
   var selSite = document.getElementById("filterSite").value;
   var selRole = document.getElementById("filterRole").value;
+  var selDate = document.getElementById("filterDate").value;
 
+  /* Client-side filter: site, role, and completion date */
   var filtered = [];
   for (var i = 0; i < allRecords.length; i++) {
     var r = allRecords[i];
     if (selSite && (r.Site || "").trim() !== selSite) continue;
     if (selRole && (r.Role || "").trim() !== selRole) continue;
+    /* Filter by completion date if record has a timestamp */
+    if (selDate && r.Completion_Timestamp) {
+      /* Zoho returns timestamps in various formats — extract date portion */
+      var ts    = r.Completion_Timestamp.toString();
+      var parts = ts.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (parts) {
+        var recDate = parts[3] + "-" + parts[1] + "-" + parts[2];
+        if (recDate !== selDate) continue;
+      }
+    }
+    /* Only count records that have a completion timestamp */
+    if (!r.Completion_Timestamp || r.Completion_Timestamp === "") continue;
     filtered.push(r);
   }
 
@@ -418,49 +376,39 @@ function render() {
   showTable(true);
 }
 
-/* ── Load ──────────────────────────────────────── */
+/* ── Load ────────────────────────────────────────────────── */
 function load() {
   showLoading();
-  var dateStr  = document.getElementById("filterDate").value || todayStr();
-
   document.getElementById("reportTitle").textContent =
-    "Completed Jobs \u2014 " + dateStr;
+    "Completed Jobs \u2014 " + (document.getElementById("filterDate").value || todayStr());
 
-  /* TEST: no criteria — confirm report is accessible, then we add date filter back */
-  fetchPage("", 1, [], function(records) {
-    console.log("[widget] success — total records:", records.length);
-    console.log("[widget] first record keys:", records.length > 0 ? Object.keys(records[0]).join(", ") : "none");
+  fetchPage(1, [], function(records) {
+    console.log("[widget] total records fetched:", records.length);
+    if (records.length > 0) {
+      console.log("[widget] first record keys:", Object.keys(records[0]).join(", "));
+      console.log("[widget] first record sample:", JSON.stringify(records[0]));
+    }
     allRecords = records;
     render();
   }, showError);
 }
 
-/* ── Setup UI events ───────────────────────────── */
-function setupEvents() {
-  document.getElementById("filterDate").value = todayStr();
-  document.getElementById("btnRefresh").addEventListener("click",  load);
-  document.getElementById("filterSite").addEventListener("change", render);
-  document.getElementById("filterRole").addEventListener("change", render);
-}
-
-/* ── Init: try both patterns, fallback on timeout  */
-function startWidget() {
-  if (_started) return;
-  _started = true;
-  setupEvents();
-  load();
-}
-
-/* window.onload required — SDK must finish injecting before getInitParams is called */
+/* ── Init ────────────────────────────────────────────────── */
 window.onload = function() {
   ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
-    console.log("[widget] getInitParams response:", JSON.stringify(params));
-    if (params && params.appLinkName) APP_NAME = params.appLinkName;
-    console.log("[widget] APP_NAME set to:", APP_NAME);
-    startWidget();
+    console.log("[widget] initParams:", JSON.stringify(params));
+    document.getElementById("filterDate").value = todayStr();
+    document.getElementById("btnRefresh").addEventListener("click",  load);
+    document.getElementById("filterSite").addEventListener("change", render);
+    document.getElementById("filterRole").addEventListener("change", render);
+    load();
   }).catch(function(err) {
     console.error("[widget] getInitParams failed:", err);
-    startWidget();
+    document.getElementById("filterDate").value = todayStr();
+    document.getElementById("btnRefresh").addEventListener("click",  load);
+    document.getElementById("filterSite").addEventListener("change", render);
+    document.getElementById("filterRole").addEventListener("change", render);
+    load();
   });
 };
 </script>
