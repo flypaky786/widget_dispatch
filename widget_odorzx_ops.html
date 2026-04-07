@@ -21,6 +21,9 @@
       background: #f0f3f8;
       color: #1e2a38;
       padding: 14px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: auto;
     }
     .filter-bar {
       display: flex;
@@ -85,7 +88,7 @@
       border-radius: 7px;
       border: 1px solid var(--col-border);
       box-shadow: 0 1px 4px rgba(0,0,0,.06);
-      overflow: hidden;
+      overflow: visible;
     }
     table { width: 100%; border-collapse: collapse; }
     thead tr { background: var(--col-header); }
@@ -110,6 +113,31 @@
     tfoot tr { background: var(--col-foot); border-top: 2px solid #c8d1de; }
     tfoot td { padding: 9px 13px; font-weight: 700; }
     tfoot td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+    /* expandable rows */
+    tr.site-row { cursor: pointer; }
+    tr.site-row td:first-child::before {
+      content: "\25B6\00A0";
+      font-size: 9px;
+      color: var(--col-muted);
+      display: inline-block;
+      transition: transform .15s;
+    }
+    tr.site-row.open td:first-child::before { transform: rotate(90deg); }
+    tr.detail-row { display: none; }
+    tr.detail-row.visible { display: table-row; }
+    tr.role-row { cursor: pointer; }
+    tr.role-row td { padding: 5px 13px 5px 26px; font-size: 12px; background: #eef2f8; font-weight: 600; }
+    tr.role-row td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.role-row td:first-child::before {
+      content: "\25B6\00A0";
+      font-size: 9px;
+      color: var(--col-muted);
+      display: inline-block;
+      transition: transform .15s;
+    }
+    tr.role-row.open td:first-child::before { transform: rotate(90deg); }
+    tr.user-row td { padding: 4px 13px 4px 42px; font-size: 12px; background: #f4f7fb; font-weight: 400; }
+    tr.user-row td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
     .zero { color: var(--col-muted); font-weight: 400; }
     .status-box { padding: 32px 20px; text-align: center; color: var(--col-muted); font-size: 13px; }
     .spinner {
@@ -129,17 +157,14 @@
       border-radius: 5px; color: #912b23; font-size: 12px;
       display: none; word-break: break-all;
     }
-    .empty-box {
-      padding: 28px; text-align: center;
-      color: var(--col-muted); font-size: 13px; display: none;
-    }
+    .empty-box { padding: 28px; text-align: center; color: var(--col-muted); font-size: 13px; display: none; }
   </style>
 </head>
 <body>
 
 <div class="filter-bar">
   <div class="fg">
-    <label>Completed Date</label>
+    <label>Date</label>
     <input type="date" id="filterDate">
   </div>
   <div class="fg">
@@ -189,20 +214,21 @@
 </div>
 
 <div class="sub-header">
-  <h2 id="reportTitle">Completed Jobs</h2>
+  <h2 id="reportTitle">Daily Jobs Summary</h2>
   <span class="rec-count" id="recCount"></span>
 </div>
 
 <div class="table-wrap">
   <div id="loadBox" class="status-box"><span class="spinner"></span> Loading…</div>
   <div id="errBox" class="err-box"></div>
-  <div id="emptyBox" class="empty-box">No completed jobs found.</div>
+  <div id="emptyBox" class="empty-box">No jobs found for this date.</div>
   <table id="mainTable" style="display:none;">
     <thead>
       <tr>
-        <th>Site</th>
-        <th>Completed MVAs</th>
-        <th>Total Car Seats</th>
+        <th>Site / Role / Employee</th>
+        <th>Started</th>
+        <th>Completed</th>
+        <th>Car Seats</th>
       </tr>
     </thead>
     <tbody id="tBody"></tbody>
@@ -211,18 +237,25 @@
 </div>
 
 <script>
-var APP_NAME    = "autoflowx";
-var REPORT_NAME = "All_Jobs_Report_Standard_today";
-var allRecords  = [];
+var APP_NAME   = "autoflowx";
+var PUBLIC_KEY  = "3gh8F1ZU5Snh9gURfR5ZTU6Ty"; /* Custom API → Summary → Public Key */
+var _loading   = false;
+var _data      = null; /* cached full result from Deluge */
 
 function pad(n) { return n < 10 ? "0" + n : "" + n; }
 function todayStr() {
   var d = new Date();
   return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
 }
+function toZohoDate(ymd) {
+  /* YYYY-MM-DD -> MM/DD/YYYY for Deluge */
+  var p = ymd.split("-");
+  return p[1] + "/" + p[2] + "/" + p[0];
+}
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+
 function showLoading() {
   document.getElementById("loadBox").style.display   = "block";
   document.getElementById("errBox").style.display    = "none";
@@ -244,98 +277,176 @@ function showError(msg) {
   b.textContent   = "Error: " + msg;
 }
 
-function fetchPage(pageNum, acc, done, fail) {
-  ZOHO.CREATOR.DATA.getRecords({
-    app_name:    APP_NAME,
-    report_name: REPORT_NAME,
-    page:        pageNum,
-    max_records: 200
-  }).then(function(resp) {
-    var page     = (resp && resp.data) ? resp.data : [];
-    var combined = acc.concat(page);
-    if (page.length === 200) {
-      fetchPage(pageNum + 1, combined, done, fail);
-    } else {
-      done(combined);
-    }
-  }).catch(function(err) {
-    fail((err && err.message) || JSON.stringify(err));
-  });
-}
-
+/* ── Render from cached _data applying client-side site/role filter ── */
 function render() {
+  if (!_data || !_data.sites) { showTable(false); return; }
+
   var selSite = document.getElementById("filterSite").value;
   var selRole = document.getElementById("filterRole").value;
-  var selDate = document.getElementById("filterDate").value;
 
-  var filtered = [];
-  for (var i = 0; i < allRecords.length; i++) {
-    var r = allRecords[i];
-    if (!r.Completion_Timestamp || r.Completion_Timestamp === "") continue;
-    if (selSite && (r.Site || "").trim() !== selSite) continue;
-    if (selRole && (r.Role || "").trim() !== selRole) continue;
-    if (selDate) {
-      var ts = r.Completion_Timestamp.toString();
-      var m  = ts.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (m && (m[3] + "-" + m[1] + "-" + m[2]) !== selDate) continue;
-    }
-    filtered.push(r);
-  }
-
-  var groups = {};
-  for (var j = 0; j < filtered.length; j++) {
-    var rec   = filtered[j];
-    var sName = (rec.Site || "Unknown").trim();
-    var seats = parseInt(rec.Number_of_Car_Seats, 10) || 0;
-    if (!groups[sName]) groups[sName] = { c: 0, seats: 0 };
-    groups[sName].c++;
-    groups[sName].seats += seats;
-  }
-
-  var sites = Object.keys(groups).sort();
-  document.getElementById("recCount").textContent = filtered.length + " records";
-  if (!sites.length) { showTable(false); return; }
-
-  var tbody = document.getElementById("tBody");
-  var tfoot = document.getElementById("tFoot");
+  var sites = Object.keys(_data.sites).sort();
+  var tbody  = document.getElementById("tBody");
+  var tfoot  = document.getElementById("tFoot");
   tbody.innerHTML = tfoot.innerHTML = "";
-  var totC = 0, totS = 0;
+
+  var totS = 0, totC = 0, totSeats = 0, siteCount = 0;
 
   for (var k = 0; k < sites.length; k++) {
-    var g  = groups[sites[k]];
-    totC  += g.c;
-    totS  += g.seats;
+    var sn = sites[k];
+    if (selSite && sn !== selSite) continue;
+
+    var sg     = _data.sites[sn];
+    var siteId = "site-" + k;
+
+    /* filter roles for this site */
+    var roles    = Object.keys(sg.roles).sort(function(a,b){ return sg.roles[b].started - sg.roles[a].started; });
+    var sStarted = 0, sCompleted = 0, sSeats = 0;
+
+    /* pre-calc site totals respecting role filter */
+    for (var ri = 0; ri < roles.length; ri++) {
+      var rn = roles[ri];
+      if (selRole && rn !== selRole) continue;
+      sStarted   += sg.roles[rn].started;
+      sCompleted += sg.roles[rn].completed;
+      sSeats     += sg.roles[rn].seats;
+    }
+    if (sStarted === 0) continue; /* skip site if role filter leaves nothing */
+
+    siteCount++;
+    totS     += sStarted;
+    totC     += sCompleted;
+    totSeats += sSeats;
+
+    /* site row */
     var tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + esc(sites[k]) + "</td><td>" + g.c + "</td><td>" +
-      (g.seats > 0 ? g.seats : '<span class="zero">&mdash;</span>') + "</td>";
+    tr.className = "site-row";
+    tr.dataset.target = siteId;
+    tr.innerHTML = "<td>" + esc(sn) + "</td><td>" + sStarted + "</td><td>" + sCompleted +
+      "</td><td>" + (sSeats > 0 ? sSeats : '<span class="zero">&mdash;</span>') + "</td>";
+    tr.addEventListener("click", function() {
+      var tid    = this.dataset.target;
+      var isOpen = this.classList.contains("open");
+      this.classList.toggle("open");
+      var children = tbody.querySelectorAll("tr[data-parent='" + tid + "']");
+      for (var x = 0; x < children.length; x++) {
+        if (isOpen) {
+          children[x].classList.remove("visible");
+          var rid = children[x].dataset.target;
+          if (rid) {
+            var uc = tbody.querySelectorAll("tr[data-parent='" + rid + "']");
+            for (var y = 0; y < uc.length; y++) uc[y].classList.remove("visible");
+            children[x].classList.remove("open");
+          }
+        } else {
+          children[x].classList.add("visible");
+        }
+      }
+    });
     tbody.appendChild(tr);
+
+    /* role rows */
+    for (var r = 0; r < roles.length; r++) {
+      var rn2  = roles[r];
+      if (selRole && rn2 !== selRole) continue;
+      var rg     = sg.roles[rn2];
+      var roleId = siteId + "-r" + r;
+
+      var rtr = document.createElement("tr");
+      rtr.className = "detail-row role-row";
+      rtr.dataset.parent = siteId;
+      rtr.dataset.target = roleId;
+      rtr.innerHTML = "<td>" + esc(rn2) + "</td><td>" + rg.started + "</td><td>" + rg.completed +
+        "</td><td>" + (rg.seats > 0 ? rg.seats : '<span class="zero">&mdash;</span>') + "</td>";
+      rtr.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var tid    = this.dataset.target;
+        var isOpen = this.classList.contains("open");
+        this.classList.toggle("open");
+        var uc = tbody.querySelectorAll("tr[data-parent='" + tid + "']");
+        for (var y = 0; y < uc.length; y++) uc[y].classList.toggle("visible", !isOpen);
+      });
+      tbody.appendChild(rtr);
+
+      /* user rows — sorted by started desc */
+      var users = Object.keys(rg.users).sort(function(a,b){ return rg.users[b].started - rg.users[a].started; });
+      for (var u = 0; u < users.length; u++) {
+        var un  = users[u];
+        var ug  = rg.users[un];
+        var utr = document.createElement("tr");
+        utr.className = "detail-row user-row";
+        utr.dataset.parent = roleId;
+        utr.innerHTML = "<td>" + esc(un) + "</td><td>" + ug.started + "</td><td>" + ug.completed +
+          "</td><td>" + (ug.seats > 0 ? ug.seats : '<span class="zero">&mdash;</span>') + "</td>";
+        tbody.appendChild(utr);
+      }
+    }
   }
-  tfoot.innerHTML = "<tr><td>Total &mdash; " + sites.length + " sites</td><td>" + totC +
-    "</td><td>" + (totS > 0 ? totS : '<span class="zero">&mdash;</span>') + "</td></tr>";
+
+  if (siteCount === 0) { showTable(false); return; }
+
+  document.getElementById("recCount").textContent = totS + " started, " + totC + " completed";
+  tfoot.innerHTML = "<tr><td>Total &mdash; " + siteCount + " site" + (siteCount !== 1 ? "s" : "") +
+    "</td><td>" + totS + "</td><td>" + totC + "</td><td>" +
+    (totSeats > 0 ? totSeats : '<span class="zero">&mdash;</span>') + "</td></tr>";
   showTable(true);
 }
 
+/* ── Call Deluge function ── */
 function load() {
+  if (_loading) return;
+  _loading = true;
   showLoading();
-  document.getElementById("reportTitle").textContent =
-    "Completed Jobs \u2014 " + (document.getElementById("filterDate").value || todayStr());
-  fetchPage(1, [], function(records) {
-    allRecords = records;
-    render();
-  }, showError);
+
+  var dateStr  = document.getElementById("filterDate").value || todayStr();
+  var zohoDate = toZohoDate(dateStr);
+
+  document.getElementById("reportTitle").textContent = "Daily Jobs Summary \u2014 " + dateStr;
+
+  /* invokeCustomApi POST — same pattern as working assign_vehicle dispatcher */
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    api_name:    "get_ops_job_summary",
+    http_method: "POST",
+    public_key:  PUBLIC_KEY,
+    payload:     { target_date: zohoDate }
+  }).then(function(resp) {
+    _loading = false;
+    console.log("[widget] invokeCustomApi response:", JSON.stringify(resp).substring(0, 500));
+    var raw = (resp && resp.result) ? resp.result
+            : (resp && resp.data)   ? resp.data
+            : resp;
+    if (!raw) { showError("No result from API."); return; }
+    try {
+      _data = (typeof raw === "string") ? JSON.parse(raw) : raw;
+      render();
+    } catch(e) {
+      showError("JSON parse error: " + e + " | raw: " + JSON.stringify(raw).substring(0, 200));
+    }
+  }).catch(function(err) {
+    _loading = false;
+    showError((err && err.message) || JSON.stringify(err));
+  });
 }
 
+/* ── Init ── */
 window.onload = function() {
   ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
     if (params && params.appLinkName) APP_NAME = params.appLinkName;
     document.getElementById("filterDate").value = todayStr();
-    document.getElementById("btnRefresh").addEventListener("click", load);
+    document.getElementById("btnRefresh").addEventListener("click", function() {
+      _data = null; /* force re-fetch on date change */
+      load();
+    });
+    document.getElementById("filterDate").addEventListener("change", function() {
+      _data = null;
+      load();
+    });
     document.getElementById("filterSite").addEventListener("change", render);
     document.getElementById("filterRole").addEventListener("change", render);
     load();
   }).catch(function() {
     document.getElementById("filterDate").value = todayStr();
-    document.getElementById("btnRefresh").addEventListener("click", load);
+    document.getElementById("btnRefresh").addEventListener("click", function() { _data = null; load(); });
+    document.getElementById("filterDate").addEventListener("change", function() { _data = null; load(); });
     document.getElementById("filterSite").addEventListener("change", render);
     document.getElementById("filterRole").addEventListener("change", render);
     load();
