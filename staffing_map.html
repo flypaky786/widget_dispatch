@@ -1,5 +1,6 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -648,6 +649,7 @@ function normalizeRecord(r){
 
   // Attach schedule from allSchedules cache (matched by empRawId)
   var sched = allSchedules.find(function(s){ return s.empRawId === empRawId; });
+  if(empRawId) console.log("[Staffing Widget] normalizeRecord — empRawId:", empRawId, "schedFound:", !!sched, "allSchedules count:", allSchedules.length);
   // Also preserve schedule from a previous local record if cache not yet loaded
   var prevSched = prevRecord ? {
     scheduledBreak1:  prevRecord.scheduledBreak1,
@@ -696,6 +698,7 @@ function loadSchedules(callback){
       allSchedules = resp.data.map(function(r){
         var empObj   = (r.Employee_Info && typeof r.Employee_Info === "object") ? r.Employee_Info : null;
         var empRawId = empObj ? empObj.ID : (r.Employee_Info || "");
+        console.log("[Staffing Widget] Schedule record — ID:", r.ID, "empRawId:", empRawId, "b1:", r.first_break_ts, "lunch:", r.lunch_break_ts, "b2:", r.second_break_ts);
         return {
           id:             r.ID,
           empRawId:       empRawId,
@@ -704,7 +707,7 @@ function loadSchedules(callback){
           second_break_ts:(r.second_break_ts && r.second_break_ts !== "") ? r.second_break_ts : null,
         };
       });
-      console.log("[Staffing Widget] Schedules loaded:", allSchedules.length);
+      console.log("[Staffing Widget] Schedules loaded:", allSchedules.length, "— empRawIds:", allSchedules.map(function(s){ return s.empRawId; }));
     } else {
       console.warn("[Staffing Widget] No schedules found:", resp.code, resp.message);
       allSchedules = [];
