@@ -450,7 +450,9 @@ const LABEL_SCALE_BREAKPOINT = 0.15; // below this zoom level, hide label to avo
 function applyTransform(){
   canvas().style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
   document.getElementById("zoom-pct").textContent=Math.round(scale*100)+"%";
-  var inv = PIN_SCALE_TARGET / scale;
+  // Inverse scale keeps pins constant physical size when zooming out.
+  // Cap at 1.0 so pins never shrink smaller than CSS size when zooming in.
+  var inv = Math.max(PIN_SCALE_TARGET / scale, PIN_SCALE_TARGET);
   canvas().querySelectorAll(".pin,.plus-pin").forEach(function(pin){
     pin.style.transform = "translate(-50%,-50%) scale("+inv+")";
   });
@@ -870,7 +872,7 @@ function renderEmployeePin(s){
   pin.className = "pin";
   pin.style.left      = s.x+"px";
   pin.style.top       = s.y+"px";
-  pin.style.transform = "translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
+  pin.style.transform = "translate(-50%,-50%) scale("+Math.max(PIN_SCALE_TARGET/scale,PIN_SCALE_TARGET)+")";
   pin.dataset.recId   = s.id;
   pin.dataset.zone    = s.zone;
 
@@ -1011,7 +1013,7 @@ function renderPlusPin(zoneName,pos){
   pin.className="plus-pin";
   pin.style.left=pos.x+"px";
   pin.style.top =pos.y+"px";
-  pin.style.transform="translate(-50%,-50%) scale("+(PIN_SCALE_TARGET/scale)+")";
+  pin.style.transform="translate(-50%,-50%) scale("+Math.max(PIN_SCALE_TARGET/scale,PIN_SCALE_TARGET)+")";
   pin.innerHTML=`<div class="plus-circle">+</div><div class="plus-label">${zoneName}</div>`;
 
   // Same travel-distance tap detection for iPad Safari
