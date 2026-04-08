@@ -91,14 +91,13 @@ body {
 .avatar-label {
   margin-top:6px; background:rgba(10,14,26,.96);
   border:1px solid rgba(255,255,255,.15); border-radius:7px;
-  padding:5px 11px; font-size:12px; color:#e8edf5;
-  white-space:normal; text-align:center; line-height:1.6;
+  padding:6px 12px; font-size:13px; color:#e8edf5;
+  white-space:nowrap; text-align:center; line-height:1.7;
   box-shadow:0 3px 10px rgba(0,0,0,.7); z-index:2;
-  max-width:120px; word-break:break-word;
 }
-.avatar-label .emp-id   { font-weight:700; font-size:14px; color:#fff; }
-.avatar-label .zone-nm  { color:#94a3b8; font-size:11px; }
-.avatar-label .status-nm { font-size:11px; }
+.avatar-label .emp-id   { font-weight:700; font-size:15px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:12px; }
+.avatar-label .status-nm { font-size:12px; }
 .status-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; z-index:2; }
 
 /* ── Zoom controls ── */
@@ -443,7 +442,7 @@ const vp     = ()=>document.getElementById("map-viewport");
 const canvas = ()=>document.getElementById("map-canvas");
 
 // Target visual size factor — pins render at this size regardless of zoom
-const PIN_SCALE_TARGET = 0.6;
+const PIN_SCALE_TARGET = 1.5;
 // Label scale relative to zoom — at 1.0 label is same as CSS size, grows as you zoom in
 // We let label scale naturally (no inverse scale) so text gets bigger when zoomed
 const LABEL_SCALE_BREAKPOINT = 0.15; // below this zoom level, hide label to avoid clutter
