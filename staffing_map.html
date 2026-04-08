@@ -1,5 +1,6 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -300,6 +301,9 @@ body {
       </div>
     </div>
     <hr class="modal-hr"/>
+
+    <!-- Schedule reference -->
+    <div id="m-schedule" style="display:none;margin-bottom:12px;padding:10px;background:#0d1117;border-radius:8px;font-size:12px;line-height:1.8;"></div>
 
     <!-- Break 1 -->
     <div class="break-group">
@@ -817,33 +821,57 @@ function renderEmployeePin(s){
   const cfg    = STATUS_CFG[status] || STATUS_CFG["Active"];
   const statusLine = buildStatusLine(s, status, cfg);
 
-  // Overdue detection for pin border flash
   var LEEWAY    = 5  * 60 * 1000;
+  var SOON      = 10 * 60 * 1000; // "coming up" window
   var BREAK_MAX = 15 * 60 * 1000;
   var LUNCH_MAX = 30 * 60 * 1000;
   var now = Date.now();
-  function overdueCheck(scheduledISO, started){
+
+  function minsUntil(scheduledISO){
+    if(!scheduledISO) return null;
+    var dt = parseZohoDate(scheduledISO);
+    if(!dt) return null;
+    return (dt.getTime() - now) / 60000; // negative = past
+  }
+  function isOverdue(scheduledISO, started){
     if(!scheduledISO || started) return false;
     var dt = parseZohoDate(scheduledISO);
     return dt && (now - dt.getTime()) > LEEWAY;
+  }
+  function isSoon(scheduledISO, started){
+    if(!scheduledISO || started) return false;
+    var dt = parseZohoDate(scheduledISO);
+    if(!dt) return false;
+    var diff = dt.getTime() - now;
+    return diff > 0 && diff <= SOON;
   }
   function runLongCheck(startISO, maxMs){
     if(!startISO) return false;
     var dt = parseZohoDate(startISO);
     return dt && (now - dt.getTime()) > (maxMs + LEEWAY);
   }
-  var b1Overdue    = status === "Active"  && overdueCheck(s.scheduledBreak1, s.Break_Type_Start);
-  var lunchOverdue = status === "Active"  && hasVal(s.Break_Type_End) && overdueCheck(s.scheduledLunch, s.Lunch_Start);
-  var b2Overdue    = status === "Active"  && hasVal(s.Lunch_End) && overdueCheck(s.scheduledBreak2, s.Break_2_Start);
+
+  // Priority: red (running long) > orange (overdue) > yellow (soon) > normal
+  var b1Overdue    = status === "Active"  && isOverdue(s.scheduledBreak1, s.Break_Type_Start);
+  var lunchOverdue = status === "Active"  && hasVal(s.Break_Type_End) && isOverdue(s.scheduledLunch, s.Lunch_Start);
+  var b2Overdue    = status === "Active"  && hasVal(s.Lunch_End) && isOverdue(s.scheduledBreak2, s.Break_2_Start);
+  var b1Soon       = status === "Active"  && isSoon(s.scheduledBreak1, s.Break_Type_Start);
+  var lunchSoon    = status === "Active"  && hasVal(s.Break_Type_End) && isSoon(s.scheduledLunch, s.Lunch_Start);
+  var b2Soon       = status === "Active"  && hasVal(s.Lunch_End) && isSoon(s.scheduledBreak2, s.Break_2_Start);
   var b1RunLong    = status === "Break 1" && runLongCheck(s.Break_Type_Start, BREAK_MAX);
   var lunchRunLong = status === "Lunch"   && runLongCheck(s.Lunch_Start,      LUNCH_MAX);
   var b2RunLong    = status === "Break 2" && runLongCheck(s.Break_2_Start,    BREAK_MAX);
   var anyOverdue   = b1Overdue || lunchOverdue || b2Overdue;
+  var anySoon      = b1Soon    || lunchSoon    || b2Soon;
   var anyRunLong   = b1RunLong || lunchRunLong || b2RunLong;
 
-  // Overdue (not started on time) → orange; Running long (can't stop) → red
-  var pinColor     = anyRunLong ? "#ef4444" : anyOverdue ? "#f97316" : cfg.color;
+  // Color priority: red > orange > yellow > status color
+  var pinColor = anyRunLong ? "#ef4444"
+               : anyOverdue ? "#f97316"
+               : anySoon    ? "#eab308"
+               : cfg.color;
   var pinAnimation = (anyRunLong || anyOverdue) ? "pulse 1s ease-in-out infinite"
+                   : anySoon ? "pulse 1.5s ease-in-out infinite"
                    : status==="Active" ? "pulse 2.8s ease-in-out infinite" : "none";
 
   const pin = document.createElement("div");
@@ -876,67 +904,93 @@ function renderEmployeePin(s){
 }
 
 function buildStatusLine(s, status, cfg){
-  var LEEWAY_MS      = 5  * 60 * 1000; // 5 min leeway before flagging overdue
-  var BREAK_MAX_MS   = 15 * 60 * 1000; // break allotment: 15 min
-  var LUNCH_MAX_MS   = 30 * 60 * 1000; // lunch allotment: 30 min
+  var LEEWAY_MS    = 5  * 60 * 1000;
+  var SOON_MS      = 10 * 60 * 1000;
+  var BREAK_MAX_MS = 15 * 60 * 1000;
+  var LUNCH_MAX_MS = 30 * 60 * 1000;
   var now = Date.now();
 
-  // Overdue = scheduled time passed + 5min leeway, break not yet started
+  function minsUntil(scheduledISO){
+    if(!scheduledISO) return null;
+    var dt = parseZohoDate(scheduledISO);
+    return dt ? Math.round((dt.getTime() - now) / 60000) : null;
+  }
   function isOverdue(scheduledISO, started){
     if(!scheduledISO || started) return false;
     var dt = parseZohoDate(scheduledISO);
     return dt && (now - dt.getTime()) > LEEWAY_MS;
   }
-
-  // Running long = break/lunch started but exceeds allotted duration + 5min leeway
+  function isSoon(scheduledISO, started){
+    if(!scheduledISO || started) return false;
+    var dt = parseZohoDate(scheduledISO);
+    if(!dt) return false;
+    var diff = dt.getTime() - now;
+    return diff > 0 && diff <= SOON_MS;
+  }
   function isRunningLong(startISO, maxMs){
     if(!startISO) return false;
     var dt = parseZohoDate(startISO);
     return dt && (now - dt.getTime()) > (maxMs + LEEWAY_MS);
   }
 
-  // Active state overdue checks
   var b1Overdue    = status === "Active" && isOverdue(s.scheduledBreak1, s.Break_Type_Start);
   var lunchOverdue = status === "Active" && hasVal(s.Break_Type_End) && isOverdue(s.scheduledLunch, s.Lunch_Start);
   var b2Overdue    = status === "Active" && hasVal(s.Lunch_End) && isOverdue(s.scheduledBreak2, s.Break_2_Start);
-  var anyOverdue   = b1Overdue || lunchOverdue || b2Overdue;
-
-  // Running long checks (break/lunch in progress too long)
+  var b1Soon       = status === "Active" && isSoon(s.scheduledBreak1, s.Break_Type_Start);
+  var lunchSoon    = status === "Active" && hasVal(s.Break_Type_End) && isSoon(s.scheduledLunch, s.Lunch_Start);
+  var b2Soon       = status === "Active" && hasVal(s.Lunch_End) && isSoon(s.scheduledBreak2, s.Break_2_Start);
   var b1RunLong    = status === "Break 1" && isRunningLong(s.Break_Type_Start, BREAK_MAX_MS);
   var lunchRunLong = status === "Lunch"   && isRunningLong(s.Lunch_Start,      LUNCH_MAX_MS);
   var b2RunLong    = status === "Break 2" && isRunningLong(s.Break_2_Start,    BREAK_MAX_MS);
+  var anyOverdue   = b1Overdue || lunchOverdue || b2Overdue;
+  var anySoon      = b1Soon    || lunchSoon    || b2Soon;
   var anyRunLong   = b1RunLong || lunchRunLong || b2RunLong;
 
   if(status === "Active"){
-    var statusLine = anyOverdue
-      ? '<div class="status-nm" style="color:#f97316;font-weight:700">⚠️ '+(b1Overdue?"Break 1":lunchOverdue?"Lunch":"Break 2")+' Overdue</div>'
-      : '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
+    // Status line: overdue > soon > active
+    var topLine;
+    if(anyOverdue){
+      topLine = '<div class="status-nm" style="color:#f97316;font-weight:700">⚠️ '+(b1Overdue?"Break 1":lunchOverdue?"Lunch":"Break 2")+' Overdue</div>';
+    } else if(anySoon){
+      var soonLabel = b1Soon ? "Break 1" : lunchSoon ? "Lunch" : "Break 2";
+      var soonISO   = b1Soon ? s.scheduledBreak1 : lunchSoon ? s.scheduledLunch : s.scheduledBreak2;
+      var mins      = minsUntil(soonISO);
+      var minsStr   = (mins !== null && mins > 0) ? mins+" min" : "soon";
+      topLine = '<div class="status-nm" style="color:#eab308;font-weight:700">⏰ '+soonLabel+' in '+minsStr+'</div>';
+    } else {
+      topLine = '<div class="status-nm" style="color:'+cfg.color+';font-weight:700">● Active</div>';
+    }
 
+    // Scheduled time pills for unstarted breaks
     var schedLines = [];
-    if(s.scheduledBreak1 && !hasVal(s.Break_Type_Start))
-      schedLines.push('<span style="color:'+(b1Overdue?'#f97316':'#6e7681')+'">☕ '+fmtTs(s.scheduledBreak1)+'</span>');
-    if(s.scheduledLunch && !hasVal(s.Lunch_Start))
-      schedLines.push('<span style="color:'+(lunchOverdue?'#f97316':'#6e7681')+'">🍽 '+fmtTs(s.scheduledLunch)+'</span>');
-    if(s.scheduledBreak2 && !hasVal(s.Break_2_Start))
-      schedLines.push('<span style="color:'+(b2Overdue?'#f97316':'#6e7681')+'">☕ '+fmtTs(s.scheduledBreak2)+'</span>');
+    if(s.scheduledBreak1 && !hasVal(s.Break_Type_Start)){
+      var c = b1Overdue?'#f97316':b1Soon?'#eab308':'#6e7681';
+      schedLines.push('<span style="color:'+c+'">☕ '+fmtTs(s.scheduledBreak1)+'</span>');
+    }
+    if(s.scheduledLunch && !hasVal(s.Lunch_Start)){
+      var c2 = lunchOverdue?'#f97316':lunchSoon?'#eab308':'#6e7681';
+      schedLines.push('<span style="color:'+c2+'">🍽 '+fmtTs(s.scheduledLunch)+'</span>');
+    }
+    if(s.scheduledBreak2 && !hasVal(s.Break_2_Start)){
+      var c3 = b2Overdue?'#f97316':b2Soon?'#eab308':'#6e7681';
+      schedLines.push('<span style="color:'+c3+'">☕ '+fmtTs(s.scheduledBreak2)+'</span>');
+    }
 
-    return statusLine + (schedLines.length ? '<div style="font-size:10px;margin-top:2px">'+schedLines.join(' · ')+'</div>' : '');
+    return topLine + (schedLines.length ? '<div style="font-size:10px;margin-top:2px">'+schedLines.join(' · ')+'</div>' : '');
   }
 
-  // On break/lunch — show elapsed + running long warning
+  // On break/lunch: elapsed time + running long warning
   var startISO = status==="Break 1" ? s.Break_Type_Start : status==="Lunch" ? s.Lunch_Start : s.Break_2_Start;
   var elapsed = "";
   var overMin = 0;
   if(startISO){
     var startDt = parseZohoDate(startISO);
     if(startDt){
-      var elapsedMs  = now - startDt.getTime();
-      var mins       = Math.floor(elapsedMs / 60000);
-      var maxMs      = (status === "Lunch") ? LUNCH_MAX_MS : BREAK_MAX_MS;
-      elapsed        = mins < 1 ? "just started" : mins + " min ago";
-      if(anyRunLong){
-        overMin = Math.floor((elapsedMs - maxMs) / 60000);
-      }
+      var elapsedMs = now - startDt.getTime();
+      var mins2     = Math.floor(elapsedMs / 60000);
+      var maxMs     = (status === "Lunch") ? LUNCH_MAX_MS : BREAK_MAX_MS;
+      elapsed       = mins2 < 1 ? "just started" : mins2 + " min ago";
+      if(anyRunLong) overMin = Math.floor((elapsedMs - maxMs) / 60000);
     }
   }
 
@@ -1273,6 +1327,20 @@ function refreshManageModal(s){
     background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}55;`;
 
   const active=anyActive(s);
+
+  // ── Schedule reference ──
+  var schedEl = document.getElementById("m-schedule");
+  var schedParts = [];
+  if(s.scheduledBreak1)  schedParts.push("☕ Break 1: <strong style='color:#f97316'>"+fmtTs(s.scheduledBreak1)+"</strong>");
+  if(s.scheduledLunch)   schedParts.push("🍽 Lunch: <strong style='color:#3b82f6'>"+fmtTs(s.scheduledLunch)+"</strong>");
+  if(s.scheduledBreak2)  schedParts.push("☕ Break 2: <strong style='color:#f97316'>"+fmtTs(s.scheduledBreak2)+"</strong>");
+  if(schedParts.length){
+    schedEl.style.display = "block";
+    schedEl.innerHTML = "<div style='font-size:10px;color:#6e7681;font-weight:700;letter-spacing:.08em;margin-bottom:4px'>SCHEDULED</div>"
+                      + schedParts.join("&nbsp;&nbsp;·&nbsp;&nbsp;");
+  } else {
+    schedEl.style.display = "none";
+  }
 
   // ── Break 1 ──
   const b1Started = hasVal(s.Break_Type_Start);
