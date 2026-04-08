@@ -1,6 +1,5 @@
 /*  https://autoflowx.s3.us-east-2.amazonaws.com/LAX_plan_with_big_coordinates.pdf+(Whiteboard)+(1).png */
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,13 +91,14 @@ body {
 .avatar-label {
   margin-top:6px; background:rgba(10,14,26,.96);
   border:1px solid rgba(255,255,255,.15); border-radius:7px;
-  padding:5px 11px; font-size:18px; color:#e8edf5;
-  white-space:nowrap; text-align:center; line-height:1.7;
+  padding:5px 11px; font-size:12px; color:#e8edf5;
+  white-space:normal; text-align:center; line-height:1.6;
   box-shadow:0 3px 10px rgba(0,0,0,.7); z-index:2;
+  max-width:120px; word-break:break-word;
 }
-.avatar-label .emp-id   { font-weight:700; font-size:20px; color:#fff; }
-.avatar-label .zone-nm  { color:#94a3b8; font-size:16px; }
-.avatar-label .status-nm { font-size:16px; }
+.avatar-label .emp-id   { font-weight:700; font-size:14px; color:#fff; }
+.avatar-label .zone-nm  { color:#94a3b8; font-size:11px; }
+.avatar-label .status-nm { font-size:11px; }
 .status-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; z-index:2; }
 
 /* ── Zoom controls ── */
@@ -822,21 +822,14 @@ function renderEmployeePin(s){
   const statusLine = buildStatusLine(s, status, cfg);
 
   var LEEWAY    = 5  * 60 * 1000;
-  var SOON      = 10 * 60 * 1000; // "coming up" window
+  var SOON      = 10 * 60 * 1000;
   var BREAK_MAX = 15 * 60 * 1000;
   var LUNCH_MAX = 30 * 60 * 1000;
   var now = Date.now();
-
-  function minsUntil(scheduledISO){
-    if(!scheduledISO) return null;
-    var dt = parseZohoDate(scheduledISO);
-    if(!dt) return null;
-    return (dt.getTime() - now) / 60000; // negative = past
-  }
   function isOverdue(scheduledISO, started){
     if(!scheduledISO || started) return false;
     var dt = parseZohoDate(scheduledISO);
-    return dt && (now - dt.getTime()) > LEEWAY;
+    return dt && now >= dt.getTime(); // fires immediately when scheduled time passes
   }
   function isSoon(scheduledISO, started){
     if(!scheduledISO || started) return false;
@@ -851,13 +844,13 @@ function renderEmployeePin(s){
     return dt && (now - dt.getTime()) > (maxMs + LEEWAY);
   }
 
-  // Priority: red (running long) > orange (overdue) > yellow (soon) > normal
+  // No Break_Type_End / Lunch_End gating — each break is independent
   var b1Overdue    = status === "Active"  && isOverdue(s.scheduledBreak1, s.Break_Type_Start);
-  var lunchOverdue = status === "Active"  && hasVal(s.Break_Type_End) && isOverdue(s.scheduledLunch, s.Lunch_Start);
-  var b2Overdue    = status === "Active"  && hasVal(s.Lunch_End) && isOverdue(s.scheduledBreak2, s.Break_2_Start);
+  var lunchOverdue = status === "Active"  && isOverdue(s.scheduledLunch,  s.Lunch_Start);
+  var b2Overdue    = status === "Active"  && isOverdue(s.scheduledBreak2, s.Break_2_Start);
   var b1Soon       = status === "Active"  && isSoon(s.scheduledBreak1, s.Break_Type_Start);
-  var lunchSoon    = status === "Active"  && hasVal(s.Break_Type_End) && isSoon(s.scheduledLunch, s.Lunch_Start);
-  var b2Soon       = status === "Active"  && hasVal(s.Lunch_End) && isSoon(s.scheduledBreak2, s.Break_2_Start);
+  var lunchSoon    = status === "Active"  && isSoon(s.scheduledLunch,  s.Lunch_Start);
+  var b2Soon       = status === "Active"  && isSoon(s.scheduledBreak2, s.Break_2_Start);
   var b1RunLong    = status === "Break 1" && runLongCheck(s.Break_Type_Start, BREAK_MAX);
   var lunchRunLong = status === "Lunch"   && runLongCheck(s.Lunch_Start,      LUNCH_MAX);
   var b2RunLong    = status === "Break 2" && runLongCheck(s.Break_2_Start,    BREAK_MAX);
@@ -915,10 +908,16 @@ function buildStatusLine(s, status, cfg){
     var dt = parseZohoDate(scheduledISO);
     return dt ? Math.round((dt.getTime() - now) / 60000) : null;
   }
+  function minsSince(scheduledISO){
+    if(!scheduledISO) return null;
+    var dt = parseZohoDate(scheduledISO);
+    return dt ? Math.floor((now - dt.getTime()) / 60000) : null;
+  }
+  // Overdue = scheduled time has passed and break not yet started (no leeway — fires immediately)
   function isOverdue(scheduledISO, started){
     if(!scheduledISO || started) return false;
     var dt = parseZohoDate(scheduledISO);
-    return dt && (now - dt.getTime()) > LEEWAY_MS;
+    return dt && now >= dt.getTime();
   }
   function isSoon(scheduledISO, started){
     if(!scheduledISO || started) return false;
@@ -933,12 +932,14 @@ function buildStatusLine(s, status, cfg){
     return dt && (now - dt.getTime()) > (maxMs + LEEWAY_MS);
   }
 
+  // Overdue: break time passed, not yet started
+  // Note: no Break_Type_End / Lunch_End gate — each break is independent
   var b1Overdue    = status === "Active" && isOverdue(s.scheduledBreak1, s.Break_Type_Start);
-  var lunchOverdue = status === "Active" && hasVal(s.Break_Type_End) && isOverdue(s.scheduledLunch, s.Lunch_Start);
-  var b2Overdue    = status === "Active" && hasVal(s.Lunch_End) && isOverdue(s.scheduledBreak2, s.Break_2_Start);
+  var lunchOverdue = status === "Active" && isOverdue(s.scheduledLunch,  s.Lunch_Start);
+  var b2Overdue    = status === "Active" && isOverdue(s.scheduledBreak2, s.Break_2_Start);
   var b1Soon       = status === "Active" && isSoon(s.scheduledBreak1, s.Break_Type_Start);
-  var lunchSoon    = status === "Active" && hasVal(s.Break_Type_End) && isSoon(s.scheduledLunch, s.Lunch_Start);
-  var b2Soon       = status === "Active" && hasVal(s.Lunch_End) && isSoon(s.scheduledBreak2, s.Break_2_Start);
+  var lunchSoon    = status === "Active" && isSoon(s.scheduledLunch,  s.Lunch_Start);
+  var b2Soon       = status === "Active" && isSoon(s.scheduledBreak2, s.Break_2_Start);
   var b1RunLong    = status === "Break 1" && isRunningLong(s.Break_Type_Start, BREAK_MAX_MS);
   var lunchRunLong = status === "Lunch"   && isRunningLong(s.Lunch_Start,      LUNCH_MAX_MS);
   var b2RunLong    = status === "Break 2" && isRunningLong(s.Break_2_Start,    BREAK_MAX_MS);
@@ -947,10 +948,13 @@ function buildStatusLine(s, status, cfg){
   var anyRunLong   = b1RunLong || lunchRunLong || b2RunLong;
 
   if(status === "Active"){
-    // Status line: overdue > soon > active
     var topLine;
     if(anyOverdue){
-      topLine = '<div class="status-nm" style="color:#f97316;font-weight:700">⚠️ '+(b1Overdue?"Break 1":lunchOverdue?"Lunch":"Break 2")+' Overdue</div>';
+      var overdueLabel = b1Overdue ? "Break 1" : lunchOverdue ? "Lunch" : "Break 2";
+      var overdueISO   = b1Overdue ? s.scheduledBreak1 : lunchOverdue ? s.scheduledLunch : s.scheduledBreak2;
+      var overdueMin   = minsSince(overdueISO);
+      var overdueStr   = (overdueMin !== null && overdueMin > 0) ? " — "+overdueMin+" min ago" : "";
+      topLine = '<div class="status-nm" style="color:#f97316;font-weight:700">⚠️ '+overdueLabel+' Overdue'+overdueStr+'</div>';
     } else if(anySoon){
       var soonLabel = b1Soon ? "Break 1" : lunchSoon ? "Lunch" : "Break 2";
       var soonISO   = b1Soon ? s.scheduledBreak1 : lunchSoon ? s.scheduledLunch : s.scheduledBreak2;
