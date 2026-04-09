@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<!--
+  CSR COMBINED WIDGET — v1
+  =========================
+  Merges: CSR Active Requests (v3) + Vehicle Request widget
+  App: lax-abg | Report: All_Vehicle_Requests | Form: Vehicle_Request_Form
+
+  POLL STRATEGY:
+  - Initial load: immediate
+  - Post-submit: immediate fetch, then 8s interval resumes
+  - Normal operation: 8s interval
+
+  NEW FIELD:
+  - Extended_Rental: shows as red tag on card, no queue priority boost
+
+  MODAL: slide-up from bottom (iPad-native)
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CSR — Vehicle Requests</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet" />
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f0f2f5;
+      --card:        #ffffff;
+      --border:      #e8ecf1;
+      --text:        #1e293b;
+      --muted:       #64748b;
+      --faint:       #94a3b8;
+      --accent:      #3b82f6;
+      --green:       #10b981;
+      --green-bg:    #d1fae5;
+      --green-text:  #065f46;
+      --amber:       #f59e0b;
+      --amber-bg:    #fef3c7;
+      --amber-text:  #92400e;
+      --red:         #ef4444;
+      --red-bg:      #fee2e2;
+      --red-text:    #b91c1c;
+      --purple:      #7c3aed;
+      --purple-bg:   #ede9fe;
+      --purple-text: #6d28d9;
+      --hdr-from:    #0f172a;
+      --hdr-to:      #1e293b;
+      --radius:      12px;
+      --shadow:      0 2px 8px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04);
+      --shadow-lg:   0 8px 32px rgba(0,0,0,.14);
+    }
+
+    html, body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, var(--hdr-from) 0%, var(--hdr-to) 100%);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 2px 12px rgba(0,0,0,.3);
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .status-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      display: inline-block; flex-shrink: 0;
+    }
+    .status-dot.live {
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(16,185,129,.6);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.error { background: var(--red); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .header-title { color: #fff; font-size: 17px; font-weight: 700; }
+    .header-sub   { color: rgba(255,255,255,.5); font-size: 11px; margin-top: 1px; }
+    .last-update  { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+
+    /* ── New Request button ───────────────────────────────────── */
+    .btn-new {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(59,130,246,.4);
+      transition: background .15s, transform .1s, box-shadow .15s;
+      white-space: nowrap;
+      touch-action: manipulation;
+    }
+    .btn-new:hover  { background: #2563eb; box-shadow: 0 4px 12px rgba(59,130,246,.5); }
+    .btn-new:active { transform: scale(.95); }
+    .btn-new-icon   { font-size: 18px; line-height: 1; }
+
+    /* ── Status bar ──────────────────────────────────────────── */
+    .status-bar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--faint);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Cards ───────────────────────────────────────────────── */
+    .cards-wrap { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+    .req-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      position: relative;
+      border-left: 4px solid transparent;
+    }
+    .req-card.state-new      { border-left-color: var(--amber); }
+    .req-card.state-ip       { border-left-color: var(--purple); }
+    .req-card.state-assigned { border-left-color: var(--green); }
+    .req-card.state-cancelled{ border-left-color: var(--red); opacity: .6; }
+    .req-card.flash { animation: flashCard 1.2s ease-out; }
+    @keyframes flashCard { 0%{background:rgba(251,191,36,.2)} 100%{background:var(--card)} }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      padding-right: 36px;
+    }
+    .card-vehicle-name { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.3px; line-height: 1.2; }
+    .card-vehicle-sub  { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 3px; }
+    .card-vehicle-tag  { font-size: 13px; color: var(--red); font-weight: 700; margin-top: 3px; }
+    .card-vehicle-oneway { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 3px; }
+    .age-badge { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+    .age-ok     { color: #059669; }
+    .age-warn   { color: #d97706; }
+    .age-urgent { color: #dc2626; animation: urgentPulse 1.5s ease-in-out infinite; }
+    @keyframes urgentPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+
+    .card-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+    .card-status-block { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+
+    .badge { padding: 5px 12px; border-radius: 6px; font-size: 14px; font-weight: 700; letter-spacing: .2px; display: inline-block; }
+    .badge.new          { background: var(--amber-bg);  color: var(--amber-text); }
+    .badge.pending      { background: var(--amber-bg);  color: var(--amber-text); }
+    .badge.in-progress  { background: var(--purple-bg); color: var(--purple-text); }
+    .badge.assigned     { background: var(--green-bg);  color: var(--green-text); font-weight: 800; }
+    .badge.dispatched   { background: var(--green-bg);  color: var(--green-text); font-weight: 800; }
+    .badge.en-route     { background: var(--green-bg);  color: var(--green-text); }
+    .badge.completed    { background: #e5e7eb; color: #374151; }
+    .badge.cancelled    { background: var(--red-bg);    color: var(--red-text); }
+    .assigned-time { font-size: 12px; color: var(--muted); font-weight: 500; padding-left: 2px; }
+
+    .card-assignment { text-align: right; line-height: 1.5; }
+    .assign-mva     { font-size: 17px; font-weight: 700; color: var(--text); }
+    .assign-vehicle { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+    .btn-x {
+      position: absolute; top: 12px; right: 12px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #f1f5f9; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: var(--muted); font-weight: 700;
+      transition: all .15s;
+      touch-action: manipulation;
+    }
+    .btn-x:hover  { background: var(--red-bg); color: var(--red); }
+    .btn-x:active { transform: scale(.92); }
+
+    .no-results {
+      text-align: center; padding: 48px 24px;
+      color: var(--faint); font-size: 15px;
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Modal backdrop ──────────────────────────────────────── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    /* ── Modal sheet ─────────────────────────────────────────── */
+    .modal-sheet {
+      background: #f8fafc;
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 600px;
+      max-height: 92vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      box-shadow: 0 -8px 40px rgba(0,0,0,.2);
+      transform: translateY(100%);
+      transition: transform .3s cubic-bezier(.32,0,.67,0);
+    }
+    .modal-backdrop.open .modal-sheet {
+      transform: translateY(0);
+      transition: transform .35s cubic-bezier(.16,1,.3,1);
+    }
+
+    .modal-handle {
+      width: 40px; height: 4px; border-radius: 2px;
+      background: #cbd5e1; margin: 12px auto 0;
+    }
+
+    .modal-header {
+      padding: 14px 16px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .modal-title { font-size: 18px; font-weight: 800; color: var(--text); }
+    .modal-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #e2e8f0; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--muted); font-weight: 700;
+      transition: background .15s;
+      touch-action: manipulation;
+    }
+    .modal-close:hover { background: var(--red-bg); color: var(--red); }
+
+    .modal-body { padding: 16px; }
+
+    /* ── Form cards inside modal ─────────────────────────────── */
+    .form-card {
+      background: #fff;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .form-card:last-of-type { margin-bottom: 0; }
+    .form-card-header {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      padding: 9px 14px;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .form-card-body { padding: 14px; }
+
+    /* ── Vehicle tile grid ───────────────────────────────────── */
+    .vehicle-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, 73px);
+      justify-content: start;
+      gap: 7px;
+      width: 100%;
+    }
+    .veh-tile {
+      border-radius: 10px;
+      border: 2px solid var(--border);
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .12s, background .12s, box-shadow .12s;
+      text-align: center;
+      padding: 10px 4px 8px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .veh-tile:hover   { border-color: var(--accent); background: #eff6ff; }
+    .veh-tile.selected {
+      border-color: var(--accent);
+      background: #eff6ff;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+    }
+    .tile-code { font-size: 21px; font-weight: 800; color: var(--text); letter-spacing: -.01em; line-height: 1; }
+    .veh-tile.selected .tile-code { color: var(--accent); }
+    .tile-name { font-size: 10px; font-weight: 600; color: var(--muted); line-height: 1.25; text-align: center; word-break: break-word; }
+
+    .veh-picker-error { display: none; font-size: 13px; color: var(--red); font-weight: 600; margin-top: 10px; }
+    .veh-picker-error.show { display: block; }
+
+    .selected-badge {
+      display: none;
+      align-items: center; gap: 8px;
+      background: #eff6ff; border: 1.5px solid #bfdbfe;
+      border-radius: 8px; padding: 11px 14px;
+      margin-top: 12px;
+      font-size: 15px; font-weight: 600; color: var(--accent);
+    }
+    .selected-badge.show { display: flex; }
+    .change-link { margin-left: auto; font-size: 13px; color: var(--muted); cursor: pointer; text-decoration: underline; font-weight: 500; }
+
+    .specific-row { display: none; margin-top: 12px; }
+    .specific-row.show { display: block; }
+    .specific-row label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+    .specific-row input {
+      width: 100%; height: 48px; padding: 0 12px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 16px; font-family: 'DM Sans', sans-serif;
+      color: var(--text); background: #fff; outline: none;
+      -webkit-appearance: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .specific-row input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+    }
+
+    /* ── Toggle rows ─────────────────────────────────────────── */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-info { flex: 1; min-width: 0; padding-right: 16px; }
+    .toggle-label { font-size: 16px; font-weight: 600; color: var(--text); }
+    .toggle-desc  { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .toggle-badge {
+      display: inline-block;
+      background: var(--amber-bg); color: var(--amber-text);
+      font-size: 11px; font-weight: 700;
+      padding: 2px 7px; border-radius: 10px;
+      margin-left: 6px; vertical-align: middle;
+    }
+
+    /* iOS switch */
+    .switch { position: relative; display: inline-block; width: 52px; height: 30px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #cbd5e1; border-radius: 15px;
+      cursor: pointer; transition: background .2s;
+    }
+    .slider::before {
+      content: ''; position: absolute;
+      height: 24px; width: 24px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+      transition: transform .2s;
+    }
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::before { transform: translateX(22px); }
+
+    /* ── Submit button ───────────────────────────────────────── */
+    .submit-btn {
+      width: 100%; height: 56px;
+      background: var(--accent); color: #fff;
+      font-size: 18px; font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      border: none; border-radius: var(--radius);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 3px 10px rgba(59,130,246,.35);
+      transition: background .15s, transform .1s;
+      margin-top: 14px;
+      touch-action: manipulation;
+    }
+    .submit-btn:hover:not(:disabled) { background: #2563eb; }
+    .submit-btn:active:not(:disabled) { transform: scale(.98); }
+    .submit-btn:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }
+    .submit-btn .spinner {
+      display: none; width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .submit-btn.loading .btn-label { display: none; }
+    .submit-btn.loading .spinner   { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast inside modal ──────────────────────────────────── */
+    .modal-toast {
+      display: none; align-items: flex-start; gap: 10px;
+      padding: 11px 13px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      margin-bottom: 12px;
+      animation: slideIn .2s ease;
+    }
+    .modal-toast.show { display: flex; }
+    .modal-toast.error   { background: var(--red-bg); border: 1px solid #fca5a5; color: #991b1b; }
+    .modal-toast.success { background: var(--green-bg); border: 1px solid #86efac; color: #166534; }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── Cancel dialog ───────────────────────────────────────── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(15,23,42,.5);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      z-index: 300;
+      justify-content: center; align-items: center;
+    }
+    .overlay.active { display: flex; }
+    .dialog {
+      background: var(--card); border-radius: 16px;
+      padding: 28px; max-width: 380px; width: 92%;
+      box-shadow: var(--shadow-lg);
+      animation: popIn .2s ease-out;
+    }
+    @keyframes popIn { from{transform:scale(.95);opacity:0} to{transform:scale(1);opacity:1} }
+    .dialog h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; }
+    .dialog p  { margin: 0 0 22px; font-size: 15px; color: var(--muted); line-height: 1.5; }
+    .dialog-buttons { display: flex; gap: 10px; justify-content: flex-end; }
+    .dialog-buttons button {
+      padding: 12px 22px; border-radius: var(--radius);
+      font-size: 15px; font-weight: 600; font-family: inherit;
+      cursor: pointer; border: none; min-height: 46px;
+      transition: all .15s;
+      touch-action: manipulation;
+    }
+    .btn-dialog-back    { background: #f1f5f9; color: var(--muted); }
+    .btn-dialog-back:hover { background: #e2e8f0; }
+    .btn-dialog-confirm { background: var(--red); color: #fff; }
+    .btn-dialog-confirm:hover { background: #dc2626; }
+    .btn-dialog-confirm:disabled { background: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-left">
+    <span class="status-dot live" id="statusDot"></span>
+    <div>
+      <div class="header-title" id="headerTitle">Active Requests</div>
+      <div class="header-sub">LAX-ABG · CSR View</div>
+    </div>
+  </div>
+  <button class="btn-new" id="btnNew">
+    <span class="btn-new-icon">＋</span> New Request
+  </button>
+</div>
+
+<!-- ── Status bar ── -->
+<div class="status-bar">
+  <span id="lastUpdate">Connecting...</span>
+</div>
+
+<!-- ── Queue cards ── -->
+<div class="cards-wrap" id="cardsWrap">
+  <div class="no-results">Loading...</div>
+</div>
+
+<!-- ── New Request modal ── -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal-sheet" id="modalSheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div class="modal-title">🚗 New Vehicle Request</div>
+      <button class="modal-close" id="modalCloseBtn">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Toast -->
+      <div class="modal-toast" id="modalToast">
+        <span id="modalToastMsg"></span>
+      </div>
+
+      <!-- Vehicle Type -->
+      <div class="form-card">
+        <div class="form-card-header">🚙 Vehicle Type <span style="color:var(--red);margin-left:2px">*</span></div>
+        <div class="form-card-body">
+          <div class="vehicle-grid" id="vehicleGrid"></div>
+          <div class="veh-picker-error" id="vehErr">Please select a vehicle type.</div>
+          <div class="selected-badge" id="selectedBadge">
+            <span>✅</span>
+            <span id="selectedLabel">—</span>
+            <span class="change-link" id="changeLinkBtn">Change</span>
+          </div>
+          <div class="specific-row" id="specificRow">
+            <label>Specific Request <span style="text-transform:none;font-size:11px;font-weight:500;color:#94a3b8">(make / model)</span></label>
+            <input type="text" id="specificReq" placeholder="e.g. Tahoe, Expedition, Pacifica…" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Options -->
+      <div class="form-card">
+        <div class="form-card-header">⚙️ Options</div>
+        <div class="form-card-body" style="padding-top:4px;padding-bottom:4px">
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">One-Way Rental</div>
+              <div class="toggle-desc">Vehicle will not be returned to LAX</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="oneWay" /><span class="slider"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Upsell <span class="toggle-badge">99</span></div>
+              <div class="toggle-desc">Customer upgraded from lower class</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="upsell" /><span class="slider"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Walk-Up Customer <span class="toggle-badge">49</span></div>
+              <div class="toggle-desc">Customer arrived without reservation</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="walkUp" /><span class="slider"></span></label>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Extended Rental / Mini-Lease</div>
+              <div class="toggle-desc">Customer requires extended rental period</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="extendedRental" /><span class="slider"></span></label>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button class="submit-btn" id="submitBtn">
+        <span class="btn-label">Submit Request</span>
+        <div class="spinner"></div>
+      </button>
+
+    </div><!-- /modal-body -->
+  </div><!-- /modal-sheet -->
+</div><!-- /modal-backdrop -->
+
+<!-- ── Cancel dialog ── -->
+<div class="overlay" id="cancelOverlay">
+  <div class="dialog">
+    <h3>Cancel this request?</h3>
+    <p>Cancel the <strong id="cancelVehicle"></strong> request?</p>
+    <div class="dialog-buttons">
+      <button class="btn-dialog-back" id="btnCancelBack">Go back</button>
+      <button class="btn-dialog-confirm" id="btnConfirmCancel">Yes, cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+var CONFIG = {
+  APP_NAME:           "lax-abg",
+  REPORT_NAME:        "All_Vehicle_Requests",
+  FORM_NAME:          "Vehicle_Request_Form",
+  POLL_INTERVAL:      8000,
+  MAX_RECORDS:        200,
+  UNASSIGNED_HIDE_MS: 120 * 60 * 1000,
+  ASSIGNED_HIDE_MS:   10  * 60 * 1000,
+  AGE_WARN_MIN:       10,
+  AGE_URGENT_MIN:     20,
+  UPSELL_LABEL:       "Upsell (99)",
+  WALKUP_LABEL:       "Walk Up (49)",
+  ONEWAY_LABEL:       "One-Way Rental",
+  EXTENDED_LABEL:     "Extended Rental / Mini-Lease",
+  DING_FREQ_1:        880,
+  DING_FREQ_2:        1175
+};
+
+// ── VEHICLE DATA ──────────────────────────────────────────────────────────────
+var VEHICLES = [
+  { code:"B",  name:"Compact"           },
+  { code:"C",  name:"Intermediate"      },
+  { code:"D",  name:"Standard 2-Door"   },
+  { code:"E",  name:"Full-Size 4-Door"  },
+  { code:"F",  name:"Intermediate SUV"  },
+  { code:"G",  name:"Premium"           },
+  { code:"H",  name:"Luxury"            },
+  { code:"K",  name:"Convertible"       },
+  { code:"L",  name:"Premium SUV",        specific:true },
+  { code:"P",  name:"Van 12-15 Seats"   },
+  { code:"S",  name:"Std SUV 7-Pass"    },
+  { code:"V",  name:"Minivan",            specific:true },
+  { code:"W",  name:"Std SUV 5-Pass"    },
+  { code:"XA", name:"Elite Specialty"   },
+  { code:"XB", name:"Premium Sport"     },
+  { code:"XC", name:"Hybrid / Electric" },
+  { code:"XF", name:"Luxury Sport Sedan"},
+  { code:"XG", name:"Premium Crossover" },
+  { code:"XK", name:"Luxury Specialty"  },
+  { code:"XV", name:"15-Passenger"      },
+  { code:"XW", name:"Pickup Truck"      },
+  { code:"XX", name:"Mystery Car"       },
+  { code:"Z",  name:"Full-Size SUV",      specific:true }
+];
+
+var CODE_TO_VALUE = {
+  B:"B-Compact", C:"C-Intermediate (Mid-size)", D:"D-Standard (2-Door)",
+  E:"E-Full-size (4-Door)", F:"F-Intermediate SUV", G:"G-Premium", H:"H-Luxury",
+  K:"K-Convertible", L:"L-Premium SUV", P:"P- Van (12-15 Seats)",
+  S:"S-Std SUV (7-Passenger)", V:"V-Minivan", W:"W-Std SUV (5-Passenger)",
+  XA:"XA-Elite Specialty", XB:"XB-Premium Sport", XC:"XC-Hybrid / Electric",
+  XF:"XF-Luxury Sport Sedan", XG:"XG-Premium Crossover / SUV",
+  XK:"XK-Luxury Specialty", XV:"XV-15 Passenger Vehicle",
+  XW:"XW-Pickup Trucks", XX:"XX-Mystery Car", Z:"Z-Full-size SUV"
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+var previousData       = {};
+var previousStatuses   = {};
+var cancelRecordId     = null;
+var loggedInUser       = "";
+var deskId             = "";
+var firstLoadComplete  = false;
+var selectedVehicle    = null;
+var pollTimer          = null;
+var audioCtx           = null;
+var audioUnlocked      = false;
+
+// ── AUDIO ─────────────────────────────────────────────────────────────────────
+function unlockAudio() {
+  if (audioUnlocked) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume().then(function() { audioUnlocked = true; });
+  } catch(e) {}
+}
+document.addEventListener("click",      unlockAudio, { once: true });
+document.addEventListener("touchstart", unlockAudio, { once: true });
+
+function playDing() {
+  if (!audioUnlocked || !audioCtx) return;
+  try {
+    var n = audioCtx.currentTime;
+    var o1 = audioCtx.createOscillator(), g1 = audioCtx.createGain();
+    o1.connect(g1); g1.connect(audioCtx.destination);
+    o1.frequency.value = CONFIG.DING_FREQ_1; o1.type = "sine";
+    g1.gain.setValueAtTime(.3, n);
+    g1.gain.exponentialRampToValueAtTime(.001, n + .4);
+    o1.start(n); o1.stop(n + .4);
+    var o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
+    o2.connect(g2); g2.connect(audioCtx.destination);
+    o2.frequency.value = CONFIG.DING_FREQ_2; o2.type = "sine";
+    g2.gain.setValueAtTime(.2, n + .15);
+    g2.gain.exponentialRampToValueAtTime(.001, n + .6);
+    o2.start(n + .15); o2.stop(n + .6);
+  } catch(e) {}
+}
+
+// ── POLLING ───────────────────────────────────────────────────────────────────
+function startPoll() {
+  stopPoll();
+  pollTimer = setInterval(fetchDispatches, CONFIG.POLL_INTERVAL);
+}
+function stopPoll() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// ── DATE HELPERS ──────────────────────────────────────────────────────────────
+function parseZohoDate(d) {
+  if (!d) return null;
+  try {
+    var p = d.toString().split(" ");
+    if (p.length < 2) return null;
+    var dp = p[0].split("-");
+    if (dp.length < 3) return null;
+    var r = dp[1] + " " + dp[0] + ", " + dp[2] + " " + p.slice(1).join(" ");
+    var dt = new Date(r);
+    return isNaN(dt.getTime()) ? null : dt;
+  } catch(e) { return null; }
+}
+
+function formatTime(d) {
+  var dt = parseZohoDate(d);
+  if (!dt) return "—";
+  var h = dt.getHours(), m = dt.getMinutes(), a = h >= 12 ? "PM" : "AM";
+  h = h % 12; if (h === 0) h = 12;
+  return h + ":" + ("0" + m).slice(-2) + " " + a;
+}
+
+function getAge(d) {
+  var dt = parseZohoDate(d);
+  if (!dt) return { text: "—", cls: "age-ok" };
+  var m = Math.floor((Date.now() - dt.getTime()) / 60000);
+  if (m < 0) m = 0;
+  var c = m >= CONFIG.AGE_URGENT_MIN ? "age-urgent" : m >= CONFIG.AGE_WARN_MIN ? "age-warn" : "age-ok";
+  return { text: m + "m", cls: c };
+}
+
+// ── STATUS HELPERS ────────────────────────────────────────────────────────────
+function isBool(v)           { return v === true || v === "true"; }
+function isAssigned(s)       { s = (s||"").toLowerCase(); return s.indexOf("assign") >= 0 || s.indexOf("dispatch") >= 0; }
+function isInProgress(s)     { s = (s||"").toLowerCase(); return s.indexOf("in progress") >= 0 || s.indexOf("in-progress") >= 0; }
+function isCancelled(s)      { return (s||"").toLowerCase().indexOf("cancel") >= 0; }
+
+function badgeClass(s) {
+  s = (s||"").toLowerCase();
+  if (s.indexOf("in progress") >= 0 || s.indexOf("in-progress") >= 0) return "in-progress";
+  if (s.indexOf("new")     >= 0) return "new";
+  if (s.indexOf("pending") >= 0) return "pending";
+  if (s.indexOf("assign")  >= 0) return "assigned";
+  if (s.indexOf("dispatch")>= 0) return "dispatched";
+  if (s.indexOf("route")   >= 0) return "en-route";
+  if (s.indexOf("complet") >= 0) return "completed";
+  if (s.indexOf("cancel")  >= 0) return "cancelled";
+  return "pending";
+}
+
+function cardStateClass(s) {
+  if (isAssigned(s))   return "state-assigned";
+  if (isInProgress(s)) return "state-ip";
+  if (isCancelled(s))  return "state-cancelled";
+  return "state-new";
+}
+
+// ── SORT ──────────────────────────────────────────────────────────────────────
+function sortRecords(records) {
+  var nw = [], ip = [], assigned = [], cancelled = [];
+  for (var i = 0; i < records.length; i++) {
+    var r = records[i];
+    if (isCancelled(r.Dispatch_Status))  cancelled.push(r);
+    else if (isAssigned(r.Dispatch_Status))  assigned.push(r);
+    else if (isInProgress(r.Dispatch_Status)) ip.push(r);
+    else nw.push(r);
+  }
+  var byAdded = function(a, b) {
+    return (parseZohoDate(a.Added_Time) || 0) - (parseZohoDate(b.Added_Time) || 0);
+  };
+  nw.sort(byAdded); ip.sort(byAdded); assigned.sort(byAdded); cancelled.sort(byAdded);
+  return nw.concat(ip).concat(assigned).concat(cancelled);
+}
+
+// ── DING CHECK ────────────────────────────────────────────────────────────────
+function checkForNewAssignments(recs) {
+  if (!firstLoadComplete) return;
+  var dinged = false;
+  for (var i = 0; i < recs.length; i++) {
+    var rec = recs[i], id = rec.ID ? rec.ID.toString() : "";
+    if (!id) continue;
+    var cs = (rec.Dispatch_Status || "").toLowerCase();
+    var ps = previousStatuses[id] || "";
+    var na = cs.indexOf("assign") >= 0 || cs.indexOf("dispatch") >= 0;
+    var wa = ps.indexOf("assign") >= 0 || ps.indexOf("dispatch") >= 0;
+    if (na && !wa && !dinged) { playDing(); dinged = true; }
+  }
+  for (var j = 0; j < recs.length; j++) {
+    var r2 = recs[j], rid = r2.ID ? r2.ID.toString() : "";
+    if (rid) previousStatuses[rid] = (r2.Dispatch_Status || "").toLowerCase();
+  }
+}
+
+// ── RENDER CARDS ──────────────────────────────────────────────────────────────
+function renderCards(records) {
+  var wrap = document.getElementById("cardsWrap");
+  if (!records || !records.length) {
+    wrap.innerHTML = '<div class="no-results">No active requests</div>';
+    return;
+  }
+  var html = "";
+  records.forEach(function(rec) {
+    var id = rec.ID;
+    var recStr = JSON.stringify(rec);
+    var changed = previousData[id] && previousData[id] !== recStr;
+    previousData[id] = recStr;
+
+    var status   = rec.Dispatch_Status || "New";
+    var age      = getAge(rec.Added_Time);
+    var assigned = isAssigned(status);
+    var vehicleEsc = (rec.Vehicle_Type || "").replace(/'/g, "\\'");
+
+    // Vehicle block
+    var vhtml = '<div class="card-vehicle-name">' + (rec.Vehicle_Type || "—") + '</div>';
+    if (rec.Specific_Make_Model_optional) vhtml += '<div class="card-vehicle-sub">' + rec.Specific_Make_Model_optional + '</div>';
+    if (isBool(rec.Upsell))             vhtml += '<div class="card-vehicle-tag">' + CONFIG.UPSELL_LABEL    + '</div>';
+    if (isBool(rec.Walk_Up_Customer))   vhtml += '<div class="card-vehicle-tag">' + CONFIG.WALKUP_LABEL   + '</div>';
+    if (isBool(rec.Extended_Rental))    vhtml += '<div class="card-vehicle-tag">' + CONFIG.EXTENDED_LABEL + '</div>';
+    if (isBool(rec.One_Way_Rental))     vhtml += '<div class="card-vehicle-oneway">' + CONFIG.ONEWAY_LABEL + '</div>';
+
+    // Status block
+    var shtml = '<div class="card-status-block"><span class="badge ' + badgeClass(status) + '">' + status + '</span>';
+    if (assigned && rec.Assignment_Time) shtml += '<span class="assigned-time">' + formatTime(rec.Assignment_Time) + '</span>';
+    shtml += '</div>';
+
+    // Assignment block
+    var ahtml = "";
+    if (assigned) {
+      var mva = rec.Assigned_MVA || "", stall = rec.Stall_Number || "";
+      var mvaStall = mva && stall ? mva + " / " + stall : mva || stall || "";
+      var av = rec.Avis_lookup_ID, vinfo = av && av.zc_display_value ? av.zc_display_value : "";
+      ahtml = '<div class="card-assignment">';
+      if (mvaStall) ahtml += '<div class="assign-mva">' + mvaStall + '</div>';
+      if (vinfo)    ahtml += '<div class="assign-vehicle">' + vinfo + '</div>';
+      ahtml += '</div>';
+    }
+
+    // X button (hidden when assigned)
+    var xbtn = assigned ? "" :
+      '<button class="btn-x" data-id="' + id + '" data-vehicle="' + vehicleEsc + '" title="Cancel">&#10005;</button>';
+
+    html += '<div class="req-card ' + cardStateClass(status) + (changed ? " flash" : "") + '">';
+    html += xbtn;
+    html += '<div class="card-top"><div>' + vhtml + '</div><span class="age-badge ' + age.cls + '">' + age.text + '</span></div>';
+    html += '<div class="card-bottom">' + shtml + ahtml + '</div>';
+    html += '</div>';
+  });
+  wrap.innerHTML = html;
+
+  // Attach cancel button listeners (avoid inline onclick with special chars)
+  var xbtns = wrap.querySelectorAll(".btn-x");
+  for (var i = 0; i < xbtns.length; i++) {
+    (function(btn) {
+      btn.addEventListener("click", function() {
+        openCancelDialog(btn.getAttribute("data-id"), btn.getAttribute("data-vehicle"));
+      });
+    })(xbtns[i]);
+  }
+}
+
+// ── FETCH ─────────────────────────────────────────────────────────────────────
+function fetchDispatches() {
+  var cfg = {
+    app_name: CONFIG.APP_NAME,
+    report_name: CONFIG.REPORT_NAME,
+    from: 1,
+    max_records: CONFIG.MAX_RECORDS
+  };
+  if (loggedInUser) cfg.criteria = '(User_Email == "' + loggedInUser + '")';
+
+  ZOHO.CREATOR.DATA.getRecords(cfg).then(function(response) {
+    if (response.code === 3000) {
+      var all = response.data || [], now = Date.now();
+      var filtered = all.filter(function(rec) {
+        var s = (rec.Dispatch_Status || "").toLowerCase();
+        if (s.indexOf("complet") >= 0 || s.indexOf("cancel") >= 0) return false;
+        if (!isAssigned(rec.Dispatch_Status)) {
+          var ad = parseZohoDate(rec.Added_Time);
+          if (ad && (now - ad.getTime()) > CONFIG.UNASSIGNED_HIDE_MS) return false;
+        } else {
+          var at = parseZohoDate(rec.Assignment_Time);
+          if (at && (now - at.getTime()) > CONFIG.ASSIGNED_HIDE_MS) return false;
+        }
+        return true;
+      });
+      var sorted = sortRecords(filtered);
+      checkForNewAssignments(sorted);
+      renderCards(sorted);
+      firstLoadComplete = true;
+      document.getElementById("statusDot").className = "status-dot live";
+      document.getElementById("lastUpdate").textContent = "● Updated " + new Date().toLocaleTimeString();
+    } else {
+      document.getElementById("statusDot").className = "status-dot live";
+      document.getElementById("lastUpdate").textContent = "● Updated " + new Date().toLocaleTimeString();
+      if (!firstLoadComplete) renderCards([]);
+    }
+  }).catch(function() {
+    document.getElementById("statusDot").className = "status-dot error";
+    document.getElementById("lastUpdate").textContent = "Connection error";
+  });
+}
+
+// ── CANCEL DIALOG ─────────────────────────────────────────────────────────────
+function openCancelDialog(id, vehicle) {
+  cancelRecordId = id;
+  document.getElementById("cancelVehicle").textContent = vehicle;
+  document.getElementById("cancelOverlay").classList.add("active");
+}
+function closeCancelDialog() {
+  cancelRecordId = null;
+  document.getElementById("cancelOverlay").classList.remove("active");
+}
+function confirmCancel() {
+  if (!cancelRecordId) return;
+  var btn = document.getElementById("btnConfirmCancel");
+  btn.textContent = "Cancelling…"; btn.disabled = true;
+  var now = new Date();
+  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var dd = ("0" + now.getDate()).slice(-2), mmm = months[now.getMonth()], yyyy = now.getFullYear();
+  var hh = now.getHours(), ampm = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12; if (hh === 0) hh = 12;
+  var mm = ("0" + now.getMinutes()).slice(-2), ss = ("0" + now.getSeconds()).slice(-2);
+  var ts = dd + "-" + mmm + "-" + yyyy + " " + ("0" + hh).slice(-2) + ":" + mm + ":" + ss + " " + ampm;
+  ZOHO.CREATOR.DATA.updateRecordById({
+    app_name: CONFIG.APP_NAME,
+    report_name: CONFIG.REPORT_NAME,
+    id: cancelRecordId,
+    payload: { data: { Dispatch_Status: "Cancelled", Cancelled_Time: ts } }
+  }).then(function(resp) {
+    closeCancelDialog();
+    btn.textContent = "Yes, cancel"; btn.disabled = false;
+    if (resp.code === 3000) fetchDispatches();
+    else alert("Cancel failed.");
+  }).catch(function() {
+    alert("Cancel failed.");
+    btn.textContent = "Yes, cancel"; btn.disabled = false;
+  });
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal() {
+  resetForm();
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+function closeModal() {
+  document.getElementById("modalBackdrop").classList.remove("open");
+}
+
+// ── VEHICLE PICKER ────────────────────────────────────────────────────────────
+function buildGrid() {
+  var grid = document.getElementById("vehicleGrid");
+  var html = "";
+  for (var i = 0; i < VEHICLES.length; i++) {
+    var v = VEHICLES[i];
+    var sel = selectedVehicle && selectedVehicle.code === v.code ? " selected" : "";
+    html += '<div class="veh-tile' + sel + '" data-code="' + v.code + '">';
+    html += '<div class="tile-code">' + v.code + '</div>';
+    html += '<div class="tile-name">' + v.name + '</div>';
+    html += '</div>';
+  }
+  grid.innerHTML = html;
+
+  // Attach tile listeners
+  var tiles = grid.querySelectorAll(".veh-tile");
+  for (var j = 0; j < tiles.length; j++) {
+    (function(tile) {
+      tile.addEventListener("click", function() { selectVehicle(tile.getAttribute("data-code")); });
+    })(tiles[j]);
+  }
+}
+
+function selectVehicle(code) {
+  var v = null;
+  for (var i = 0; i < VEHICLES.length; i++) { if (VEHICLES[i].code === code) { v = VEHICLES[i]; break; } }
+  if (!v) return;
+  selectedVehicle = v;
+  document.getElementById("selectedLabel").textContent = v.code + " — " + v.name;
+  document.getElementById("selectedBadge").classList.add("show");
+  document.getElementById("vehicleGrid").style.display = "none";
+  document.getElementById("vehErr").classList.remove("show");
+  if (v.specific) {
+    document.getElementById("specificRow").classList.add("show");
+  } else {
+    document.getElementById("specificRow").classList.remove("show");
+    document.getElementById("specificReq").value = "";
+  }
+}
+
+function clearVehicle() {
+  selectedVehicle = null;
+  document.getElementById("selectedBadge").classList.remove("show");
+  document.getElementById("vehicleGrid").style.display = "";
+  document.getElementById("specificRow").classList.remove("show");
+  document.getElementById("specificReq").value = "";
+  buildGrid();
+}
+
+// ── MODAL TOAST ───────────────────────────────────────────────────────────────
+function showModalToast(type, msg) {
+  var el = document.getElementById("modalToast");
+  document.getElementById("modalToastMsg").textContent = msg;
+  el.className = "modal-toast show " + type;
+}
+function hideModalToast() {
+  document.getElementById("modalToast").className = "modal-toast";
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+function doSubmit() {
+  hideModalToast();
+  if (!selectedVehicle) {
+    document.getElementById("vehErr").classList.add("show");
+    showModalToast("error", "Please select a vehicle type.");
+    return;
+  }
+  document.getElementById("vehErr").classList.remove("show");
+
+  var btn = document.getElementById("submitBtn");
+  btn.classList.add("loading"); btn.disabled = true;
+
+  var payload = {
+    data: {
+      Your_desk_ID:                 deskId,
+      Vehicle_Type:                 CODE_TO_VALUE[selectedVehicle.code],
+      One_Way_Rental:               document.getElementById("oneWay").checked,
+      Upsell:                       document.getElementById("upsell").checked,
+      Walk_Up_Customer:             document.getElementById("walkUp").checked,
+      Extended_Rental:              document.getElementById("extendedRental").checked,
+      Specific_Make_Model_optional: document.getElementById("specificReq").value.trim(),
+      Dispatch_Status:              "New"
+    }
+  };
+
+  ZOHO.CREATOR.DATA.addRecords({
+    app_name: CONFIG.APP_NAME,
+    form_name: CONFIG.FORM_NAME,
+    payload: payload
+  }).then(function(resp) {
+    btn.classList.remove("loading"); btn.disabled = false;
+    console.log("[CSR Combined] addRecords:", resp);
+    if (resp && resp.code === 3000) {
+      closeModal();
+      // Immediate fetch, then restart 8s poll
+      stopPoll();
+      fetchDispatches();
+      startPoll();
+    } else {
+      var msg = (resp && resp.message) ? resp.message : "Submission failed (code: " + (resp ? resp.code : "?") + ")";
+      showModalToast("error", msg);
+    }
+  }).catch(function(err) {
+    btn.classList.remove("loading"); btn.disabled = false;
+    console.error("[CSR Combined] addRecords error:", err);
+    showModalToast("error", "Submission error — check console.");
+  });
+}
+
+// ── RESET FORM ────────────────────────────────────────────────────────────────
+function resetForm() {
+  selectedVehicle = null;
+  document.getElementById("oneWay").checked       = false;
+  document.getElementById("upsell").checked        = false;
+  document.getElementById("walkUp").checked        = false;
+  document.getElementById("extendedRental").checked = false;
+  document.getElementById("specificReq").value     = "";
+  document.getElementById("vehErr").classList.remove("show");
+  hideModalToast();
+  clearVehicle();
+  buildGrid();
+}
+
+// ── WIRE UP STATIC LISTENERS ──────────────────────────────────────────────────
+window.onload = function() {
+  document.getElementById("btnNew").addEventListener("click", openModal);
+  document.getElementById("modalCloseBtn").addEventListener("click", closeModal);
+  document.getElementById("changeLinkBtn").addEventListener("click", clearVehicle);
+  document.getElementById("submitBtn").addEventListener("click", doSubmit);
+  document.getElementById("btnCancelBack").addEventListener("click", closeCancelDialog);
+  document.getElementById("btnConfirmCancel").addEventListener("click", confirmCancel);
+
+  // Close modal on backdrop tap (but not on sheet tap)
+  document.getElementById("modalBackdrop").addEventListener("click", function(e) {
+    if (e.target === this) closeModal();
+  });
+};
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params) {
+  loggedInUser = params.loginUser || "";
+  deskId = loggedInUser.split("@")[0];
+  var displayName = deskId || loggedInUser;
+  document.getElementById("headerTitle").textContent = "Requests — " + displayName;
+  fetchDispatches();
+  startPoll();
+}).catch(function(err) {
+  console.error("[CSR Combined] getInitParams error:", err);
+  fetchDispatches();
+  startPoll();
+});
+</script>
+</body>
+</html>
