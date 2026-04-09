@@ -156,7 +156,7 @@
       padding-right: 36px;
     }
     .card-vehicle-name { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.3px; line-height: 1.2; }
-    .card-vehicle-sub  { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 3px; }
+    .card-vehicle-sub  { font-size: 15px; color: var(--muted); font-weight: 600; margin-top: 3px; }
     .card-vehicle-tag  { font-size: 13px; color: var(--red); font-weight: 700; margin-top: 3px; }
     .card-vehicle-oneway { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 3px; }
     .age-badge { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
@@ -181,7 +181,7 @@
 
     .card-assignment { text-align: right; line-height: 1.5; }
     .assign-mva     { font-size: 17px; font-weight: 700; color: var(--text); }
-    .assign-vehicle { font-size: 13px; color: var(--muted); font-weight: 500; }
+    .assign-vehicle { font-size: 15px; color: var(--muted); font-weight: 500; }
 
     .btn-x {
       position: absolute; top: 12px; right: 12px;
@@ -838,7 +838,7 @@ function renderCards(records) {
       ahtml = '<div class="card-assignment">';
       if (mvaStall) ahtml += '<div class="assign-mva">' + mvaStall + '</div>';
       if (vinfo)    ahtml += '<div class="assign-vehicle">' + vinfo + '</div>';
-      if (rec.ETA)  ahtml += '<div class="assign-vehicle">🕐 ETA ' + formatEtaTime(rec.ETA) + '</div>';
+      if (rec.ETA)  ahtml += '<div class="assign-vehicle" style="font-size:17px;font-weight:700;color:var(--text)">🕐 ETA ' + formatEtaTime(rec.ETA) + '</div>';
       ahtml += '</div>';
     }
 
