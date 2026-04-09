@@ -686,10 +686,9 @@ function submitAssign(){
   if(!stall){showPopupError("Stall is required.");return;}
 
   /* VCF + ETA validation */
-  var vcfSel=document.querySelector('input[name="vcf"]:checked');
-  if(!vcfSel){showPopupError("Please select Vehicle Coming From.");return;}
-  var etaMinutes=parseInt(document.getElementById("inputEta").value)||0;
-  if(!etaMinutes){showPopupError("Please select ETA minutes.");return;}
+   var vcfSel=document.querySelector('input[name="vcf"]:checked');
+  var etaMinutes=0;
+  if(vcfSel){etaMinutes=parseInt(document.getElementById("inputEta").value)||0;}
 
   /* Sub rule check */
   if(roverData&&subRulesLoaded&&subRules!==null&&requestedClass){
@@ -714,11 +713,12 @@ function submitAssign(){
     var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
 
     /* Calculate ETA time = now + etaMinutes */
-    var etaDate=new Date(Date.now()+etaMinutes*60*1000);
-    var etaTime=buildZohoTime(etaDate);
 
-    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts,Vehicle_Coming_From:vcfSel.value,ETA_Minutes:etaMinutes,ETA:etaTime};
-    var capturedRecordId=assignRecordId;
+
+ var etaDate=new Date(Date.now()+etaMinutes*60*1000);
+  var etaTime=etaMinutes>0?buildZohoTime(etaDate):"";
+  var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+  if(vcfSel){payload.Vehicle_Coming_From=vcfSel.value;payload.ETA_Minutes=etaMinutes;if(etaTime)payload.ETA=etaTime;}    var capturedRecordId=assignRecordId;
 
     ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedRecordId,payload:{data:payload}}).then(function(ur){
       btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
