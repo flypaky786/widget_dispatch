@@ -5,7 +5,10 @@
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
+  v3.2:
+  - Cross-border plate check: if request has Cross_Border=true, WAND plate must contain "CA"
   v3.1:
+  - Cross-border plate check: blocks assignment if WAND plate lacks "CA"
   - "Vehicle Coming From" radio (Quick Flip / Pumps) with ETA dropdown
   - Auto-select radio + default ETA based on loginUser email ("quick"→QF/5min, "pump"→Pumps/20min)
   - ETA_Minutes (number) + ETA (TIME field, hh:mm:ss AM/PM) written on assign
@@ -31,7 +34,7 @@
   - In Progress: never auto-hidden
 
   SORT ORDER: Priority New → Normal New → In Progress → Assigned → Cancelled
-  VALIDATION: MVA digits, stall required, duplicate MVA, sub rules, on-move block
+  VALIDATION: MVA digits, stall required, duplicate MVA, sub rules, on-move block, cross-border CA plate
 -->
 <html>
 <head>
@@ -285,6 +288,7 @@ var roverApiKey="",roverData=null,roverLookupDone=false,roverLookupFailed=false;
 var currentLookupMva="",requestedClass="";
 var subRules=null,subRulesLoaded=false;
 var onMoveBlocked=false;
+var crossBorderRequested=false;
 
 /* ============================================================
    AUDIO
@@ -435,6 +439,13 @@ function renderRoverCard(data,mva){
   document.getElementById("roverStatusLine").textContent=data.status||"—";
   var sfEl=document.getElementById("roverStatusFull");var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
   if(extraParts.length>0){sfEl.textContent=extraParts.join(" | ");sfEl.style.display="";if(isAlertStatus(data.statusFull)||isOnMove(data.statusFull))sfEl.classList.add("alert");else sfEl.classList.remove("alert");}else{sfEl.textContent="";sfEl.style.display="none";}
+  /* Cross-border plate indicator */
+  var plateEl=document.getElementById("roverColorChip");
+  if(crossBorderRequested){
+    var plate=(data.plate||"").toUpperCase();
+    if(plate.indexOf("CA")<0){plateEl.innerHTML='<span style="color:#dc2626;font-weight:700;font-size:14px;margin-top:8px;display:block">&#9888; Plate: '+(data.plate||"N/A")+' — not a CA plate</span>';}
+    else{plateEl.innerHTML='<span style="color:#059669;font-weight:600;font-size:13px;margin-top:8px;display:block">Plate: '+data.plate+' (CA &#10003;)</span>';}
+  }else{plateEl.textContent="";}
   document.getElementById("roverCard").classList.add("active");
 }
 
@@ -467,8 +478,9 @@ function doRoverLookup(mva){
     /* ── ON MOVE CHECK ── */
     if(isOnMove(json.statusFull)){
       onMoveBlocked=true;
-      document.getElementById("roverBlock").textContent="Vehicle is On Move -- existing RA needs to be closed";
-      document.getElementById("roverBlock").classList.add("active");
+      var blockMsg="Vehicle is On Move -- existing RA needs to be closed";
+      if(crossBorderRequested){var plate=(data.plate||"").toUpperCase();if(plate.indexOf("CA")<0){blockMsg+=". Also: plate "+(data.plate||"N/A")+" is not a CA plate.";}}
+      document.getElementById("roverBlock").textContent=blockMsg;      document.getElementById("roverBlock").classList.add("active");
       /* Save to Avis lookup immediately */
       saveAvisLookup(mva,json,assignRecordId).then(function(avisId){
         if(avisId&&assignRecordId){
@@ -510,7 +522,7 @@ document.getElementById("inputMva").addEventListener("input",function(){
   var val=this.value.replace(/\D/g,"").substring(0,CONFIG.MVA_LENGTH);this.value=val;
   if(val.length===CONFIG.MVA_LENGTH){doRoverLookup(val);}
   else if(roverData&&val!==currentLookupMva.substring(0,val.length)){
-    roverData=null;currentLookupMva="";roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;
+    roverData=null;currentLookupMva="";roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;crossBorderRequested=false;
     document.getElementById("roverCard").classList.remove("active");document.getElementById("roverLoading").classList.remove("active");
     document.getElementById("roverWarn").classList.remove("active");document.getElementById("roverBlock").classList.remove("active");
     document.getElementById("btnNext").style.display="none";document.getElementById("btnSubmitAssign").style.display="none";
@@ -597,7 +609,7 @@ var searchTimeout=null;document.getElementById("searchBox").addEventListener("in
    ASSIGN POPUP — OPEN / CLOSE
    ============================================================ */
 function resetPopupRoverState(){
-  roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;
+  roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;crossBorderRequested=false;
   subRules=null;subRulesLoaded=false;
   document.getElementById("roverCard").classList.remove("active");
   document.getElementById("roverLoading").classList.remove("active");
@@ -615,6 +627,8 @@ function resetPopupRoverState(){
 
 function openAssignPopup(id,v,vc){
   assignRecordId=id;isReassign=false;requestedClass=vc||"";
+  crossBorderRequested=false;
+  for(var ci=0;ci<currentRecords.length;ci++){if(currentRecords[ci].ID&&currentRecords[ci].ID.toString()===id){crossBorderRequested=isBool(currentRecords[ci].Cross_Border);break;}}
   document.getElementById("popupTitle").textContent="Assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value="";
@@ -632,6 +646,8 @@ function openAssignPopup(id,v,vc){
 
 function openReassignPopup(id,v,m,s,vc){
   assignRecordId=id;isReassign=true;requestedClass=vc||"";
+  crossBorderRequested=false;
+  for(var ci=0;ci<currentRecords.length;ci++){if(currentRecords[ci].ID&&currentRecords[ci].ID.toString()===id){crossBorderRequested=isBool(currentRecords[ci].Cross_Border);break;}}
   document.getElementById("popupTitle").textContent="Re-assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value=m;
@@ -659,6 +675,9 @@ function submitAssign(){
   clearPopupError();
 
   if(onMoveBlocked){showPopupError("Vehicle is On Move -- existing RA needs to be closed");return;}
+
+  /* Cross-border: plate must contain "CA" */
+  if(crossBorderRequested&&roverData){var plate=(roverData.plate||"").toUpperCase();if(plate.indexOf("CA")<0){showPopupError("Vehicle must have a CA license plate for cross-border requests. Plate: "+(roverData.plate||"N/A"));return;}}
 
   var mvaRegex=new RegExp("^\\d{"+CONFIG.MVA_LENGTH+"}$");
   if(!firstLoadComplete){showPopupError("Still loading.");return;}
