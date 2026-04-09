@@ -1,31 +1,28 @@
 <!DOCTYPE html>
-<!-- 
-  DISPATCHER QUEUE WIDGET — v3
-  ============================
+<!--
+  DISPATCHER QUEUE WIDGET — v3.1
+  ===============================
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
+  v3.1:
+  - "Vehicle Coming From" radio (Quick Flip / Pumps) with ETA dropdown
+  - Auto-select radio + default ETA based on loginUser email ("quick"→QF/5min, "pump"→Pumps/20min)
+  - ETA_Minutes (number) + ETA (TIME field, hh:mm:ss AM/PM) written on assign
+  - Block assignment when WAND statusFull contains "on move" — saves Avis lookup, shows error
+  - Cross_Border + Extended_Rental fields shown in vehicle cell (red, like One-Way)
   v3:
-  - Rover/WAND API lookup integrated into Assign popup
-  - On 8-digit MVA entry (typed or scanned): auto-fetches vehicle data from
-    https://rover-proxy.autoflowx.workers.dev using thisapp.variables.key_cloudflare_wand
-  - Displays Year/Make/Model/Color + Status (bold) + StatusFull (italic, red/bold if hold/unavailable)
-  - "Next →" gate: dispatcher must view results before stall entry + assign button appear
-  - On API error/timeout (5s): warning shown, assign allowed to proceed
-  - After successful assign: creates/updates Avis_lookup_Requests record (keyed on MVA),
-    then writes resulting record ID to Avis_lookup_ID on the vehicle request
+  - Rover/WAND API lookup on 8-digit MVA entry
+  - "Next →" gate: dispatcher must view results before stall + assign
+  - On API error/timeout: warning shown, assign allowed
+  - After assign: creates/updates Avis_lookup_Requests, writes Avis_lookup_ID back
+  - Substitution rule check against All_Vehicle_Substitution_Rules
   v2:
-  - Parameterized CONFIG block for all tunable values
-  - Upsell/Walk-up/One-Way labels configurable via CONFIG
-  - If loginUser email contains "pump", Stall auto-fills with CONFIG.PUMP_STALL_DEFAULT
-  - Font size 15px in table (th + td + badges)
-  - Sub_Acceptable column removed
-  - Vehicle cell: Vehicle Type + Specific + Upsell/Walk-up/One-Way stacked
-  - MVA + Stall merged into "Assignment" column
-  - Claimed_By_Email for Mark IP / Unclaim
+  - Parameterized CONFIG block
+  - Upsell/Walk-up/One-Way labels
+  - Pump user stall auto-fill "LZ"
   - Priority sort: Upsell/Walk-up New records at top
-  - Barcode scanner: camera stays alive between scans
-  - Audio ding on new request (status = New)
+  - Barcode scanner, audio ding on new request
 
   TIMEOUT PERIODS (configurable in CONFIG):
   - Assigned: hidden after ASSIGNED_HIDE_MS (default 5 min)
@@ -34,7 +31,7 @@
   - In Progress: never auto-hidden
 
   SORT ORDER: Priority New → Normal New → In Progress → Assigned → Cancelled
-  VALIDATION: MVA must be exactly CONFIG.MVA_LENGTH digits. Stall required. Duplicate MVA check.
+  VALIDATION: MVA digits, stall required, duplicate MVA, sub rules, on-move block
 -->
 <html>
 <head>
@@ -83,7 +80,7 @@
     .age-urgent{color:#dc2626;animation:urgentPulse 1.5s ease-in-out infinite}
     @keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:.6}}
     .priority-tag{font-weight:700;color:#dc2626;font-size:16px}
-    .oneway-tag{font-size:13px;color:var(--text-muted)}
+    .oneway-tag{font-size:13px;color:#dc2626;font-weight:600}
     .spec-tag{font-size:13px;color:var(--text-muted)}
     .flash{animation:flashRow 1.2s ease-out}
     @keyframes flashRow{0%{background:rgba(251,191,36,.25)}100%{background:transparent}}
@@ -99,8 +96,8 @@
     @keyframes popIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
     .popup h3{margin:0 0 4px;font-size:20px;font-weight:700;color:var(--text)}.popup .subtitle{margin:0 0 24px;font-size:14px;color:var(--text-muted)}
     .form-group{margin-bottom:20px}.form-group label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
-    .form-group input{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:16px;font-family:inherit;box-sizing:border-box;outline:none;color:var(--text);transition:border-color var(--transition),box-shadow var(--transition)}
-    .form-group input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(59,130,246,.1)}
+    .form-group input,.form-group select{width:100%;padding:14px 16px;border:2px solid var(--border);border-radius:var(--radius);font-size:16px;font-family:inherit;box-sizing:border-box;outline:none;color:var(--text);transition:border-color var(--transition),box-shadow var(--transition);background:var(--card)}
+    .form-group input:focus,.form-group select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(59,130,246,.1)}
     .popup-buttons{display:flex;gap:12px;justify-content:flex-end;margin-top:24px}
     .popup-buttons button{padding:14px 28px;border-radius:var(--radius);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;border:none;min-height:48px;transition:all var(--transition)}
     .btn-cancel{background:#f1f5f9;color:var(--text-muted)}.btn-cancel:hover{background:#e2e8f0}
@@ -117,7 +114,6 @@
     .rover-spinner{width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
     @keyframes spin{to{transform:rotate(360deg)}}
     .rover-loading-text{font-size:14px;color:var(--text-muted);font-weight:500}
-
     .rover-card{display:none;border-radius:var(--radius);overflow:hidden;margin-bottom:20px;border:1px solid var(--border)}
     .rover-card.active{display:block}
     .rover-card-header{background:linear-gradient(135deg,#1a1f36,#252d4a);padding:14px 18px;display:flex;align-items:center;gap:8px}
@@ -129,14 +125,25 @@
     .rover-status-full{font-size:13px;font-style:italic;color:var(--text-muted);line-height:1.5}
     .rover-status-full.alert{color:#b91c1c;font-weight:700;font-style:italic}
     .rover-class-chip{display:inline-flex;align-items:center;gap:6px;font-size:17px;font-weight:700;margin-bottom:8px}
-    .rover-class-match{color:#059669}
-    .rover-class-sub{color:#1e40af}
-    .rover-class-invalid{color:#dc2626}
+    .rover-class-match{color:#059669}.rover-class-sub{color:#1e40af}.rover-class-invalid{color:#dc2626}
     .rover-class-sub-label{font-size:12px;font-weight:600;opacity:.8}
-
     .rover-warn{display:none;background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:20px;align-items:flex-start;gap:8px}
     .rover-warn.active{display:flex}
     .rover-warn-icon{flex-shrink:0;font-size:16px}
+    .rover-block{display:none;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:14px 16px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;margin-bottom:20px}
+    .rover-block.active{display:block}
+
+    /* ── VEHICLE COMING FROM ── */
+    .vcf-group{display:none;margin-bottom:20px}
+    .vcf-group.active{display:block}
+    .vcf-group label{display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+    .vcf-radios{display:flex;gap:12px;margin-bottom:12px}
+    .vcf-radio{display:none}
+    .vcf-label{display:inline-flex;align-items:center;justify-content:center;padding:10px 20px;border:2px solid var(--border);border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;transition:all var(--transition);min-height:44px;color:var(--text-muted)}
+    .vcf-radio:checked+.vcf-label{border-color:var(--accent);background:rgba(59,130,246,.08);color:var(--accent)}
+    .vcf-eta-group{display:none}
+    .vcf-eta-group.active{display:block}
+    .vcf-eta-group label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.4px}
 
     @media(max-width:1024px){.header{padding:16px}.toolbar{padding:12px 16px}.table-wrap{padding:0 16px 16px}th{padding:12px 10px;font-size:14px}td{padding:10px 8px;font-size:15px}}
   </style>
@@ -158,23 +165,18 @@
 <tbody id="dispatchBody"><tr><td colspan="8" class="no-results">Loading...</td></tr></tbody>
 </table></div></div>
 
-<!-- ═══════════════════════════════════════════════════
-     ASSIGN POPUP
-     ═══════════════════════════════════════════════════ -->
+<!-- ═══ ASSIGN POPUP ═══ -->
 <div class="overlay" id="assignOverlay"><div class="popup">
   <h3 id="popupTitle">Assign Vehicle</h3>
   <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
 
-  <!-- MVA input + scan button -->
-  <div class="form-group">
-    <label for="inputMva">MVA Number</label>
+  <div class="form-group"><label for="inputMva">MVA Number</label>
     <div style="display:flex;gap:10px;align-items:stretch">
       <input type="text" id="inputMva" placeholder="Enter or scan MVA" style="flex:1" autocomplete="off">
       <button type="button" class="btn-scan" onclick="startScanner()">&#128247; Scan</button>
     </div>
   </div>
 
-  <!-- Scanner overlay (unchanged from v2) -->
   <div id="scannerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);z-index:2000;flex-direction:column;justify-content:center;align-items:center">
     <div style="position:relative;width:90%;max-width:420px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -186,18 +188,10 @@
     </div>
   </div>
 
-  <!-- Rover loading indicator -->
-  <div class="rover-loading" id="roverLoading">
-    <div class="rover-spinner"></div>
-    <span class="rover-loading-text">Looking up vehicle in WAND...</span>
-  </div>
+  <div class="rover-loading" id="roverLoading"><div class="rover-spinner"></div><span class="rover-loading-text">Looking up vehicle in WAND...</span></div>
 
-  <!-- Rover result card -->
   <div class="rover-card" id="roverCard">
-    <div class="rover-card-header">
-      <span>WAND Lookup</span>
-      <span class="rover-badge" id="roverCardMva"></span>
-    </div>
+    <div class="rover-card-header"><span>WAND Lookup</span><span class="rover-badge" id="roverCardMva"></span></div>
     <div class="rover-card-body">
       <div class="rover-vehicle-line" id="roverVehicleLine"></div>
       <div class="rover-class-chip" id="roverClassChip"></div>
@@ -207,25 +201,36 @@
     </div>
   </div>
 
-  <!-- Rover warning (error / timeout) -->
-  <div class="rover-warn" id="roverWarn">
-    <span class="rover-warn-icon">⚠️</span>
-    <span id="roverWarnText">Could not retrieve vehicle data from WAND. You may still assign.</span>
+  <div class="rover-warn" id="roverWarn"><span class="rover-warn-icon">⚠️</span><span id="roverWarnText"></span></div>
+  <div class="rover-block" id="roverBlock"></div>
+
+  <!-- Vehicle Coming From + ETA -->
+  <div class="vcf-group" id="vcfGroup">
+    <label>Vehicle Coming From</label>
+    <div class="vcf-radios">
+      <input type="radio" name="vcf" id="vcfQuick" value="Quick Flip" class="vcf-radio"><label for="vcfQuick" class="vcf-label">Quick Flip</label>
+      <input type="radio" name="vcf" id="vcfPumps" value="Pumps" class="vcf-radio"><label for="vcfPumps" class="vcf-label">Pumps</label>
+    </div>
+    <div class="vcf-eta-group" id="vcfEtaGroup">
+      <label for="inputEta">Approx. Minutes (ETA) to parking spot</label>
+      <select id="inputEta">
+        <option value="5">5</option>
+        <option value="10">10</option>
+        <option value="20">20</option>
+        <option value="30">30</option>
+      </select>
+    </div>
   </div>
 
-  <!-- Stall field — hidden until "Next" clicked -->
   <div class="form-group" id="stallGroup" style="display:none">
     <label for="inputStall">Stall #</label>
     <input type="text" id="inputStall" placeholder="Enter stall number">
   </div>
 
   <div class="popup-error" id="popupError"></div>
-
   <div class="popup-buttons" id="popupButtons">
     <button class="btn-cancel" onclick="closeAssignPopup()">Cancel</button>
-    <!-- Next button: visible after rover result, before stall entry -->
     <button class="btn-next" id="btnNext" onclick="showStallStep()" style="display:none">Next &rarr;</button>
-    <!-- Assign button: hidden until Next clicked (or rover failed) -->
     <button class="btn-submit" id="btnSubmitAssign" onclick="submitAssign()" style="display:none">Assign</button>
   </div>
 </div></div>
@@ -239,7 +244,7 @@ var CONFIG = {
   REPORT_NAME: "All_Vehicle_Requests",
   AVIS_LOOKUP_FORM: "Avis_lookup_Requests",
   AVIS_LOOKUP_REPORT: "All_Avis_Lookup_Requests",
-  SUB_RULES_REPORT:   "All_Vehicle_Substitution_Rules",
+  SUB_RULES_REPORT: "All_Vehicle_Substitution_Rules",
 
   POLL_INTERVAL: 4000,
   MAX_RECORDS: 200,
@@ -248,17 +253,24 @@ var CONFIG = {
   MVA_LENGTH: 8,
   PUMP_KEYWORD: "pump",
   PUMP_STALL_DEFAULT: "LZ",
+  QUICK_KEYWORD: "quick",
   AGE_WARN_MIN: 10,
   AGE_URGENT_MIN: 20,
+
   UPSELL_LABEL: "Upsell (99)",
   WALKUP_LABEL: "Walk Up (49)",
   ONEWAY_LABEL: "One-Way Rental",
+  CROSSBORDER_LABEL: "Cross Border",
+  EXTENDEDRENTAL_LABEL: "Extended Rental",
+
+  // ETA defaults per source
+  ETA_DEFAULTS: { "Quick Flip": 5, "Pumps": 20 },
+  ETA_OPTIONS: [5, 10, 20, 30],
+
   DING_FREQ_1: 880,
   DING_FREQ_2: 1175,
-
-  /* Rover proxy */
   ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
-  ROVER_TIMEOUT_MS: 9000  // give up and allow assign after 9s
+  ROVER_TIMEOUT_MS: 9000
 };
 
 /* ============================================================
@@ -269,16 +281,10 @@ var assignRecordId=null,isReassign=false,firstLoadComplete=false;
 var deletingIds={},previousRecordIds={},loggedInUser="",sdkReady=false;
 var sortCol=null,sortDir="desc";
 var audioCtx=null,audioUnlocked=false;
-
-/* Rover state */
-var roverApiKey="";         // unused — worker validates by Origin
-var roverData=null;
-var roverLookupDone=false;
-var roverLookupFailed=false;
-var currentLookupMva="";
-var requestedClass="";      // vehicle class from the dispatch request (full string e.g. "V-Minivan")
-var subRules=null;          // null = not loaded, [] = loaded but no rules, [...] = allowed prefixes
-var subRulesLoaded=false;   // true once query completed
+var roverApiKey="",roverData=null,roverLookupDone=false,roverLookupFailed=false;
+var currentLookupMva="",requestedClass="";
+var subRules=null,subRulesLoaded=false;
+var onMoveBlocked=false;
 
 /* ============================================================
    AUDIO
@@ -288,10 +294,6 @@ document.addEventListener("click",unlockAudio,{once:true});
 document.addEventListener("touchstart",unlockAudio,{once:true});
 document.addEventListener("keydown",unlockAudio,{once:true});
 function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=CONFIG.DING_FREQ_1;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=CONFIG.DING_FREQ_2;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
-
-/* ============================================================
-   DING — fires once when new record with status=New appears
-   ============================================================ */
 function checkForNewRequests(recs){if(!firstLoadComplete){for(var k=0;k<recs.length;k++){var kid=recs[k].ID?recs[k].ID.toString():"";if(kid)previousRecordIds[kid]=true;}return;}var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var st=(rec.Dispatch_Status||"").toLowerCase();if(!previousRecordIds[id]&&st.indexOf("new")>=0){if(!dinged){playDing();dinged=true;}}previousRecordIds[id]=true;}}
 
 /* ============================================================
@@ -312,6 +314,7 @@ function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
 function parseZohoDate(d){if(!d)return null;try{var p=d.toString().split(" ");if(p.length<2)return null;var dp=p[0].split("-");if(dp.length<3)return null;var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");var dt=new Date(r);return isNaN(dt.getTime())?null:dt;}catch(e){return null;}}
 function formatTime(d){var dt=parseZohoDate(d);if(!dt)return"—";var h=dt.getHours(),m=dt.getMinutes(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return h+":"+("0"+m).slice(-2)+" "+a;}
 function getAge(d){var dt=parseZohoDate(d);if(!dt)return{text:"—",cls:"age-ok",minutes:0};var m=Math.floor((Date.now()-dt.getTime())/60000);if(m<0)m=0;var c="age-ok";if(m>=CONFIG.AGE_WARN_MIN)c="age-warn";if(m>=CONFIG.AGE_URGENT_MIN)c="age-urgent";return{text:m+"m",cls:c,minutes:m};}
+function buildZohoTime(date){var h=date.getHours(),m=date.getMinutes(),s=date.getSeconds(),a=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return("0"+h).slice(-2)+":"+("0"+m).slice(-2)+":"+("0"+s).slice(-2)+" "+a;}
 function showPopupError(m){var e=document.getElementById("popupError");e.textContent=m;e.classList.add("active");}
 function clearPopupError(){document.getElementById("popupError").classList.remove("active");}
 
@@ -326,6 +329,8 @@ function buildVehicleCell(rec){
   if(isBool(rec.Upsell))lines.push('<span class="priority-tag">'+CONFIG.UPSELL_LABEL+'</span>');
   if(isBool(rec.Walk_Up_Customer))lines.push('<span class="priority-tag">'+CONFIG.WALKUP_LABEL+'</span>');
   if(isBool(rec.One_Way_Rental))lines.push('<span class="oneway-tag">'+CONFIG.ONEWAY_LABEL+'</span>');
+  if(isBool(rec.Cross_Border))lines.push('<span class="oneway-tag">'+CONFIG.CROSSBORDER_LABEL+'</span>');
+  if(isBool(rec.Extended_Rental))lines.push('<span class="oneway-tag">'+CONFIG.EXTENDEDRENTAL_LABEL+'</span>');
   return lines.join('<br>');
 }
 function buildAssignCell(rec){
@@ -363,11 +368,8 @@ function updateSortHeaders(){var ths=document.querySelectorAll("#headerRow th[da
    SEARCH
    ============================================================ */
 function getSearchTerm(){return(document.getElementById("searchBox").value||"").toLowerCase().trim();}
-function matchesSearch(r,t){if(!t)return true;var f=[r.Vehicle_Type,r.Specific_Make_Model_optional,r.Your_desk_ID,r.Dispatch_Status,r.Assigned_MVA,r.Stall_Number,r.Added_Time,r.Assignment_Time,getAge(r.Added_Time).text];if(isBool(r.Upsell))f.push("upsell");if(isBool(r.Walk_Up_Customer))f.push("walk-up");if(isBool(r.One_Way_Rental))f.push("one-way");for(var i=0;i<f.length;i++){if((f[i]||"").toString().toLowerCase().indexOf(t)>=0)return true;}return false;}
+function matchesSearch(r,t){if(!t)return true;var f=[r.Vehicle_Type,r.Specific_Make_Model_optional,r.Your_desk_ID,r.Dispatch_Status,r.Assigned_MVA,r.Stall_Number,r.Added_Time,r.Assignment_Time,getAge(r.Added_Time).text];if(isBool(r.Upsell))f.push("upsell");if(isBool(r.Walk_Up_Customer))f.push("walk-up");if(isBool(r.One_Way_Rental))f.push("one-way");if(isBool(r.Cross_Border))f.push("cross border");if(isBool(r.Extended_Rental))f.push("extended rental");for(var i=0;i<f.length;i++){if((f[i]||"").toString().toLowerCase().indexOf(t)>=0)return true;}return false;}
 
-/* ============================================================
-   REFRESH TABLE
-   ============================================================ */
 function refreshTable(){
   var t=getSearchTerm(),filtered=currentRecords.filter(function(r){return matchesSearch(r,t);});
   var sorted=sortCol?columnSort(filtered,sortCol,sortDir):defaultSort(filtered);
@@ -397,428 +399,172 @@ function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONF
 /* ============================================================
    ROVER / WAND LOOKUP
    ============================================================ */
+function isAlertStatus(sf){if(!sf)return false;var u=sf.toUpperCase();return u.indexOf("HOLD")>=0||u.indexOf("UNAVAILABLE")>=0;}
+function isOnMove(sf){if(!sf)return false;return sf.toUpperCase().indexOf("ON MOVE")>=0;}
+function classPrefix(str){if(!str)return"";var s=str.trim();var dash=s.indexOf("-");return dash>0?s.substring(0,dash).trim().toUpperCase():s.toUpperCase();}
 
-/* isAlertStatus: returns true if statusFull contains hold or unavailable keywords */
-function isAlertStatus(sf){
-  if(!sf)return false;
-  var u=sf.toUpperCase();
-  return u.indexOf("HOLD")>=0||u.indexOf("UNAVAILABLE")>=0||u.indexOf("HOLD DATE")>=0||u.indexOf("HOLD RSN")>=0;
-}
-
-/* classPrefix: extracts the letter code from a full class string
-   "V-Minivan" → "V",  "XC-Hybrid / Electric" → "XC",  "V" → "V" */
-function classPrefix(str){
-  if(!str)return"";
-  var s=str.trim();
-  var dash=s.indexOf("-");
-  return dash>0?s.substring(0,dash).trim().toUpperCase():s.toUpperCase();
-}
-
-/* loadSubRules: queries substitution rules for the requested vehicle type,
-   filtered to rules in effect on or before today. Resolves subRules to an
-   array of allowed class prefixes, or null if no rules apply (any sub OK). */
 function loadSubRules(requestedFullClass){
   subRules=null;subRulesLoaded=false;
   if(!requestedFullClass){subRulesLoaded=true;return;}
-
-  var today=new Date();
-  var dd=("0"+today.getDate()).slice(-2);
-  var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  var todayStr=dd+"-"+months[today.getMonth()]+"-"+today.getFullYear();
-
-  console.log("[SUB] Loading rules for Vehicle_Type:",requestedFullClass,"| today:",todayStr);
-
-  ZOHO.CREATOR.DATA.getRecords({
-    app_name: CONFIG.APP_NAME,
-    report_name: CONFIG.SUB_RULES_REPORT,
-    criteria: 'Vehicle_Type == "'+requestedFullClass+'"',
-    page: 1,
-    max_records: 200
-  }).then(function(resp){
-    console.log("[SUB] getRecords code:",resp.code,"| count:",resp.data?resp.data.length:0);
-    if(resp.code!==3000||!resp.data||!resp.data.length){
-      subRules=null;subRulesLoaded=true; // no rules → any sub allowed
-      console.log("[SUB] No rules found — any substitution allowed.");
-      return;
-    }
-    // Filter to rules where Date_in_Effect <= today, pick most recent
-    // Date_in_Effect is a date-only field e.g. "02-Apr-2026" — parse directly
-    var valid=[];
-    var todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
-    for(var i=0;i<resp.data.length;i++){
-      var r=resp.data[i];
-      var raw=r.Date_in_Effect||"";
-      // Try parseZohoDate first (datetime), then parse date-only "DD-Mon-YYYY"
-      var d=parseZohoDate(raw);
-      if(!d&&raw){
-        try{
-          var dp=raw.trim().split("-");
-          if(dp.length===3){
-            var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-            var mi=months2.indexOf(dp[1]);
-            if(mi>=0)d=new Date(parseInt(dp[2]),mi,parseInt(dp[0]));
-          }
-        }catch(pe){}
-      }
-      console.log("[SUB] Rule date raw:",raw,"parsed:",d,"todayMidnight:",todayMidnight);
-      if(d&&d.getTime()<=todayMidnight.getTime())valid.push({date:d,rec:r});
-    }
-    if(!valid.length){
-      subRules=null;subRulesLoaded=true;
-      console.log("[SUB] No in-effect rules for today — any substitution allowed.");
-      return;
-    }
-    // Sort descending, take most recent
-    valid.sort(function(a,b){return b.date.getTime()-a.date.getTime();});
-    var best=valid[0].rec;
-    var types=best.Acceptable_Substitution_Types;
-    // types is an array of full strings e.g. ["B-Compact","C-Intermediate (Mid-size)"]
-    var prefixes=[];
-    if(Array.isArray(types)){
-      for(var j=0;j<types.length;j++){prefixes.push(classPrefix(types[j]));}
-    } else if(types){
-      prefixes.push(classPrefix(types.toString()));
-    }
-    subRules=prefixes;
-    subRulesLoaded=true;
-    console.log("[SUB] Rules in effect. Allowed prefixes:",prefixes);
-    // Re-render card if rover result already showing
+  var today=new Date();var dd=("0"+today.getDate()).slice(-2);var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];var todayStr=dd+"-"+months[today.getMonth()]+"-"+today.getFullYear();
+  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.SUB_RULES_REPORT,criteria:'Vehicle_Type == "'+requestedFullClass+'"',page:1,max_records:200}).then(function(resp){
+    if(resp.code!==3000||!resp.data||!resp.data.length){subRules=null;subRulesLoaded=true;return;}
+    var valid=[];var todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    for(var i=0;i<resp.data.length;i++){var r=resp.data[i];var raw=r.Date_in_Effect||"";var d=parseZohoDate(raw);if(!d&&raw){try{var dp=raw.trim().split("-");var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];var mi=months2.indexOf(dp[1]);if(mi>=0)d=new Date(parseInt(dp[2]),mi,parseInt(dp[0]));}catch(pe){}}if(d&&d.getTime()<=todayMidnight.getTime())valid.push({date:d,rec:r});}
+    if(!valid.length){subRules=null;subRulesLoaded=true;return;}
+    valid.sort(function(a,b){return b.date.getTime()-a.date.getTime();});var best=valid[0].rec;var types=best.Acceptable_Substitution_Types;var prefixes=[];
+    if(Array.isArray(types)){for(var j=0;j<types.length;j++)prefixes.push(classPrefix(types[j]));}else if(types)prefixes.push(classPrefix(types.toString()));
+    subRules=prefixes;subRulesLoaded=true;
     if(roverData)renderRoverCard(roverData,currentLookupMva);
-  }).catch(function(e){
-    try{
-      var p=JSON.parse(e.responseText||'{}');
-      if(p.code===9280){
-        console.log("[SUB] No rules found (9280) — any substitution allowed.");
-        subRules=null;subRulesLoaded=true;
-        return;
-      }
-    }catch(pe){}
-    console.warn("[SUB] Rules query failed — treating as no rules:",JSON.stringify(e));
-    subRules=null;subRulesLoaded=true;
-    if(roverData)renderRoverCard(roverData,currentLookupMva);
-  });
+  }).catch(function(e){try{var p=JSON.parse(e.responseText||'{}');if(p.code===9280){subRules=null;subRulesLoaded=true;return;}}catch(pe){}subRules=null;subRulesLoaded=true;if(roverData)renderRoverCard(roverData,currentLookupMva);});
 }
 
-/* renderRoverCard: populates and shows the lookup result card */
 function renderRoverCard(data,mva){
   document.getElementById("roverCardMva").textContent="MVA "+mva;
-
-  // Year / Make / Model + Color inline
-  var parts=[];
-  if(data.year)parts.push(data.year);
-  if(data.make)parts.push(data.make);
-  if(data.model)parts.push(data.model);
-  if(data.color)parts.push("🎨 "+data.color);
+  var parts=[];if(data.year)parts.push(data.year);if(data.make)parts.push(data.make);if(data.model)parts.push(data.model);if(data.color)parts.push("🎨 "+data.color);
   document.getElementById("roverVehicleLine").textContent=parts.join(" ")||(data.vehicle||"—");
-
-  // Hide standalone color chip — now inline above
   document.getElementById("roverColorChip").textContent="";
-
-  // Class chip — prefix-based comparison + substitution rule check
-  var classEl=document.getElementById("roverClassChip");
-  var roverPrefix=classPrefix(data.class||"");
-  var reqPrefix=classPrefix(requestedClass||"");
-  if(roverPrefix){
-    var isSame=reqPrefix&&roverPrefix===reqPrefix;
-    var isSub=reqPrefix&&roverPrefix!==reqPrefix;
-    var subAllowed=true; // default: allowed when no rules loaded yet or no rules exist
-    if(isSub&&subRulesLoaded&&subRules!==null){
-      // Rules exist — check if roverPrefix is in allowed list
-      subAllowed=false;
-      for(var si=0;si<subRules.length;si++){
-        if(subRules[si]===roverPrefix){subAllowed=true;break;}
-      }
-    }
-    if(isSame){
-      classEl.className="rover-class-chip rover-class-match";
-      classEl.innerHTML="Class: "+roverPrefix;
-    } else if(isSub&&subRulesLoaded&&subRules!==null&&!subAllowed){
-      classEl.className="rover-class-chip rover-class-invalid";
-      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub) &#9888; not allowed</span>';
-    } else if(isSub){
-      classEl.className="rover-class-chip rover-class-sub";
-      classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub)</span>';
-    } else {
-      // No requested class to compare against
-      classEl.className="rover-class-chip";
-      classEl.innerHTML="Class: "+roverPrefix;
-    }
-  } else {
-    classEl.textContent="";
-  }
-
-  // Status — first line only (data.status is already shortStatus from the worker)
+  var classEl=document.getElementById("roverClassChip");var roverPrefix=classPrefix(data.class||"");var reqPrefix=classPrefix(requestedClass||"");
+  if(roverPrefix){var isSame=reqPrefix&&roverPrefix===reqPrefix;var isSub=reqPrefix&&roverPrefix!==reqPrefix;var subAllowed=true;
+    if(isSub&&subRulesLoaded&&subRules!==null){subAllowed=false;for(var si=0;si<subRules.length;si++){if(subRules[si]===roverPrefix){subAllowed=true;break;}}}
+    if(isSame){classEl.className="rover-class-chip rover-class-match";classEl.innerHTML="Class: "+roverPrefix;}
+    else if(isSub&&subRulesLoaded&&subRules!==null&&!subAllowed){classEl.className="rover-class-chip rover-class-invalid";classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub) &#9888; not allowed</span>';}
+    else if(isSub){classEl.className="rover-class-chip rover-class-sub";classEl.innerHTML='Class: '+roverPrefix+' <span class="rover-class-sub-label">(sub)</span>';}
+    else{classEl.className="rover-class-chip";classEl.innerHTML="Class: "+roverPrefix;}
+  }else{classEl.textContent="";}
   document.getElementById("roverStatusLine").textContent=data.status||"—";
-
-  // StatusFull — show the hold/extra parts only (everything after the first segment)
-  // Format: "STATUS | HOLD DATE 25FEB26 | HOLD RSN RETITLE NC TO FL"
-  // We strip the first segment so we don't repeat the status line above
-  var sfEl=document.getElementById("roverStatusFull");
-  var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});
-  // Remove first part (same as status), keep hold date / reason / other messages
-  var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
-  if(extraParts.length>0){
-    sfEl.textContent=extraParts.join(" | ");
-    sfEl.style.display="";
-    if(isAlertStatus(data.statusFull)){sfEl.classList.add("alert");}
-    else{sfEl.classList.remove("alert");}
-  } else {
-    sfEl.textContent="";
-    sfEl.style.display="none";
-  }
-
+  var sfEl=document.getElementById("roverStatusFull");var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
+  if(extraParts.length>0){sfEl.textContent=extraParts.join(" | ");sfEl.style.display="";if(isAlertStatus(data.statusFull)||isOnMove(data.statusFull))sfEl.classList.add("alert");else sfEl.classList.remove("alert");}else{sfEl.textContent="";sfEl.style.display="none";}
   document.getElementById("roverCard").classList.add("active");
 }
 
-/* doRoverLookup: called whenever MVA reaches 8 digits */
 function doRoverLookup(mva){
-  // Don't re-fetch same MVA
-  if(mva===currentLookupMva&&roverLookupDone){
-    console.log("[ROVER] Same MVA already looked up ("+mva+"), skipping.");
-    return;
-  }
-  currentLookupMva=mva;
-  console.log("[ROVER] Starting lookup for MVA:", mva);
-
-  // Reset card state
+  if(mva===currentLookupMva&&roverLookupDone)return;
+  currentLookupMva=mva;onMoveBlocked=false;
   document.getElementById("roverCard").classList.remove("active");
   document.getElementById("roverWarn").classList.remove("active");
+  document.getElementById("roverBlock").classList.remove("active");
   document.getElementById("btnNext").style.display="none";
   document.getElementById("btnSubmitAssign").style.display="none";
   document.getElementById("stallGroup").style.display="none";
+  document.getElementById("vcfGroup").classList.remove("active");
   roverLookupDone=false;roverLookupFailed=false;
-  // Note: roverData intentionally NOT cleared here — preserved until new result arrives
-
-  // Show spinner
   document.getElementById("roverLoading").classList.add("active");
   document.getElementById("inputMva").disabled=true;
 
-  // Build URL — use key_cloudflare_wand variable loaded at init
   var url=CONFIG.ROVER_BASE_URL+"/rover?mva="+encodeURIComponent(mva);
-  console.log("[ROVER] Fetch URL:", CONFIG.ROVER_BASE_URL+"/rover?mva="+mva, "| Timeout:", CONFIG.ROVER_TIMEOUT_MS+"ms");
-
   var timedOut=false;
-  var timeoutHandle=setTimeout(function(){
-    timedOut=true;
-    console.error("[ROVER] Timeout after "+CONFIG.ROVER_TIMEOUT_MS+"ms for MVA", mva);
-    onRoverError("WAND lookup timed out after "+CONFIG.ROVER_TIMEOUT_MS/1000+"s. You may still assign.");
-  },CONFIG.ROVER_TIMEOUT_MS);
+  var timeoutHandle=setTimeout(function(){timedOut=true;onRoverError("WAND lookup timed out. You may still assign.");},CONFIG.ROVER_TIMEOUT_MS);
 
-  fetch(url,{method:"GET"})
-    .then(function(res){
-      if(timedOut)return;
-      clearTimeout(timeoutHandle);
-      console.log("[ROVER] HTTP response:", res.status, res.ok?"OK":"NOT OK");
-      if(!res.ok)throw new Error("HTTP "+res.status);
-      return res.json();
-    })
-    .then(function(json){
-      if(timedOut)return;
-      if(!json||json.error){
-        console.error("[ROVER] API returned error or empty:", json);
-        onRoverError(json&&json.error?"WAND: "+json.error:"No data returned from WAND.");
-        return;
-      }
-      console.log("[ROVER] Success for MVA", mva, ":", json);
-      roverData=json;
-      roverLookupDone=true;
-      roverLookupFailed=false;
-      document.getElementById("roverLoading").classList.remove("active");
-      document.getElementById("inputMva").disabled=false;
-      renderRoverCard(json,mva);
-      // Show Next button — stall stays hidden until dispatcher clicks Next
-      document.getElementById("btnNext").style.display="flex";
-    })
-    .catch(function(err){
-      if(timedOut)return;
-      clearTimeout(timeoutHandle);
-      console.error("[ROVER] fetch() exception:", err);
-      onRoverError("WAND lookup failed: "+(err.message||"network error")+". You may still assign.");
-    });
+  fetch(url,{method:"GET"}).then(function(res){if(timedOut)return;clearTimeout(timeoutHandle);if(!res.ok)throw new Error("HTTP "+res.status);return res.json();}).then(function(json){
+    if(timedOut)return;
+    if(!json||json.error){onRoverError(json&&json.error?"WAND: "+json.error:"No data from WAND.");return;}
+    roverData=json;roverLookupDone=true;roverLookupFailed=false;
+    document.getElementById("roverLoading").classList.remove("active");
+    document.getElementById("inputMva").disabled=false;
+    renderRoverCard(json,mva);
+
+    /* ── ON MOVE CHECK ── */
+    if(isOnMove(json.statusFull)){
+      onMoveBlocked=true;
+      document.getElementById("roverBlock").textContent="Vehicle is On Move -- existing RA needs to be closed";
+      document.getElementById("roverBlock").classList.add("active");
+      /* Save to Avis lookup immediately */
+      saveAvisLookup(mva,json,assignRecordId).then(function(avisId){
+        if(avisId&&assignRecordId){
+          ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:assignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});
+        }
+      });
+      return; /* no Next, no Assign */
+    }
+
+    document.getElementById("btnNext").style.display="flex";
+  }).catch(function(err){if(timedOut)return;clearTimeout(timeoutHandle);onRoverError("WAND lookup failed: "+(err.message||"network error")+". You may still assign.");});
 }
 
-function onRoverError(msg){
-  roverLookupDone=true;roverLookupFailed=true;
-  document.getElementById("roverLoading").classList.remove("active");
-  document.getElementById("inputMva").disabled=false;
-  showRoverWarning(msg);
-  revealAssignButton();
-}
+function onRoverError(msg){roverLookupDone=true;roverLookupFailed=true;document.getElementById("roverLoading").classList.remove("active");document.getElementById("inputMva").disabled=false;document.getElementById("roverWarnText").textContent=msg;document.getElementById("roverWarn").classList.add("active");showStallStep();}
 
-function showRoverWarning(msg){
-  var w=document.getElementById("roverWarn");
-  document.getElementById("roverWarnText").textContent=msg;
-  w.classList.add("active");
-}
-
-/* showStallStep: called when dispatcher clicks "Next →" */
 function showStallStep(){
   document.getElementById("btnNext").style.display="none";
+  document.getElementById("vcfGroup").classList.add("active");
   document.getElementById("stallGroup").style.display="block";
   revealAssignButton();
   setTimeout(function(){document.getElementById("inputStall").focus();},100);
 }
+function revealAssignButton(){var btn=document.getElementById("btnSubmitAssign");btn.style.display="inline-flex";btn.disabled=false;btn.textContent=isReassign?"Re-assign":"Assign";}
 
-/* revealAssignButton: makes the Assign button visible and clickable */
-function revealAssignButton(){
-  var btn=document.getElementById("btnSubmitAssign");
-  btn.style.display="inline-flex";
-  btn.disabled=false;
-  btn.textContent=isReassign?"Re-assign":"Assign";
+/* ── VCF RADIO LOGIC ── */
+document.getElementById("vcfQuick").addEventListener("change",onVcfChange);
+document.getElementById("vcfPumps").addEventListener("change",onVcfChange);
+function onVcfChange(){
+  var sel=document.querySelector('input[name="vcf"]:checked');
+  if(!sel)return;
+  document.getElementById("vcfEtaGroup").classList.add("active");
+  var def=CONFIG.ETA_DEFAULTS[sel.value]||10;
+  document.getElementById("inputEta").value=def.toString();
 }
 
-/* MVA input watcher — triggers lookup at exactly 8 digits */
+/* ── MVA INPUT WATCHER ── */
 document.getElementById("inputMva").addEventListener("input",function(){
   clearPopupError();
-  var val=this.value.replace(/\D/g,"").substring(0,CONFIG.MVA_LENGTH);
-  this.value=val;
-  if(val.length===CONFIG.MVA_LENGTH){
-    doRoverLookup(val);
-  } else {
-    // Only reset if user is editing away from the previously looked-up MVA
-    if(roverData&&val!==currentLookupMva.substring(0,val.length)){
-      roverData=null;currentLookupMva="";
-      roverLookupDone=false;roverLookupFailed=false;
-      document.getElementById("roverCard").classList.remove("active");
-      document.getElementById("roverLoading").classList.remove("active");
-      document.getElementById("roverWarn").classList.remove("active");
-      document.getElementById("btnNext").style.display="none";
-      document.getElementById("btnSubmitAssign").style.display="none";
-      document.getElementById("stallGroup").style.display="none";
-    }
+  var val=this.value.replace(/\D/g,"").substring(0,CONFIG.MVA_LENGTH);this.value=val;
+  if(val.length===CONFIG.MVA_LENGTH){doRoverLookup(val);}
+  else if(roverData&&val!==currentLookupMva.substring(0,val.length)){
+    roverData=null;currentLookupMva="";roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;
+    document.getElementById("roverCard").classList.remove("active");document.getElementById("roverLoading").classList.remove("active");
+    document.getElementById("roverWarn").classList.remove("active");document.getElementById("roverBlock").classList.remove("active");
+    document.getElementById("btnNext").style.display="none";document.getElementById("btnSubmitAssign").style.display="none";
+    document.getElementById("stallGroup").style.display="none";document.getElementById("vcfGroup").classList.remove("active");
   }
 });
 
 /* ============================================================
-   AVIS LOOKUP RECORD — create or update in Avis_lookup_Requests
-   Returns a Promise that resolves with the record ID (string)
+   AVIS LOOKUP RECORD
    ============================================================ */
 function saveAvisLookup(mva,data,vehicleRequestId){
   return new Promise(function(resolve,reject){
     if(!data){resolve(null);return;}
-
-    var payload={
-      MVA: mva,
-      Vehicle_Request_Form_ID: vehicleRequestId||"",
-      Rover_Model: data.model||"",
-      Rover_Make: data.make||"",
-      Rover_Color: data.color||"",
-      Rover_Class: data.class||"",
-      Rover_VIN: data.vin||"",
-      Rover_Plate: data.plate||"",
-      RA: data.raNumber||"",
-      Status: data.status||"",
-      Status_Full: data.statusFull||""
-    };
-
-    // Key on MVA + Vehicle_Request_Form_ID — same vehicle request re-assign = update,
-    // different vehicle request for same MVA = new record
+    var payload={MVA:mva,Vehicle_Request_Form_ID:vehicleRequestId||"",Rover_Model:data.model||"",Rover_Make:data.make||"",Rover_Color:data.color||"",Rover_Class:data.class||"",Rover_VIN:data.vin||"",Rover_Plate:data.plate||"",RA:data.raNumber||"",Status:data.status||"",Status_Full:data.statusFull||""};
     var criteria='MVA == "'+mva+'" && Vehicle_Request_Form_ID == "'+vehicleRequestId+'"';
-    console.log("[AVIS] Querying report:", CONFIG.AVIS_LOOKUP_REPORT, "criteria:", criteria);
-    ZOHO.CREATOR.DATA.getRecords({
-      app_name: CONFIG.APP_NAME,
-      report_name: CONFIG.AVIS_LOOKUP_REPORT,
-      criteria: criteria,
-      page: 1,
-      max_records: 200
-    }).then(function(resp){
-      console.log("[AVIS] getRecords response code:", resp.code, "| records found:", resp.data?resp.data.length:0, resp);
-      if(resp.code===3000&&resp.data&&resp.data.length>0){
-        var existingId=resp.data[0].ID.toString();
-        console.log("[AVIS] Existing record found, updating ID:", existingId);
-        ZOHO.CREATOR.DATA.updateRecordById({
-          app_name: CONFIG.APP_NAME,
-          report_name: CONFIG.AVIS_LOOKUP_REPORT,
-          id: existingId,
-          payload: {data: payload}
-        }).then(function(ur){
-          console.log("[AVIS] updateRecordById code:", ur.code, ur);
-          if(ur.code===3000){resolve(existingId);}
-          else{console.warn("[AVIS] Update failed, returning existing ID anyway:", existingId);resolve(existingId);}
-        }).catch(function(e){
-          console.error("[AVIS] updateRecordById exception:", e);
-          resolve(existingId);
-        });
-      } else {
-        doAddAvisRecord(payload, resolve);
-      }
-    }).catch(function(e){
-      // code 9280 = no records found — treat as empty, not a real error
-      try {
-        var parsed = JSON.parse(e.responseText||'{}');
-        if(parsed.code===9280){
-          console.log("[AVIS] No existing record (9280) — creating new.");
-          doAddAvisRecord(payload, resolve);
-          return;
-        }
-      } catch(pe){}
-      console.error("[AVIS] getRecords unexpected exception — falling back to addRecords:", JSON.stringify(e));
-      doAddAvisRecord(payload, resolve);
-    });
+    ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,criteria:criteria,page:1,max_records:200}).then(function(resp){
+      if(resp.code===3000&&resp.data&&resp.data.length>0){var existingId=resp.data[0].ID.toString();
+        ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,id:existingId,payload:{data:payload}}).then(function(ur){resolve(existingId);}).catch(function(){resolve(existingId);});
+      }else{doAddAvisRecord(payload,resolve);}
+    }).catch(function(e){try{var p=JSON.parse(e.responseText||'{}');if(p.code===9280){doAddAvisRecord(payload,resolve);return;}}catch(pe){}doAddAvisRecord(payload,resolve);});
   });
 }
-
-/* helper: add a new Avis lookup record and resolve with its ID */
-function doAddAvisRecord(payload, resolve){
-  console.log("[AVIS] Creating new record in form:", CONFIG.AVIS_LOOKUP_FORM, "Payload:", JSON.stringify(payload));
-  ZOHO.CREATOR.DATA.addRecords({
-    app_name: CONFIG.APP_NAME,
-    form_name: CONFIG.AVIS_LOOKUP_FORM,
-    payload: {data: payload}
-  }).then(function(ar){
-    console.log("[AVIS] addRecords code:", ar.code, "Full response:", JSON.stringify(ar));
-    if(ar.code===3000&&ar.data&&ar.data.ID){
-      console.log("[AVIS] New record created, ID:", ar.data.ID);
-      resolve(ar.data.ID.toString());
-    } else {
-      console.warn("[AVIS] addRecords did not return ID:", JSON.stringify(ar));
-      resolve(null);
-    }
-  }).catch(function(e){
-    console.error("[AVIS] addRecords failed:", JSON.stringify(e));
-    resolve(null);
-  });
+function doAddAvisRecord(payload,resolve){
+  ZOHO.CREATOR.DATA.addRecords({app_name:CONFIG.APP_NAME,form_name:CONFIG.AVIS_LOOKUP_FORM,payload:{data:payload}}).then(function(ar){
+    if(ar.code===3000&&ar.data&&ar.data.ID)resolve(ar.data.ID.toString());else resolve(null);
+  }).catch(function(){resolve(null);});
 }
 
 /* ============================================================
-   AUTO-DELETE: removes New records older than UNASSIGNED_DELETE_MS
+   AUTO-DELETE / MARK IP / UNCLAIM
    ============================================================ */
 function autoDeleteExpired(all){var now=Date.now();for(var i=0;i<all.length;i++){var r=all[i],id=r.ID?r.ID.toString():"";if(!id||deletingIds[id])continue;if(isAssignedStatus(r.Dispatch_Status)||isInProgressStatus(r.Dispatch_Status)||isCancelledStatus(r.Dispatch_Status))continue;if((r.Dispatch_Status||"").toLowerCase().indexOf("complet")>=0)continue;var ad=parseZohoDate(r.Added_Time);if(!ad||(now-ad.getTime())<=CONFIG.UNASSIGNED_DELETE_MS)continue;deletingIds[id]=true;ZOHO.CREATOR.DATA.deleteRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id}).then(function(){delete deletingIds[id];}).catch(function(){delete deletingIds[id];});break;}}
-
-/* ============================================================
-   MARK IN PROGRESS
-   ============================================================ */
 function markInProgress(id){if(!loggedInUser){alert("Could not determine identity.");return;}ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"In Progress",Claimed_By_Email:loggedInUser}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else{var msg="Operation failed.";try{if(resp.error)for(var i=0;i<resp.error.length;i++)if(resp.error[i].alert_message){msg=resp.error[i].alert_message;break;}}catch(e){}alert("Mark IP failed: "+msg);}}).catch(function(){alert("Failed to mark In Progress.");});}
-
-/* ============================================================
-   UNCLAIM
-   ============================================================ */
 function unclaimRecord(id){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"New",Claimed_By_Email:""}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));}).catch(function(){alert("Failed to unclaim.");});}
 
 /* ============================================================
-   ACTION BUTTONS PER ROW
+   ACTION BUTTONS / RENDER TABLE
    ============================================================ */
 function buildActionButtons(rec){
   var id=rec.ID,status=rec.Dispatch_Status||"New";
   var claimedBy=(rec.Claimed_By_Email||"").toLowerCase().trim();
   var isMe=loggedInUser&&claimedBy===loggedInUser.toLowerCase().trim();
-  var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
-  var vc=(rec.Vehicle_Type||'').replace(/'/g,"\\'");
+  var ve=(rec.Vehicle_Type||'').replace(/'/g,"\\'");var vc=ve;
   var cm=(rec.Assigned_MVA||'').toString().replace(/'/g,"\\'");
   var cs=(rec.Stall_Number||'').toString().replace(/'/g,"\\'");
   if(isCancelledStatus(status))return'';
   if(isAssignedStatus(status))return'<button class="btn-reassign" onclick="openReassignPopup(\''+id+'\',\''+ve+'\',\''+cm+'\',\''+cs+'\',\''+vc+'\')">Re-assign</button>';
   if(isInProgressStatus(status)){
     if(isMe)return'<div class="btn-group"><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button><button class="btn-unclaim" onclick="unclaimRecord(\''+id+'\')">Unclaim</button></div>';
-    var cn=claimedBy?claimedBy.split("@")[0]:"someone";
-    return'<span class="claimed-label">Claimed by '+cn+'</span>';
+    var cn=claimedBy?claimedBy.split("@")[0]:"someone";return'<span class="claimed-label">Claimed by '+cn+'</span>';
   }
   return'<div class="btn-group"><button class="btn-markip" onclick="markInProgress(\''+id+'\')">Mark IP</button><button class="btn-assign" onclick="openAssignPopup(\''+id+'\',\''+ve+'\',\''+vc+'\')">Assign</button></div>';
 }
 
-/* ============================================================
-   RENDER TABLE
-   ============================================================ */
 function renderTable(records){
   var tbody=document.getElementById("dispatchBody");
   if(!records||!records.length){tbody.innerHTML='<tr><td colspan="8" class="no-results">'+(getSearchTerm()?'No results':'No requests in queue')+'</td></tr>';return;}
@@ -842,7 +588,7 @@ function renderTable(records){
 }
 
 /* ============================================================
-   SORT HEADER CLICKS + SEARCH
+   SORT HEADER + SEARCH
    ============================================================ */
 document.getElementById("headerRow").addEventListener("click",function(e){var th=e.target.closest("th[data-col]");if(!th)return;var col=th.getAttribute("data-col");if(col===sortCol)sortDir=sortDir==="desc"?"asc":"desc";else{sortCol=col;sortDir="desc";}refreshTable();});
 var searchTimeout=null;document.getElementById("searchBox").addEventListener("input",function(){clearTimeout(searchTimeout);searchTimeout=setTimeout(refreshTable,150);});
@@ -851,65 +597,60 @@ var searchTimeout=null;document.getElementById("searchBox").addEventListener("in
    ASSIGN POPUP — OPEN / CLOSE
    ============================================================ */
 function resetPopupRoverState(){
-  // Do NOT wipe roverData or currentLookupMva here — they persist so
-  // submitAssign can still use a lookup that completed before this open.
-  // They only reset when the MVA input changes to a different value.
-  roverLookupDone=false;roverLookupFailed=false;
+  roverLookupDone=false;roverLookupFailed=false;onMoveBlocked=false;
   subRules=null;subRulesLoaded=false;
   document.getElementById("roverCard").classList.remove("active");
   document.getElementById("roverLoading").classList.remove("active");
   document.getElementById("roverWarn").classList.remove("active");
+  document.getElementById("roverBlock").classList.remove("active");
   document.getElementById("btnNext").style.display="none";
   document.getElementById("btnSubmitAssign").style.display="none";
   document.getElementById("stallGroup").style.display="none";
+  document.getElementById("vcfGroup").classList.remove("active");
+  document.getElementById("vcfEtaGroup").classList.remove("active");
+  document.getElementById("vcfQuick").checked=false;
+  document.getElementById("vcfPumps").checked=false;
   document.getElementById("inputMva").disabled=false;
 }
 
 function openAssignPopup(id,v,vc){
-  assignRecordId=id;isReassign=false;
-  requestedClass=vc||"";
+  assignRecordId=id;isReassign=false;requestedClass=vc||"";
   document.getElementById("popupTitle").textContent="Assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value="";
   document.getElementById("inputStall").value=loggedInUser.toLowerCase().indexOf(CONFIG.PUMP_KEYWORD)>=0?CONFIG.PUMP_STALL_DEFAULT:"";
   document.getElementById("btnSubmitAssign").textContent="Assign";
-  clearPopupError();
-  resetPopupRoverState();
+  clearPopupError();resetPopupRoverState();
+  /* Auto-select VCF radio based on user */
+  var lu=loggedInUser.toLowerCase();
+  if(lu.indexOf(CONFIG.QUICK_KEYWORD)>=0){document.getElementById("vcfQuick").checked=true;onVcfChange();}
+  else if(lu.indexOf(CONFIG.PUMP_KEYWORD)>=0){document.getElementById("vcfPumps").checked=true;onVcfChange();}
   loadSubRules(requestedClass);
   document.getElementById("assignOverlay").classList.add("active");
   setTimeout(function(){document.getElementById("inputMva").focus();},100);
 }
 
 function openReassignPopup(id,v,m,s,vc){
-  assignRecordId=id;isReassign=true;
-  requestedClass=vc||"";
+  assignRecordId=id;isReassign=true;requestedClass=vc||"";
   document.getElementById("popupTitle").textContent="Re-assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value=m;
   document.getElementById("inputStall").value=s;
   document.getElementById("btnSubmitAssign").textContent="Re-assign";
-  clearPopupError();
-  resetPopupRoverState();
+  clearPopupError();resetPopupRoverState();
+  var lu=loggedInUser.toLowerCase();
+  if(lu.indexOf(CONFIG.QUICK_KEYWORD)>=0){document.getElementById("vcfQuick").checked=true;onVcfChange();}
+  else if(lu.indexOf(CONFIG.PUMP_KEYWORD)>=0){document.getElementById("vcfPumps").checked=true;onVcfChange();}
   loadSubRules(requestedClass);
   document.getElementById("assignOverlay").classList.add("active");
-  if(m&&m.length===CONFIG.MVA_LENGTH){
-    setTimeout(function(){doRoverLookup(m);},200);
-  } else {
-    document.getElementById("stallGroup").style.display="block";
-    revealAssignButton();
-  }
+  if(m&&m.length===CONFIG.MVA_LENGTH){setTimeout(function(){doRoverLookup(m);},200);}
+  else{document.getElementById("stallGroup").style.display="block";document.getElementById("vcfGroup").classList.add("active");revealAssignButton();}
 }
 
-function closeAssignPopup(){
-  assignRecordId=null;isReassign=false;
-  document.getElementById("assignOverlay").classList.remove("active");
-  resetPopupRoverState();
-}
+function closeAssignPopup(){assignRecordId=null;isReassign=false;document.getElementById("assignOverlay").classList.remove("active");resetPopupRoverState();}
 
 /* ============================================================
    SUBMIT ASSIGN
-   Workflow: validate → update vehicle request → save Avis lookup →
-             write Avis_lookup_ID back to vehicle request
    ============================================================ */
 function submitAssign(){
   if(!assignRecordId)return;
@@ -917,115 +658,66 @@ function submitAssign(){
   var stall=document.getElementById("inputStall").value.trim();
   clearPopupError();
 
+  if(onMoveBlocked){showPopupError("Vehicle is On Move -- existing RA needs to be closed");return;}
+
   var mvaRegex=new RegExp("^\\d{"+CONFIG.MVA_LENGTH+"}$");
   if(!firstLoadComplete){showPopupError("Still loading.");return;}
   if(!mva||mva.length!==CONFIG.MVA_LENGTH){showPopupError("MVA must be "+CONFIG.MVA_LENGTH+" digits.");return;}
   if(!mvaRegex.test(mva)){showPopupError("MVA must be exactly "+CONFIG.MVA_LENGTH+" digits.");return;}
   if(!stall){showPopupError("Stall is required.");return;}
 
-  // Substitution rule check — block if rules exist and class is not allowed
+  /* VCF + ETA validation */
+  var vcfSel=document.querySelector('input[name="vcf"]:checked');
+  if(!vcfSel){showPopupError("Please select Vehicle Coming From.");return;}
+  var etaMinutes=parseInt(document.getElementById("inputEta").value)||0;
+  if(!etaMinutes){showPopupError("Please select ETA minutes.");return;}
+
+  /* Sub rule check */
   if(roverData&&subRulesLoaded&&subRules!==null&&requestedClass){
-    var roverP=classPrefix(roverData.class||"");
-    var reqP=classPrefix(requestedClass);
-    if(roverP&&reqP&&roverP!==reqP){
-      var allowed=false;
-      for(var si=0;si<subRules.length;si++){if(subRules[si]===roverP){allowed=true;break;}}
-      if(!allowed){
-        showPopupError("Class "+roverP+" is not an approved substitution for "+reqP+". Allowed: "+subRules.join(", ")+".");
-        return;
-      }
-    }
+    var roverP=classPrefix(roverData.class||"");var reqP=classPrefix(requestedClass);
+    if(roverP&&reqP&&roverP!==reqP){var allowed=false;for(var si=0;si<subRules.length;si++){if(subRules[si]===roverP){allowed=true;break;}}
+      if(!allowed){showPopupError("Class "+roverP+" is not an approved substitution for "+reqP+". Allowed: "+subRules.join(", ")+".");return;}}
   }
 
-  var btn=document.getElementById("btnSubmitAssign");
-  btn.textContent="Checking...";btn.disabled=true;
+  var btn=document.getElementById("btnSubmitAssign");btn.textContent="Checking...";btn.disabled=true;
 
   fetchLatestRecords().then(function(response){
-    if(response.code!==3000){
-      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
-      showPopupError("Could not verify queue.");return;
-    }
+    if(response.code!==3000){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");return;}
     var live=response.data||[];currentRecords=applyFilter(live);
     var error=validateAssignment(mva,stall,assignRecordId,live,isReassign);
-    if(error){
-      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
-      showPopupError(error);
-      if(error.indexOf("another")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);
-      return;
-    }
+    if(error){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(error);if(error.indexOf("another")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);return;}
 
     btn.textContent=isReassign?"Re-assigning...":"Assigning...";
-
     var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
     var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
     var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
     var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
 
-    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+    /* Calculate ETA time = now + etaMinutes */
+    var etaDate=new Date(Date.now()+etaMinutes*60*1000);
+    var etaTime=buildZohoTime(etaDate);
 
-    var capturedRecordId=assignRecordId; // close over before async
+    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts,Vehicle_Coming_From:vcfSel.value,ETA_Minutes:etaMinutes,ETA:etaTime};
+    var capturedRecordId=assignRecordId;
 
-    ZOHO.CREATOR.DATA.updateRecordById({
-      app_name:CONFIG.APP_NAME,
-      report_name:CONFIG.REPORT_NAME,
-      id:capturedRecordId,
-      payload:{data:payload}
-    }).then(function(ur){
-      btn.textContent=isReassign?"Re-assign":"Assign";
-      btn.disabled=false;
-      if(ur.code===3000){
-        closeAssignPopup();
-        fetchDispatches();
-        // ── Save Avis lookup record (fire-and-forget, non-blocking) ──
-        console.log("[ASSIGN] At submit: roverData=", roverData, "currentLookupMva=", currentLookupMva, "mva=", mva);
-        if(roverData){
-          console.log("[ASSIGN] Assign succeeded (recordId:", capturedRecordId, "). Saving Avis lookup for MVA:", mva);
-          saveAvisLookup(mva,roverData,capturedRecordId).then(function(avisId){
-            if(!avisId){
-              console.warn("[ASSIGN] saveAvisLookup returned null — Avis_lookup_ID not written.");
-              return;
-            }
-            console.log("[ASSIGN] saveAvisLookup returned ID:", avisId, "— writing Avis_lookup_ID to vehicle request", capturedRecordId);
-            // Write Avis_lookup_ID back to the vehicle request
-            ZOHO.CREATOR.DATA.updateRecordById({
-              app_name:CONFIG.APP_NAME,
-              report_name:CONFIG.REPORT_NAME,
-              id:capturedRecordId,
-              payload:{data:{Avis_lookup_ID:avisId}}
-            }).then(function(r){
-              if(r.code===3000){console.log("[ASSIGN] Avis_lookup_ID written OK. Value:", avisId);}
-              else{console.warn("[ASSIGN] Avis_lookup_ID write failed:", r);}
-            }).catch(function(e){console.error("[ASSIGN] Avis_lookup_ID write exception:", e);});
-          });
-        } else {
-          console.log("[ASSIGN] No roverData — skipping Avis lookup save.");
-        }
-      } else {
-        showPopupError(parseUpdateError(ur));
-      }
-    }).catch(function(ue){
+    ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedRecordId,payload:{data:payload}}).then(function(ur){
       btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
-      showPopupError(parseUpdateError(ue));
-    });
-  }).catch(function(){
-    btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
-    showPopupError("Could not verify queue.");
-  });
+      if(ur.code===3000){
+        closeAssignPopup();fetchDispatches();
+        if(roverData){saveAvisLookup(mva,roverData,capturedRecordId).then(function(avisId){
+          if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
+        });}
+      }else{showPopupError(parseUpdateError(ur));}
+    }).catch(function(ue){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(parseUpdateError(ue));});
+  }).catch(function(){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");});
 }
 
 document.getElementById("inputStall").addEventListener("input",clearPopupError);
-document.addEventListener("keydown",function(e){
-  if(e.key==="Escape")closeAssignPopup();
-  if(e.key==="Enter"&&assignRecordId){
-    // Only allow Enter to submit if Assign button is visible/enabled
-    var btn=document.getElementById("btnSubmitAssign");
-    if(btn&&btn.style.display!=="none"&&!btn.disabled)submitAssign();
-  }
-});
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeAssignPopup();if(e.key==="Enter"&&assignRecordId){var btn=document.getElementById("btnSubmitAssign");if(btn&&btn.style.display!=="none"&&!btn.disabled)submitAssign();}});
 
 /* ============================================================
-   FILTER: applies timeout periods from CONFIG
+   FILTER + POLLING + INIT
    ============================================================ */
 function applyFilter(all){var now=Date.now();return all.filter(function(r){var s=(r.Dispatch_Status||"").toLowerCase();
   if(s.indexOf("complet")>=0)return false;
@@ -1034,73 +726,15 @@ function applyFilter(all){var now=Date.now();return all.filter(function(r){var s
   if(isNewStatus(r.Dispatch_Status)){var ad=parseZohoDate(r.Added_Time);if(ad&&(now-ad.getTime())>CONFIG.UNASSIGNED_DELETE_MS)return false;}
   return true;});}
 
-/* ============================================================
-   POLLING
-   ============================================================ */
 function fetchDispatches(){if(!sdkReady)return;fetchLatestRecords().then(function(response){if(response.code===3000){var all=response.data||[];autoDeleteExpired(all);currentRecords=applyFilter(all);checkForNewRequests(currentRecords);firstLoadComplete=true;refreshTable();document.getElementById("statusDot").className="status-dot live";document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();}}).catch(function(){document.getElementById("statusDot").className="status-dot error";document.getElementById("lastUpdate").textContent="Connection error";});}
 
-/* ============================================================
-   INIT — load Zoho variable for Rover API key
-   ============================================================ */
-ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
-  loggedInUser=params.loginUser||"";
-  sdkReady=true;
-  console.log("[INIT] SDK ready. loginUser:", loggedInUser);
-
-  // Load Cloudflare Rover API key from app variable
-  roverApiKey = ""; // unused — worker validates by Origin header
-
-  fetchDispatches();
-  setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
-}).catch(function(e){
-  console.error("[INIT] getInitParams failed:", e);
-  sdkReady=true;
-  fetchDispatches();
-  setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);
-});
+ZOHO.CREATOR.UTIL.getInitParams().then(function(params){loggedInUser=params.loginUser||"";sdkReady=true;fetchDispatches();setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);}).catch(function(){sdkReady=true;fetchDispatches();setInterval(fetchDispatches,CONFIG.POLL_INTERVAL);});
 </script>
 
-<!-- ── BARCODE SCANNER (unchanged from v2) ── -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
 var html5QrCode=null,scannerActive=false,scannerPaused=false;
-function startScanner(){
-  var o=document.getElementById("scannerOverlay");
-  o.style.display="flex";
-  if(scannerActive&&html5QrCode){scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning...";return;}
-  document.getElementById("scannerStatus").textContent="Initializing camera...";
-  html5QrCode=new Html5Qrcode("scannerView");
-  html5QrCode.start(
-    {facingMode:"environment"},
-    {fps:10,qrbox:{width:280,height:120},aspectRatio:1.5,
-     formatsToSupport:[Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,
-       Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,
-       Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,
-       Html5QrcodeSupportedFormats.ITF,Html5QrcodeSupportedFormats.CODABAR,
-       Html5QrcodeSupportedFormats.QR_CODE]},
-    function(d){
-      if(scannerPaused)return;
-      scannerPaused=true;
-      var clean=d.replace(/\D/g,"");
-      document.getElementById("inputMva").value=clean;
-      clearPopupError();
-      document.getElementById("scannerOverlay").style.display="none";
-      // Trigger lookup after scan if 8 digits
-      if(clean.length===CONFIG.MVA_LENGTH){
-        doRoverLookup(clean);
-      } else {
-        setTimeout(function(){document.getElementById("inputStall").focus();},200);
-      }
-    },
-    function(){}
-  ).then(function(){
-    scannerActive=true;scannerPaused=false;
-    document.getElementById("scannerStatus").textContent="Scanning...";
-  }).catch(function(){
-    document.getElementById("scannerStatus").textContent="Camera unavailable";
-    setTimeout(function(){document.getElementById("scannerOverlay").style.display="none";},3000);
-  });
-}
+function startScanner(){var o=document.getElementById("scannerOverlay");o.style.display="flex";if(scannerActive&&html5QrCode){scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning...";return;}document.getElementById("scannerStatus").textContent="Initializing camera...";html5QrCode=new Html5Qrcode("scannerView");html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:{width:280,height:120},aspectRatio:1.5,formatsToSupport:[Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.ITF,Html5QrcodeSupportedFormats.CODABAR,Html5QrcodeSupportedFormats.QR_CODE]},function(d){if(scannerPaused)return;scannerPaused=true;var clean=d.replace(/\D/g,"");document.getElementById("inputMva").value=clean;clearPopupError();document.getElementById("scannerOverlay").style.display="none";if(clean.length===CONFIG.MVA_LENGTH){doRoverLookup(clean);}else{setTimeout(function(){document.getElementById("inputStall").focus();},200);}},function(){}).then(function(){scannerActive=true;scannerPaused=false;document.getElementById("scannerStatus").textContent="Scanning...";}).catch(function(){document.getElementById("scannerStatus").textContent="Camera unavailable";setTimeout(function(){document.getElementById("scannerOverlay").style.display="none";},3000);});}
 function stopScanner(){scannerPaused=true;document.getElementById("scannerOverlay").style.display="none";}
 </script>
 </body>
