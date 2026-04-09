@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  CSR COMBINED WIDGET — v1
+  CSR COMBINED WIDGET — v2
   =========================
   Merges: CSR Active Requests (v3) + Vehicle Request widget
   App: lax-abg | Report: All_Vehicle_Requests | Form: Vehicle_Request_Form
@@ -10,8 +10,9 @@
   - Post-submit: immediate fetch, then 8s interval resumes
   - Normal operation: 8s interval
 
-  NEW FIELD:
-  - Extended_Rental: shows as red tag on card, no queue priority boost
+  FIELDS (red tag, no queue priority):
+  - Extended_Rental
+  - Cross_Border (Mexico Insurance / X-Border)
 
   MODAL: slide-up from bottom (iPad-native)
 -->
@@ -543,6 +544,14 @@
             <label class="switch"><input type="checkbox" id="extendedRental" /><span class="slider"></span></label>
           </div>
 
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Mexico Insurance / X-Border</div>
+              <div class="toggle-desc">Customer requires cross-border coverage</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="crossBorder" /><span class="slider"></span></label>
+          </div>
+
         </div>
       </div>
 
@@ -584,6 +593,7 @@ var CONFIG = {
   WALKUP_LABEL:       "Walk Up (49)",
   ONEWAY_LABEL:       "One-Way Rental",
   EXTENDED_LABEL:     "Extended Rental / Mini-Lease",
+  XBORDER_LABEL:      "Mexico Insurance / X-Border",
   DING_FREQ_1:        880,
   DING_FREQ_2:        1175
 };
@@ -795,6 +805,7 @@ function renderCards(records) {
     if (isBool(rec.Upsell))             vhtml += '<div class="card-vehicle-tag">' + CONFIG.UPSELL_LABEL    + '</div>';
     if (isBool(rec.Walk_Up_Customer))   vhtml += '<div class="card-vehicle-tag">' + CONFIG.WALKUP_LABEL   + '</div>';
     if (isBool(rec.Extended_Rental))    vhtml += '<div class="card-vehicle-tag">' + CONFIG.EXTENDED_LABEL + '</div>';
+    if (isBool(rec.Cross_Border))       vhtml += '<div class="card-vehicle-tag">' + CONFIG.XBORDER_LABEL  + '</div>';
     if (isBool(rec.One_Way_Rental))     vhtml += '<div class="card-vehicle-oneway">' + CONFIG.ONEWAY_LABEL + '</div>';
 
     // Status block
@@ -1005,6 +1016,7 @@ function doSubmit() {
       Upsell:                       document.getElementById("upsell").checked,
       Walk_Up_Customer:             document.getElementById("walkUp").checked,
       Extended_Rental:              document.getElementById("extendedRental").checked,
+      Cross_Border:                 document.getElementById("crossBorder").checked,
       Specific_Make_Model_optional: document.getElementById("specificReq").value.trim(),
       Dispatch_Status:              "New"
     }
@@ -1041,6 +1053,7 @@ function resetForm() {
   document.getElementById("upsell").checked        = false;
   document.getElementById("walkUp").checked        = false;
   document.getElementById("extendedRental").checked = false;
+  document.getElementById("crossBorder").checked    = false;
   document.getElementById("specificReq").value     = "";
   document.getElementById("vehErr").classList.remove("show");
   hideModalToast();
