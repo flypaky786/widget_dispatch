@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  CSR COMBINED WIDGET — v2
+  CSR COMBINED WIDGET — v3
   =========================
   Merges: CSR Active Requests (v3) + Vehicle Request widget
   App: lax-abg | Report: All_Vehicle_Requests | Form: Vehicle_Request_Form
@@ -13,6 +13,8 @@
   FIELDS (red tag, no queue priority):
   - Extended_Rental
   - Cross_Border (Mexico Insurance / X-Border)
+
+  ETA: shown on assigned cards (right side, under MVA/Stall) if ETA field present
 
   MODAL: slide-up from bottom (iPad-native)
 -->
@@ -709,6 +711,20 @@ function formatTime(d) {
   return h + ":" + ("0" + m).slice(-2) + " " + a;
 }
 
+function formatEtaTime(t) {
+  if (!t) return "—";
+  // ETA is a time-only field: "HH:MM:SS AM/PM"
+  try {
+    var parts = t.toString().trim().split(" ");
+    var timeParts = parts[0].split(":");
+    var h = parseInt(timeParts[0], 10);
+    var m = timeParts[1];
+    var ampm = parts[1] || (h >= 12 ? "PM" : "AM");
+    h = h % 12; if (h === 0) h = 12;
+    return h + ":" + m + " " + ampm;
+  } catch(e) { return t.toString(); }
+}
+
 function getAge(d) {
   var dt = parseZohoDate(d);
   if (!dt) return { text: "—", cls: "age-ok" };
@@ -822,6 +838,7 @@ function renderCards(records) {
       ahtml = '<div class="card-assignment">';
       if (mvaStall) ahtml += '<div class="assign-mva">' + mvaStall + '</div>';
       if (vinfo)    ahtml += '<div class="assign-vehicle">' + vinfo + '</div>';
+      if (rec.ETA)  ahtml += '<div class="assign-vehicle">🕐 ETA ' + formatEtaTime(rec.ETA) + '</div>';
       ahtml += '</div>';
     }
 
