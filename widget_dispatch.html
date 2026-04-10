@@ -556,7 +556,8 @@ function releaseParkingSpot(){
   }).then(function(resp){
     console.log("Parking spot released:",capturedRecordId);
   }).catch(function(e){
-    console.log("Parking release error:",e);
+    console.log("PARKING release error full:", JSON.stringify(e));
+    console.log("PARKING release record_id was:", capturedRecordId);
   });
 }
 
