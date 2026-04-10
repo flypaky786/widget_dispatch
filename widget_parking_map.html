@@ -440,8 +440,10 @@ function hideConfirmPanel(){
 
 function executeConfirmedAction(){
   console.log("executeConfirmedAction called, pendingAction:", pendingAction ? "SET" : "NULL");
+  var fn=pendingAction;
+  pendingAction=null;
   hideConfirmPanel();
-  if(pendingAction){var fn=pendingAction;pendingAction=null;fn();}
+  if(fn){fn();}
   else{console.log("executeConfirmedAction: pendingAction was null!");}
 }
 
