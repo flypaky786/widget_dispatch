@@ -445,8 +445,8 @@ function setSheetLoading(){
   for(var i=0;i<btns.length;i++){btns[i].disabled=true;btns[i].innerHTML='<div class="spinner"></div>';}
 }
 
-function buildZohoDateTimeStr(){
-  var now=new Date();
+function buildZohoDateTimeStr(dateObj){
+  var now=dateObj||new Date();
   var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   var dd=("0"+now.getDate()).slice(-2);
   var mmm=months[now.getMonth()];
@@ -464,6 +464,7 @@ function doReserve(){
   var capturedSpotId=activeSpotId;
   setSheetLoading();
   var nowStr=buildZohoDateTimeStr();
+  var untilStr=buildZohoDateTimeStr(new Date(Date.now()+(selectedDuration*60000)));
   ZOHO.CREATOR.DATA.updateRecordById({
     app_name:CONFIG.APP_NAME,
     report_name:CONFIG.PARKING_SPOTS_REPORT,
@@ -471,6 +472,7 @@ function doReserve(){
     payload:{data:{
       Status:"Reserved",
       Reserved_At:nowStr,
+      Reserved_Until:untilStr,
       Reserved_By_User:loggedInUser,
       Hold_Type:"Assigned"
     }}
@@ -492,84 +494,80 @@ function doReserve(){
 
 function askRelease(){
   var rec=activeSpotRec;
-  var cd=rec?getCountdown(rec):null;
-  var msg="Spot "+activeSpotId+" is reserved";
+  var spotId=activeSpotId;
+  if(!rec)return;
+  var cd=getCountdown(rec);
+  var msg="Spot "+spotId+" is reserved";
   if(cd&&cd!=="exp")msg+=" with "+cd+" remaining";
   msg+=". A vehicle may be on its way. Release anyway?";
-  showConfirmPanel(msg,true,doRelease);
-}
-
-function doRelease(){
-  if(!activeSpotRec)return;
-  var capturedSpotId=activeSpotId;
-  setSheetLoading();
-  ZOHO.CREATOR.DATA.invokeCustomApi({
-    api_name:"releaseParkingSpot",
-    http_method:"POST",
-    public_key:CONFIG.PARKING_RELEASE_KEY,
-    payload:{record_id:activeSpotRec.ID.toString()}
-  }).then(function(resp){
-    console.log("Release resp:",JSON.stringify(resp));
-    if(spots[capturedSpotId]){
-      spots[capturedSpotId].Status="Available";
-      spots[capturedSpotId].Reserved_Until="";
-      spots[capturedSpotId].Reserved_By_User="";
-      delete spots[capturedSpotId]._reservedUntilMs;
-    }
-    renderGrid();updateStats();closeSheet();
-  }).catch(function(e){console.log("Release error:",JSON.stringify(e));closeSheet();});
+  showConfirmPanel(msg,true,function(){
+    setSheetLoading();
+    var capturedId=spotId;
+    ZOHO.CREATOR.DATA.invokeCustomApi({
+      api_name:"releaseParkingSpot",
+      http_method:"POST",
+      public_key:CONFIG.PARKING_RELEASE_KEY,
+      payload:{record_id:rec.ID.toString()}
+    }).then(function(resp){
+      console.log("Release resp:",JSON.stringify(resp));
+      if(spots[capturedId]){
+        spots[capturedId].Status="Available";
+        spots[capturedId].Reserved_Until="";
+        spots[capturedId].Reserved_By_User="";
+        delete spots[capturedId]._reservedUntilMs;
+      }
+      renderGrid();updateStats();closeSheet();
+    }).catch(function(e){console.log("Release error:",JSON.stringify(e));closeSheet();});
+  });
 }
 
 function askMarkInactive(){
+  var rec=activeSpotRec;
+  var spotId=activeSpotId;
+  if(!rec)return;
   showConfirmPanel(
-    "Mark spot "+activeSpotId+" as inactive? It will be excluded from auto-assignment until reactivated.",
-    true,doMarkInactive
+    "Mark spot "+spotId+" as inactive? It will be excluded from auto-assignment until reactivated.",
+    true,
+    function(){
+      setSheetLoading();
+      var capturedId=spotId;
+      ZOHO.CREATOR.DATA.updateRecordById({
+        app_name:CONFIG.APP_NAME,
+        report_name:CONFIG.PARKING_SPOTS_REPORT,
+        id:rec.ID.toString(),
+        payload:{data:{Is_Active:false,Status:"Available",Reserved_By_User:"",Hold_Type:""}}
+      }).then(function(resp){
+        console.log("Inactive resp:",JSON.stringify(resp));
+        if(resp.code===3000){
+          if(spots[capturedId]){
+            spots[capturedId].Is_Active=false;
+            spots[capturedId].Status="Available";
+            delete spots[capturedId]._reservedUntilMs;
+          }
+          renderGrid();updateStats();closeSheet();
+        }else{console.log("Inactive failed:",JSON.stringify(resp));closeSheet();}
+      }).catch(function(e){console.log("Inactive error:",JSON.stringify(e));closeSheet();});
+    }
   );
 }
 
-function doMarkInactive(){
-  if(!activeSpotRec)return;
-  var capturedSpotId=activeSpotId;
-  setSheetLoading();
-  ZOHO.CREATOR.DATA.updateRecordById({
-    app_name:CONFIG.APP_NAME,
-    report_name:CONFIG.PARKING_SPOTS_REPORT,
-    id:activeSpotRec.ID.toString(),
-    payload:{data:{
-      Is_Active:false,
-      Status:"Available",
-      Reserved_By_User:"",
-      Hold_Type:""
-    }}
-  }).then(function(resp){
-    console.log("Inactive resp:",JSON.stringify(resp));
-    if(resp.code===3000){
-      if(spots[capturedSpotId]){
-        spots[capturedSpotId].Is_Active=false;
-        spots[capturedSpotId].Status="Available";
-        delete spots[capturedSpotId]._reservedUntilMs;
-      }
-      renderGrid();updateStats();closeSheet();
-    }else{console.log("Inactive failed:",JSON.stringify(resp));closeSheet();}
-  }).catch(function(e){console.log("Inactive error:",JSON.stringify(e));closeSheet();});
-}
-
 function doMarkActive(){
-  if(!activeSpotRec)return;
-  var capturedSpotId=activeSpotId;
+  var rec=activeSpotRec;
+  var capturedId=activeSpotId;
+  if(!rec)return;
   setSheetLoading();
   ZOHO.CREATOR.DATA.updateRecordById({
     app_name:CONFIG.APP_NAME,
     report_name:CONFIG.PARKING_SPOTS_REPORT,
-    id:activeSpotRec.ID.toString(),
+    id:rec.ID.toString(),
     payload:{data:{Is_Active:true}}
   }).then(function(resp){
+    console.log("Active resp:",JSON.stringify(resp));
     if(resp.code===3000){
-      if(spots[capturedSpotId]){spots[capturedSpotId].Is_Active=true;}
+      if(spots[capturedId]){spots[capturedId].Is_Active=true;}
       renderGrid();updateStats();closeSheet();
     }else{console.log("Active failed:",JSON.stringify(resp));closeSheet();}
   }).catch(function(e){console.log("Active error:",JSON.stringify(e));closeSheet();});
-}
-</script>
+}</script>
 </body>
 </html>
