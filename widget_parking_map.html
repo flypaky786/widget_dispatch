@@ -445,21 +445,37 @@ function setSheetLoading(){
   for(var i=0;i<btns.length;i++){btns[i].disabled=true;btns[i].innerHTML='<div class="spinner"></div>';}
 }
 
+function buildZohoDateTimeStr(){
+  var now=new Date();
+  var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var dd=("0"+now.getDate()).slice(-2);
+  var mmm=months[now.getMonth()];
+  var yyyy=now.getFullYear();
+  var hh=now.getHours(),ampm=hh>=12?"PM":"AM";
+  hh=hh%12;if(hh===0)hh=12;
+  var mm=("0"+now.getMinutes()).slice(-2);
+  var ss=("0"+now.getSeconds()).slice(-2);
+  return dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
+}
+
 function doReserve(){
   if(!activeSpotRec)return;
   var rec=activeSpotRec;
   var capturedSpotId=activeSpotId;
   setSheetLoading();
+  var nowStr=buildZohoDateTimeStr();
   ZOHO.CREATOR.DATA.updateRecordById({
     app_name:CONFIG.APP_NAME,
     report_name:CONFIG.PARKING_SPOTS_REPORT,
     id:rec.ID.toString(),
     payload:{data:{
       Status:"Reserved",
+      Reserved_At:nowStr,
       Reserved_By_User:loggedInUser,
       Hold_Type:"Assigned"
     }}
   }).then(function(resp){
+    console.log("Reserve resp:",JSON.stringify(resp));
     if(resp.code===3000){
       if(spots[capturedSpotId]){
         spots[capturedSpotId].Status="Reserved";
@@ -492,7 +508,8 @@ function doRelease(){
     http_method:"POST",
     public_key:CONFIG.PARKING_RELEASE_KEY,
     payload:{record_id:activeSpotRec.ID.toString()}
-  }).then(function(){
+  }).then(function(resp){
+    console.log("Release resp:",JSON.stringify(resp));
     if(spots[capturedSpotId]){
       spots[capturedSpotId].Status="Available";
       spots[capturedSpotId].Reserved_Until="";
@@ -525,6 +542,7 @@ function doMarkInactive(){
       Hold_Type:""
     }}
   }).then(function(resp){
+    console.log("Inactive resp:",JSON.stringify(resp));
     if(resp.code===3000){
       if(spots[capturedSpotId]){
         spots[capturedSpotId].Is_Active=false;
