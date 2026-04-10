@@ -583,8 +583,8 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       return;
     }
 
-    var reqIdStr = vehicleRequestId.toString();
-
+var reqIdStr = vehicleRequestId.toString();
+console.log("[saveAvisLookup] mva:", mva, "reqId:", reqIdStr);
     var payload = {
       MVA:                     mva,
       Vehicle_Request_Form_ID: reqIdStr,
