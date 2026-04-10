@@ -478,7 +478,6 @@ function claimParkingSpot(requestId, reservedByUser){
 
   ZOHO.CREATOR.DATA.invokeCustomApi({
     apiName: "getNextParkingSpot",
-    publicKey: CONFIG.PARKING_GET_NEXT_KEY,
     method: "POST",
     params: {
       data: JSON.stringify({
@@ -514,7 +513,6 @@ function confirmParkingSpot(requestId, reservedByUser){
   var capturedRecordId=pendingParkingRecordId;
   ZOHO.CREATOR.DATA.invokeCustomApi({
     apiName: "confirmParkingSpot",
-    publicKey: CONFIG.PARKING_CONFIRM_KEY,
     method: "POST",
     params: {
       data: JSON.stringify({
@@ -541,7 +539,6 @@ function releaseParkingSpot(){
   pendingParkingSpotId=null;
   ZOHO.CREATOR.DATA.invokeCustomApi({
     apiName: "releaseParkingSpot",
-    publicKey: CONFIG.PARKING_RELEASE_KEY,
     method: "POST",
     params: {
       data: JSON.stringify({
