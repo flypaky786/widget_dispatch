@@ -1,10 +1,17 @@
 <!DOCTYPE html>
 <!--
-  DISPATCHER QUEUE WIDGET — v3.1
+  DISPATCHER QUEUE WIDGET — v3.3
   ===============================
   App: lax-abg | Report: All_Vehicle_Requests | Poll: 4s
 
   CHANGES LOG (latest first):
+  v3.3:
+  - Parking spot auto-assignment integrated into assign modal
+  - getNextParkingSpot called on modal open (pre-fills stall)
+  - releaseParkingSpot called on modal cancel/close
+  - confirmParkingSpot called on successful assign
+  - pendingParkingRecordId tracks claimed spot between steps
+  - CONFIG updated with parking API keys
   v3.2:
   - Cross-border plate check: if request has Cross_Border=true, WAND plate must contain "CA"
   v3.1:
@@ -111,11 +118,21 @@
     .no-results{text-align:center;padding:40px 24px;color:var(--text-faint);font-size:15px}
     .btn-scan{background:var(--text);color:#fff;border:none;padding:14px 18px;border-radius:var(--radius);font-size:15px;font-family:inherit;font-weight:600;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;min-height:48px;transition:all var(--transition)}.btn-scan:hover{background:#0f172a}
 
+    /* ── PARKING SPOT BADGE ── */
+    .parking-badge{display:none;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px}
+    .parking-badge.active{display:flex}
+    .parking-badge.loading{background:#f8fafc;border-color:var(--border)}
+    .parking-badge.error{background:#fef2f2;border-color:#fecaca}
+    .parking-spot-label{font-weight:700;color:#059669;font-size:15px}
+    .parking-badge.loading .parking-spot-label{color:var(--text-muted)}
+    .parking-badge.error .parking-spot-label{color:#b91c1c}
+    .parking-spinner{width:14px;height:14px;border:2px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
     /* ── ROVER LOOKUP CARD ── */
     .rover-loading{display:none;align-items:center;gap:12px;padding:16px;background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px}
     .rover-loading.active{display:flex}
     .rover-spinner{width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
-    @keyframes spin{to{transform:rotate(360deg)}}
     .rover-loading-text{font-size:14px;color:var(--text-muted);font-weight:500}
     .rover-card{display:none;border-radius:var(--radius);overflow:hidden;margin-bottom:20px;border:1px solid var(--border)}
     .rover-card.active{display:block}
@@ -172,6 +189,15 @@
 <div class="overlay" id="assignOverlay"><div class="popup">
   <h3 id="popupTitle">Assign Vehicle</h3>
   <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
+
+  <!-- Parking Spot Badge -->
+  <div class="parking-badge loading active" id="parkingBadge">
+    <div class="parking-spinner" id="parkingSpinner"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Suggested Parking Spot</div>
+      <div class="parking-spot-label" id="parkingSpotLabel">Finding spot...</div>
+    </div>
+  </div>
 
   <div class="form-group"><label for="inputMva">MVA Number</label>
     <div style="display:flex;gap:10px;align-items:stretch">
@@ -266,14 +292,19 @@ var CONFIG = {
   CROSSBORDER_LABEL: "Cross Border",
   EXTENDEDRENTAL_LABEL: "Extended Rental",
 
-  // ETA defaults per source
   ETA_DEFAULTS: { "Quick Flip": 5, "Pumps": 20 },
   ETA_OPTIONS: [5, 10, 20, 30],
 
   DING_FREQ_1: 880,
   DING_FREQ_2: 1175,
   ROVER_BASE_URL: "https://rover-proxy.autoflowx.workers.dev",
-  ROVER_TIMEOUT_MS: 9000
+  ROVER_TIMEOUT_MS: 9000,
+
+  // ── PARKING SPOT API ──
+  PARKING_GET_NEXT_KEY: "2tDGGUeqyuMeJ5k06js2Y2tdx",
+  PARKING_CONFIRM_KEY: "TbTb2Y0BAbJyb5O51zTQ8Z5ta",
+  PARKING_RELEASE_KEY: "zOw7X9CqAJnPeOqxWCAeQUt1b",
+  PARKING_API_BASE: "https://www.zohoapis.com/creator/custom/autoflowx"
 };
 
 /* ============================================================
@@ -289,6 +320,11 @@ var currentLookupMva="",requestedClass="";
 var subRules=null,subRulesLoaded=false;
 var onMoveBlocked=false;
 var crossBorderRequested=false;
+
+// ── PARKING STATE ──
+var pendingParkingRecordId=null;  // Creator record ID of the Parking_Spots record currently claimed
+var pendingParkingSpotId=null;    // Human-readable spot e.g. "C46"
+var parkingLookupInFlight=false;
 
 /* ============================================================
    AUDIO
@@ -401,6 +437,125 @@ function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseT
 function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,page:1,max_records:CONFIG.MAX_RECORDS});}
 
 /* ============================================================
+   PARKING SPOT FUNCTIONS
+   ============================================================ */
+function setParkingBadgeLoading(){
+  var badge=document.getElementById("parkingBadge");
+  var spinner=document.getElementById("parkingSpinner");
+  var label=document.getElementById("parkingSpotLabel");
+  badge.className="parking-badge loading active";
+  spinner.style.display="block";
+  label.textContent="Finding spot...";
+  label.style.color="var(--text-muted)";
+}
+
+function setParkingBadgeSuccess(spotId){
+  var badge=document.getElementById("parkingBadge");
+  var spinner=document.getElementById("parkingSpinner");
+  var label=document.getElementById("parkingSpotLabel");
+  badge.className="parking-badge active";
+  spinner.style.display="none";
+  label.textContent=spotId;
+  label.style.color="#059669";
+}
+
+function setParkingBadgeError(msg){
+  var badge=document.getElementById("parkingBadge");
+  var spinner=document.getElementById("parkingSpinner");
+  var label=document.getElementById("parkingSpotLabel");
+  badge.className="parking-badge error active";
+  spinner.style.display="none";
+  label.textContent=msg||"No spots available";
+  label.style.color="#b91c1c";
+}
+
+function claimParkingSpot(requestId, reservedByUser){
+  if(parkingLookupInFlight)return;
+  parkingLookupInFlight=true;
+  pendingParkingRecordId=null;
+  pendingParkingSpotId=null;
+  setParkingBadgeLoading();
+
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    apiName: "getNextParkingSpot",
+    publicKey: CONFIG.PARKING_GET_NEXT_KEY,
+    method: "POST",
+    params: {
+      data: JSON.stringify({
+        request_id: requestId.toString(),
+        reserved_by_user: reservedByUser
+      })
+    }
+  }).then(function(resp){
+    parkingLookupInFlight=false;
+    var result=null;
+    try{result=typeof resp.data==="string"?JSON.parse(resp.data):resp.data;}catch(e){}
+    if(result&&result.success){
+      pendingParkingRecordId=result.record_id.toString();
+      pendingParkingSpotId=result.spot_id;
+      setParkingBadgeSuccess(result.spot_id);
+      // Pre-fill stall only if dispatcher hasn't already typed something
+      var stallInput=document.getElementById("inputStall");
+      if(!stallInput.value||stallInput.value===CONFIG.PUMP_STALL_DEFAULT){
+        stallInput.value=result.spot_id;
+      }
+    }else{
+      setParkingBadgeError((result&&result.message)||"No spots available");
+    }
+  }).catch(function(e){
+    parkingLookupInFlight=false;
+    setParkingBadgeError("Spot lookup failed");
+    console.log("Parking spot lookup error:",e);
+  });
+}
+
+function confirmParkingSpot(requestId, reservedByUser){
+  if(!pendingParkingRecordId)return;
+  var capturedRecordId=pendingParkingRecordId;
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    apiName: "confirmParkingSpot",
+    publicKey: CONFIG.PARKING_CONFIRM_KEY,
+    method: "POST",
+    params: {
+      data: JSON.stringify({
+        record_id: capturedRecordId,
+        request_id: requestId.toString(),
+        reserved_by_user: reservedByUser
+      })
+    }
+  }).then(function(resp){
+    console.log("Parking spot confirmed:",capturedRecordId);
+    pendingParkingRecordId=null;
+    pendingParkingSpotId=null;
+  }).catch(function(e){
+    console.log("Parking confirm error:",e);
+    pendingParkingRecordId=null;
+    pendingParkingSpotId=null;
+  });
+}
+
+function releaseParkingSpot(){
+  if(!pendingParkingRecordId)return;
+  var capturedRecordId=pendingParkingRecordId;
+  pendingParkingRecordId=null;
+  pendingParkingSpotId=null;
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    apiName: "releaseParkingSpot",
+    publicKey: CONFIG.PARKING_RELEASE_KEY,
+    method: "POST",
+    params: {
+      data: JSON.stringify({
+        record_id: capturedRecordId
+      })
+    }
+  }).then(function(resp){
+    console.log("Parking spot released:",capturedRecordId);
+  }).catch(function(e){
+    console.log("Parking release error:",e);
+  });
+}
+
+/* ============================================================
    ROVER / WAND LOOKUP
    ============================================================ */
 function isAlertStatus(sf){if(!sf)return false;var u=sf.toUpperCase();return u.indexOf("HOLD")>=0||u.indexOf("UNAVAILABLE")>=0;}
@@ -439,7 +594,6 @@ function renderRoverCard(data,mva){
   document.getElementById("roverStatusLine").textContent=data.status||"—";
   var sfEl=document.getElementById("roverStatusFull");var fullParts=(data.statusFull||"").split("|").map(function(p){return p.trim();});var extraParts=fullParts.slice(1).filter(function(p){return p.length>0;});
   if(extraParts.length>0){sfEl.textContent=extraParts.join(" | ");sfEl.style.display="";if(isAlertStatus(data.statusFull)||isOnMove(data.statusFull))sfEl.classList.add("alert");else sfEl.classList.remove("alert");}else{sfEl.textContent="";sfEl.style.display="none";}
-  /* Cross-border plate indicator */
   var plateEl=document.getElementById("roverColorChip");
   if(crossBorderRequested){
     var plate=(data.plate||"").toUpperCase();
@@ -475,19 +629,17 @@ function doRoverLookup(mva){
     document.getElementById("inputMva").disabled=false;
     renderRoverCard(json,mva);
 
-    /* ── ON MOVE CHECK ── */
     if(isOnMove(json.statusFull)){
       onMoveBlocked=true;
       var blockMsg="Vehicle is On Move -- existing RA needs to be closed";
-      if(crossBorderRequested){var plate=(data.plate||"").toUpperCase();if(plate.indexOf("CA")<0){blockMsg+=". Also: plate "+(data.plate||"N/A")+" is not a CA plate.";}}
-      document.getElementById("roverBlock").textContent=blockMsg;      document.getElementById("roverBlock").classList.add("active");
-      /* Save to Avis lookup immediately */
+      document.getElementById("roverBlock").textContent=blockMsg;
+      document.getElementById("roverBlock").classList.add("active");
       saveAvisLookup(mva,json,assignRecordId).then(function(avisId){
         if(avisId&&assignRecordId){
           ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:assignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});
         }
       });
-      return; /* no Next, no Assign */
+      return;
     }
 
     document.getElementById("btnNext").style.display="flex";
@@ -625,6 +777,16 @@ function resetPopupRoverState(){
   document.getElementById("inputMva").disabled=false;
 }
 
+function resetParkingState(){
+  pendingParkingRecordId=null;
+  pendingParkingSpotId=null;
+  parkingLookupInFlight=false;
+  var badge=document.getElementById("parkingBadge");
+  badge.className="parking-badge loading active";
+  document.getElementById("parkingSpinner").style.display="block";
+  document.getElementById("parkingSpotLabel").textContent="Finding spot...";
+}
+
 function openAssignPopup(id,v,vc){
   assignRecordId=id;isReassign=false;requestedClass=vc||"";
   crossBorderRequested=false;
@@ -632,16 +794,17 @@ function openAssignPopup(id,v,vc){
   document.getElementById("popupTitle").textContent="Assign Vehicle";
   document.getElementById("assignVehicle").textContent=v;
   document.getElementById("inputMva").value="";
-  document.getElementById("inputStall").value=loggedInUser.toLowerCase().indexOf(CONFIG.PUMP_KEYWORD)>=0?CONFIG.PUMP_STALL_DEFAULT:"";
+  document.getElementById("inputStall").value="";
   document.getElementById("btnSubmitAssign").textContent="Assign";
-  clearPopupError();resetPopupRoverState();
-  /* Auto-select VCF radio based on user */
+  clearPopupError();resetPopupRoverState();resetParkingState();
   var lu=loggedInUser.toLowerCase();
   if(lu.indexOf(CONFIG.QUICK_KEYWORD)>=0){document.getElementById("vcfQuick").checked=true;onVcfChange();}
   else if(lu.indexOf(CONFIG.PUMP_KEYWORD)>=0){document.getElementById("vcfPumps").checked=true;onVcfChange();}
   loadSubRules(requestedClass);
   document.getElementById("assignOverlay").classList.add("active");
   setTimeout(function(){document.getElementById("inputMva").focus();},100);
+  // Claim a parking spot immediately on modal open
+  claimParkingSpot(id, loggedInUser);
 }
 
 function openReassignPopup(id,v,m,s,vc){
@@ -653,7 +816,7 @@ function openReassignPopup(id,v,m,s,vc){
   document.getElementById("inputMva").value=m;
   document.getElementById("inputStall").value=s;
   document.getElementById("btnSubmitAssign").textContent="Re-assign";
-  clearPopupError();resetPopupRoverState();
+  clearPopupError();resetPopupRoverState();resetParkingState();
   var lu=loggedInUser.toLowerCase();
   if(lu.indexOf(CONFIG.QUICK_KEYWORD)>=0){document.getElementById("vcfQuick").checked=true;onVcfChange();}
   else if(lu.indexOf(CONFIG.PUMP_KEYWORD)>=0){document.getElementById("vcfPumps").checked=true;onVcfChange();}
@@ -661,9 +824,17 @@ function openReassignPopup(id,v,m,s,vc){
   document.getElementById("assignOverlay").classList.add("active");
   if(m&&m.length===CONFIG.MVA_LENGTH){setTimeout(function(){doRoverLookup(m);},200);}
   else{document.getElementById("stallGroup").style.display="block";document.getElementById("vcfGroup").classList.add("active");revealAssignButton();}
+  // Claim a parking spot immediately on modal open
+  claimParkingSpot(id, loggedInUser);
 }
 
-function closeAssignPopup(){assignRecordId=null;isReassign=false;document.getElementById("assignOverlay").classList.remove("active");resetPopupRoverState();}
+function closeAssignPopup(){
+  // Release the claimed parking spot if dispatcher cancels
+  releaseParkingSpot();
+  assignRecordId=null;isReassign=false;
+  document.getElementById("assignOverlay").classList.remove("active");
+  resetPopupRoverState();
+}
 
 /* ============================================================
    SUBMIT ASSIGN
@@ -676,7 +847,6 @@ function submitAssign(){
 
   if(onMoveBlocked){showPopupError("Vehicle is On Move -- existing RA needs to be closed");return;}
 
-  /* Cross-border: plate must contain "CA" */
   if(crossBorderRequested&&roverData){var plate=(roverData.plate||"").toUpperCase();if(plate.indexOf("CA")<0){showPopupError("Vehicle must have a CA license plate for cross-border requests. Plate: "+(roverData.plate||"N/A"));return;}}
 
   var mvaRegex=new RegExp("^\\d{"+CONFIG.MVA_LENGTH+"}$");
@@ -685,12 +855,10 @@ function submitAssign(){
   if(!mvaRegex.test(mva)){showPopupError("MVA must be exactly "+CONFIG.MVA_LENGTH+" digits.");return;}
   if(!stall){showPopupError("Stall is required.");return;}
 
-  /* VCF + ETA validation */
-   var vcfSel=document.querySelector('input[name="vcf"]:checked');
+  var vcfSel=document.querySelector('input[name="vcf"]:checked');
   var etaMinutes=0;
   if(vcfSel){etaMinutes=parseInt(document.getElementById("inputEta").value)||0;}
 
-  /* Sub rule check */
   if(roverData&&subRulesLoaded&&subRules!==null&&requestedClass){
     var roverP=classPrefix(roverData.class||"");var reqP=classPrefix(requestedClass);
     if(roverP&&reqP&&roverP!==reqP){var allowed=false;for(var si=0;si<subRules.length;si++){if(subRules[si]===roverP){allowed=true;break;}}
@@ -698,11 +866,13 @@ function submitAssign(){
   }
 
   var btn=document.getElementById("btnSubmitAssign");btn.textContent="Checking...";btn.disabled=true;
+  var capturedAssignRecordId=assignRecordId;
+  var capturedLoggedInUser=loggedInUser;
 
   fetchLatestRecords().then(function(response){
     if(response.code!==3000){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");return;}
     var live=response.data||[];currentRecords=applyFilter(live);
-    var error=validateAssignment(mva,stall,assignRecordId,live,isReassign);
+    var error=validateAssignment(mva,stall,capturedAssignRecordId,live,isReassign);
     if(error){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(error);if(error.indexOf("another")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);return;}
 
     btn.textContent=isReassign?"Re-assigning...":"Assigning...";
@@ -712,20 +882,20 @@ function submitAssign(){
     var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
     var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
 
-    /* Calculate ETA time = now + etaMinutes */
+    var etaDate=new Date(Date.now()+etaMinutes*60*1000);
+    var etaTime=etaMinutes>0?buildZohoTime(etaDate):"";
+    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+    if(vcfSel){payload.Vehicle_Coming_From=vcfSel.value;payload.ETA_Minutes=etaMinutes;if(etaTime)payload.ETA=etaTime;}
 
-
- var etaDate=new Date(Date.now()+etaMinutes*60*1000);
-  var etaTime=etaMinutes>0?buildZohoTime(etaDate):"";
-  var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
-  if(vcfSel){payload.Vehicle_Coming_From=vcfSel.value;payload.ETA_Minutes=etaMinutes;if(etaTime)payload.ETA=etaTime;}    var capturedRecordId=assignRecordId;
-
-    ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedRecordId,payload:{data:payload}}).then(function(ur){
+    ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:payload}}).then(function(ur){
       btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
       if(ur.code===3000){
-        closeAssignPopup();fetchDispatches();
-        if(roverData){saveAvisLookup(mva,roverData,capturedRecordId).then(function(avisId){
-          if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
+        // Confirm the parking spot reservation
+        confirmParkingSpot(capturedAssignRecordId, capturedLoggedInUser);
+        closeAssignPopup();
+        fetchDispatches();
+        if(roverData){saveAvisLookup(mva,roverData,capturedAssignRecordId).then(function(avisId){
+          if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
         });}
       }else{showPopupError(parseUpdateError(ur));}
     }).catch(function(ue){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(parseUpdateError(ue));});
