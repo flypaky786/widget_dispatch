@@ -477,13 +477,12 @@ function claimParkingSpot(requestId, reservedByUser){
   setParkingBadgeLoading();
 
   ZOHO.CREATOR.DATA.invokeCustomApi({
-    apiName: "getNextParkingSpot",
-    method: "POST",
-    params: {
-      data: JSON.stringify({
-        request_id: requestId.toString(),
-        reserved_by_user: reservedByUser
-      })
+    api_name: "getNextParkingSpot",
+    http_method: "POST",
+    public_key: CONFIG.PARKING_GET_NEXT_KEY,
+    payload: {
+      request_id: requestId.toString(),
+      reserved_by_user: reservedByUser
     }
   }).then(function(resp){
     parkingLookupInFlight=false;
@@ -512,14 +511,13 @@ function confirmParkingSpot(requestId, reservedByUser){
   if(!pendingParkingRecordId)return;
   var capturedRecordId=pendingParkingRecordId;
   ZOHO.CREATOR.DATA.invokeCustomApi({
-    apiName: "confirmParkingSpot",
-    method: "POST",
-    params: {
-      data: JSON.stringify({
-        record_id: capturedRecordId,
-        request_id: requestId.toString(),
-        reserved_by_user: reservedByUser
-      })
+    api_name: "confirmParkingSpot",
+    http_method: "POST",
+    public_key: CONFIG.PARKING_CONFIRM_KEY,
+    payload: {
+      record_id: capturedRecordId,
+      request_id: requestId.toString(),
+      reserved_by_user: reservedByUser
     }
   }).then(function(resp){
     console.log("Parking spot confirmed:",capturedRecordId);
@@ -538,12 +536,11 @@ function releaseParkingSpot(){
   pendingParkingRecordId=null;
   pendingParkingSpotId=null;
   ZOHO.CREATOR.DATA.invokeCustomApi({
-    apiName: "releaseParkingSpot",
-    method: "POST",
-    params: {
-      data: JSON.stringify({
-        record_id: capturedRecordId
-      })
+    api_name: "releaseParkingSpot",
+    http_method: "POST",
+    public_key: CONFIG.PARKING_RELEASE_KEY,
+    payload: {
+      record_id: capturedRecordId
     }
   }).then(function(resp){
     console.log("Parking spot released:",capturedRecordId);
