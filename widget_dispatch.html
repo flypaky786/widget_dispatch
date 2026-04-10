@@ -644,13 +644,19 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       }
 
       if (existingId) {
+        console.log("[saveAvisLookup] updating existing record:", existingId, "mva:", mva, "reqId:", reqIdStr);
         ZOHO.CREATOR.DATA.updateRecordById({
           app_name:    CONFIG.APP_NAME,
           report_name: CONFIG.AVIS_LOOKUP_REPORT,
           id:          existingId,
           payload:     { data: payload }
-        }).then(function() { resolve(existingId); })
-          .catch(function() { resolve(existingId); });
+        }).then(function() {
+          console.log("[saveAvisLookup] update success:", existingId);
+          resolve(existingId);
+        }).catch(function(e) {
+          console.error("[saveAvisLookup] update failed:", existingId, JSON.stringify(e));
+          resolve(existingId);
+        });
       } else {
         doAddAvisRecord(payload, resolve);
       }
@@ -661,9 +667,19 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
 }
 
 function doAddAvisRecord(payload,resolve){
+  console.log("[saveAvisLookup] creating new record, mva:", payload.MVA, "reqId:", payload.Vehicle_Request_Form_ID);
   ZOHO.CREATOR.DATA.addRecords({app_name:CONFIG.APP_NAME,form_name:CONFIG.AVIS_LOOKUP_FORM,payload:{data:payload}}).then(function(ar){
-    if(ar.code===3000&&ar.data&&ar.data.ID)resolve(ar.data.ID.toString());else resolve(null);
-  }).catch(function(){resolve(null);});
+    if(ar.code===3000&&ar.data&&ar.data.ID){
+      console.log("[saveAvisLookup] create success:", ar.data.ID.toString());
+      resolve(ar.data.ID.toString());
+    } else {
+      console.error("[saveAvisLookup] create failed, response:", JSON.stringify(ar));
+      resolve(null);
+    }
+  }).catch(function(e){
+    console.error("[saveAvisLookup] create error:", JSON.stringify(e));
+    resolve(null);
+  });
 }
 
 /* @@SECTION:AUTO_DELETE@@ */
