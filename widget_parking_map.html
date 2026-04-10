@@ -327,6 +327,7 @@ function updateStats(){
    BOTTOM SHEET
    ============================================================ */
 function openSheet(spotId){
+  console.log("openSheet:", spotId, "rec:", spots[spotId] ? spots[spotId].Status : "NOT FOUND");
   sheetOpen=true;
   activeSpotId=spotId;
   activeSpotRec=spots[spotId]||null;
@@ -338,6 +339,7 @@ function openSheet(spotId){
 }
 
 function closeSheet(){
+  console.log("closeSheet called");
   sheetOpen=false;
   document.getElementById("overlay").classList.remove("active");
   activeSpotId=null;activeSpotRec=null;pendingAction=null;
@@ -416,6 +418,7 @@ function selectDuration(mins){
    INLINE CONFIRM PANEL
    ============================================================ */
 function showConfirmPanel(msg,isDanger,onYes){
+  console.log("showConfirmPanel called, msg:", msg.substring(0,50));
   pendingAction=onYes;
   document.getElementById("confirmPanelMsg").textContent=msg;
   var panel=document.getElementById("confirmPanel");
@@ -429,14 +432,17 @@ function showConfirmPanel(msg,isDanger,onYes){
 }
 
 function hideConfirmPanel(){
+  console.log("hideConfirmPanel called");
   document.getElementById("confirmPanel").classList.remove("active");
   document.getElementById("sheetActions").style.display="";
   pendingAction=null;
 }
 
 function executeConfirmedAction(){
+  console.log("executeConfirmedAction called, pendingAction:", pendingAction ? "SET" : "NULL");
   hideConfirmPanel();
   if(pendingAction){var fn=pendingAction;pendingAction=null;fn();}
+  else{console.log("executeConfirmedAction: pendingAction was null!");}
 }
 
 /* ============================================================
@@ -495,16 +501,20 @@ function doReserve(){
 }
 
 function askRelease(){
+  console.log("askRelease called. activeSpotId:", activeSpotId, "activeSpotRec:", activeSpotRec ? activeSpotRec.ID : "NULL");
   var rec=activeSpotRec;
   var spotId=activeSpotId;
-  if(!rec)return;
+  if(!rec){console.log("askRelease: rec is null, aborting");return;}
   var cd=getCountdown(rec);
   var msg="Spot "+spotId+" is reserved";
   if(cd&&cd!=="exp")msg+=" with "+cd+" remaining";
   msg+=". A vehicle may be on its way. Release anyway?";
+  console.log("askRelease: showing confirm panel, rec.ID="+rec.ID);
   showConfirmPanel(msg,true,function(){
+    console.log("askRelease callback fired. rec.ID="+rec.ID+" spotId="+spotId);
     setSheetLoading();
     var capturedId=spotId;
+    console.log("askRelease: calling invokeCustomApi releaseParkingSpot, record_id="+rec.ID.toString());
     ZOHO.CREATOR.DATA.invokeCustomApi({
       api_name:"releaseParkingSpot",
       http_method:"POST",
@@ -524,15 +534,19 @@ function askRelease(){
 }
 
 function askMarkInactive(){
+  console.log("askMarkInactive called. activeSpotId:", activeSpotId, "activeSpotRec:", activeSpotRec ? activeSpotRec.ID : "NULL");
   var rec=activeSpotRec;
   var spotId=activeSpotId;
-  if(!rec)return;
+  if(!rec){console.log("askMarkInactive: rec is null, aborting");return;}
+  console.log("askMarkInactive: showing confirm panel, rec.ID="+rec.ID);
   showConfirmPanel(
     "Mark spot "+spotId+" as inactive? It will be excluded from auto-assignment until reactivated.",
     true,
     function(){
+      console.log("askMarkInactive callback fired. rec.ID="+rec.ID+" spotId="+spotId);
       setSheetLoading();
       var capturedId=spotId;
+      console.log("askMarkInactive: calling updateRecordById, id="+rec.ID.toString());
       ZOHO.CREATOR.DATA.updateRecordById({
         app_name:CONFIG.APP_NAME,
         report_name:CONFIG.PARKING_SPOTS_REPORT,
