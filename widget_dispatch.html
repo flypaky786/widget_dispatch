@@ -659,6 +659,16 @@ function showStallStep(){
   document.getElementById("vcfGroup").classList.add("active");
   document.getElementById("stallGroup").style.display="block";
   revealAssignButton();
+  // Show parking badge now that dispatcher has pressed Next
+  var badge=document.getElementById("parkingBadge");
+  if(pendingParkingRecordId){
+    setParkingBadgeSuccess(pendingParkingSpotId);
+    document.getElementById("inputStall").value=pendingParkingSpotId;
+  }else{
+    badge.className="parking-badge loading active";
+    document.getElementById("parkingSpinner").style.display="block";
+    document.getElementById("parkingSpotLabel").textContent="Finding spot...";
+  }
   setTimeout(function(){document.getElementById("inputStall").focus();},100);
 }
 function revealAssignButton(){var btn=document.getElementById("btnSubmitAssign");btn.style.display="inline-flex";btn.disabled=false;btn.textContent=isReassign?"Re-assign":"Assign";}
@@ -694,13 +704,46 @@ document.getElementById("inputMva").addEventListener("input",function(){
 function saveAvisLookup(mva,data,vehicleRequestId){
   return new Promise(function(resolve,reject){
     if(!data){resolve(null);return;}
-    var payload={MVA:mva,Vehicle_Request_Form_ID:vehicleRequestId||"",Rover_Model:data.model||"",Rover_Make:data.make||"",Rover_Color:data.color||"",Rover_Class:data.class||"",Rover_VIN:data.vin||"",Rover_Plate:data.plate||"",RA:data.raNumber||"",Status:data.status||"",Status_Full:data.statusFull||""};
-    var criteria='MVA == "'+mva+'" && Vehicle_Request_Form_ID == "'+vehicleRequestId+'"';
-    ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,criteria:criteria,page:1,max_records:200}).then(function(resp){
-      if(resp.code===3000&&resp.data&&resp.data.length>0){var existingId=resp.data[0].ID.toString();
-        ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,id:existingId,payload:{data:payload}}).then(function(ur){resolve(existingId);}).catch(function(){resolve(existingId);});
-      }else{doAddAvisRecord(payload,resolve);}
-    }).catch(function(e){try{var p=JSON.parse(e.responseText||'{}');if(p.code===9280){doAddAvisRecord(payload,resolve);return;}}catch(pe){}doAddAvisRecord(payload,resolve);});
+    var payload={
+      MVA:mva,
+      Vehicle_Request_Form_ID:vehicleRequestId||"",
+      Rover_Model:data.model||"",
+      Rover_Make:data.make||"",
+      Rover_Color:data.color||"",
+      Rover_Class:data.class||"",
+      Rover_VIN:data.vin||"",
+      Rover_Plate:data.plate||"",
+      RA:data.raNumber||"",
+      Status:data.status||"",
+      Status_Full:data.statusFull||"",
+      Latest:true
+    };
+    // Query by MVA only first (Vehicle_Request_Form_ID lookup field is unreliable in criteria)
+    ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,criteria:'MVA == "'+mva+'"',page:1,max_records:200}).then(function(resp){
+      var existingId=null;
+      if(resp.code===3000&&resp.data&&resp.data.length>0){
+        // Filter in JS for matching Vehicle_Request_Form_ID
+        for(var i=0;i<resp.data.length;i++){
+          var rec=resp.data[i];
+          var recReqId=(rec.Vehicle_Request_Form_ID&&rec.Vehicle_Request_Form_ID.ID)?rec.Vehicle_Request_Form_ID.ID.toString():rec.Vehicle_Request_Form_ID?rec.Vehicle_Request_Form_ID.toString():"";
+          if(recReqId===vehicleRequestId.toString()){existingId=rec.ID.toString();break;}
+        }
+      }
+      // Flip all previous records for this request to Latest=false
+      if(resp.code===3000&&resp.data&&resp.data.length>0){
+        for(var j=0;j<resp.data.length;j++){
+          var pr=resp.data[j];
+          var prId=pr.ID.toString();
+          if(prId===existingId)continue; // skip the one we're about to update
+          ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,id:prId,payload:{data:{Latest:false}}}).catch(function(){});
+        }
+      }
+      if(existingId){
+        ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.AVIS_LOOKUP_REPORT,id:existingId,payload:{data:payload}}).then(function(){resolve(existingId);}).catch(function(){resolve(existingId);});
+      }else{
+        doAddAvisRecord(payload,resolve);
+      }
+    }).catch(function(){doAddAvisRecord(payload,resolve);});
   });
 }
 function doAddAvisRecord(payload,resolve){
@@ -788,9 +831,9 @@ function resetParkingState(){
   pendingParkingSpotId=null;
   parkingLookupInFlight=false;
   var badge=document.getElementById("parkingBadge");
-  badge.className="parking-badge loading active";
-  document.getElementById("parkingSpinner").style.display="block";
-  document.getElementById("parkingSpotLabel").textContent="Finding spot...";
+  badge.className="parking-badge";  // hidden until Next →
+  document.getElementById("parkingSpinner").style.display="none";
+  document.getElementById("parkingSpotLabel").textContent="";
 }
 
 function openAssignPopup(id,v,vc){
@@ -902,7 +945,7 @@ function submitAssign(){
         closeAssignPopup();
         // Confirm the parking spot reservation
         if(parkingRecordToConfirm){
-          ZOHO.CREATOR.DATA.invokeCustomApi({
+          var confirmConfig = {
             api_name: "confirmParkingSpot",
             http_method: "POST",
             public_key: CONFIG.PARKING_CONFIRM_KEY,
@@ -911,10 +954,12 @@ function submitAssign(){
               request_id: capturedAssignRecordId.toString(),
               reserved_by_user: capturedLoggedInUser
             }
-          }).then(function(resp){
-            console.log("PARKING confirmed:",parkingRecordToConfirm);
+          };
+          console.log("PARKING confirm config:", JSON.stringify(confirmConfig));
+          ZOHO.CREATOR.DATA.invokeCustomApi(confirmConfig).then(function(resp){
+            console.log("PARKING confirmed resp:", JSON.stringify(resp));
           }).catch(function(e){
-            console.log("PARKING confirm error:",e);
+            console.log("PARKING confirm error:", JSON.stringify(e));
           });
         }
         fetchDispatches();
