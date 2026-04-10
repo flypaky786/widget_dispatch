@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<!--
+  PARKING GRID WIDGET — v1.2
+  ===========================
+  App: lax-abg | Report: All_Parking_Spots | Poll: 4s
+  Rows: C(46-60), D(46-60), E(46-64), F(46-64), G(46-64) = 87 spots
+
+  PRE-REQ: Enable Edit permission on All_Parking_Spots report for widget user role.
+  Settings → Reports → All_Parking_Spots → Permissions → Edit → enable.
+
+  No Custom API functions required. All writes use updateRecordById directly.
+  Manual reserves have no Reserved_Until (stay amber until manually released — by design).
+-->
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+  <style>
+    :root{--bg:#0f1117;--surface:#1a1d27;--border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);--text:#f0f2f8;--text-muted:#7b82a0;--text-faint:#454963;--green:#22c55e;--green-bg:rgba(34,197,94,.12);--green-border:rgba(34,197,94,.35);--amber:#f59e0b;--amber-bg:rgba(245,158,11,.12);--amber-border:rgba(245,158,11,.35);--red:#ef4444;--red-bg:rgba(239,68,68,.1);--red-border:rgba(239,68,68,.3);--gray-bg:rgba(255,255,255,.04);--gray-border:rgba(255,255,255,.08);--accent:#6366f1;--accent-hover:#818cf8;--radius:10px;--radius-sm:7px;--tile:58px;--tr:.15s ease}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;padding:0 0 40px}
+    .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+    .header-left{display:flex;align-items:center;gap:10px}
+    .header h1{font-size:17px;font-weight:700;letter-spacing:-.2px}
+    .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;flex-shrink:0}
+    .live-dot.error{background:var(--red);box-shadow:0 0 8px var(--red);animation:none}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+    .last-update{font-size:12px;color:var(--text-faint)}
+    .legend{display:flex;gap:16px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+    .legend-item{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted)}
+    .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+    .legend-dot.green{background:var(--green)}.legend-dot.amber{background:var(--amber)}.legend-dot.red{background:var(--red)}.legend-dot.gray{background:var(--text-faint)}
+    .stats-bar{display:flex;padding:16px 20px;gap:10px}
+    .stat{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 8px;text-align:center}
+    .stat-num{font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}
+    .stat-label{font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+    .stat-num.green{color:var(--green)}.stat-num.amber{color:var(--amber)}.stat-num.red{color:var(--red)}.stat-num.gray{color:var(--text-faint)}
+    .grid-wrap{padding:0 20px 20px}
+    .row-group{margin-bottom:24px}
+    .row-group:last-child{margin-bottom:0}
+    .row-group-label{font-size:11px;font-weight:700;color:var(--text-faint);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-left:2px}
+    .row-line{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .row-line:last-child{margin-bottom:0}
+    .row-label{width:20px;font-size:13px;font-weight:700;color:var(--text-muted);text-align:center;flex-shrink:0}
+    .tiles{display:flex;gap:6px;flex-wrap:wrap}
+    .tile{width:var(--tile);height:var(--tile);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid;transition:transform var(--tr);user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    .tile:active{transform:scale(.9)}
+    .tile-id{font-size:12px;font-weight:700;line-height:1;margin-bottom:2px}
+    .tile-sub{font-size:10px;font-weight:500;line-height:1;opacity:.8}
+    .tile.available{background:var(--green-bg);border-color:var(--green-border);color:var(--green)}
+    .tile.reserved{background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber)}
+    .tile.pending{background:var(--red-bg);border-color:var(--red-border);color:var(--red);animation:pendingPulse 2s ease-in-out infinite}
+    @keyframes pendingPulse{0%,100%{border-color:rgba(239,68,68,.3)}50%{border-color:rgba(239,68,68,.75)}}
+    .tile.inactive{background:var(--gray-bg);border-color:var(--gray-border);color:var(--text-faint)}
+    .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:100;justify-content:center;align-items:flex-end}
+    .overlay.active{display:flex}
+    .sheet{background:var(--surface);border-radius:20px 20px 0 0;border:1px solid var(--border2);border-bottom:none;width:100%;max-width:560px;padding:20px 24px 48px;animation:slideUp .22s ease-out}
+    @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+    .sheet-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
+    .sheet-spot-id{font-size:28px;font-weight:700;margin-bottom:6px}
+    .sheet-spot-id.green{color:var(--green)}.sheet-spot-id.amber{color:var(--amber)}.sheet-spot-id.red{color:var(--red)}.sheet-spot-id.gray{color:var(--text-faint)}
+    .sheet-status{font-size:14px;color:var(--text-muted);margin-bottom:22px;line-height:1.6;white-space:pre-line}
+    .duration-group{margin-bottom:22px;display:none}
+    .duration-group.active{display:block}
+    .duration-label{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+    .duration-pills{display:flex;gap:8px;flex-wrap:wrap}
+    .duration-pill{padding:9px 18px;border-radius:20px;border:1.5px solid var(--border2);font-size:14px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:all var(--tr);background:transparent;font-family:inherit}
+    .duration-pill.selected{border-color:var(--accent);background:rgba(99,102,241,.15);color:var(--accent-hover)}
+    .confirm-panel{display:none;background:rgba(245,158,11,.08);border:1px solid var(--amber-border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px}
+    .confirm-panel.active{display:block}
+    .confirm-panel.danger{background:rgba(239,68,68,.08);border-color:var(--red-border)}
+    .confirm-panel p{font-size:14px;color:var(--text-muted);line-height:1.5;margin-bottom:12px}
+    .confirm-panel-btns{display:flex;gap:8px}
+    .btn-confirm-yes{flex:1;padding:10px;border-radius:var(--radius-sm);border:none;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;background:var(--amber);color:#1a1400}
+    .btn-confirm-yes.danger-btn{background:var(--red);color:#fff}
+    .btn-confirm-no{flex:1;padding:10px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:transparent;color:var(--text-muted)}
+    .sheet-actions{display:flex;flex-direction:column;gap:10px}
+    .btn-action{width:100%;padding:16px;border-radius:var(--radius);border:none;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:opacity var(--tr),transform var(--tr);display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px}
+    .btn-action:active{transform:scale(.98)}
+    .btn-action:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-warn{background:rgba(245,158,11,.15);color:var(--amber);border:1.5px solid var(--amber-border) !important}
+    .btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1.5px solid var(--red-border) !important}
+    .btn-success{background:rgba(34,197,94,.12);color:var(--green);border:1.5px solid var(--green-border) !important}
+    .btn-ghost{background:transparent;color:var(--text-muted);border:1.5px solid var(--border2) !important}
+    .divider{height:1px;background:var(--border)}
+    .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--text-faint);font-size:15px}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left"><span class="live-dot" id="liveDot"></span><h1>Parking Grid</h1></div>
+  <span class="last-update" id="lastUpdate">Connecting...</span>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot green"></div>Available</div>
+  <div class="legend-item"><div class="legend-dot amber"></div>Reserved</div>
+  <div class="legend-item"><div class="legend-dot red"></div>Pending</div>
+  <div class="legend-item"><div class="legend-dot gray"></div>Inactive</div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num green" id="statAvailable">—</div><div class="stat-label">Available</div></div>
+  <div class="stat"><div class="stat-num amber" id="statReserved">—</div><div class="stat-label">Reserved</div></div>
+  <div class="stat"><div class="stat-num red" id="statPending">—</div><div class="stat-label">Pending</div></div>
+  <div class="stat"><div class="stat-num gray" id="statInactive">—</div><div class="stat-label">Inactive</div></div>
+</div>
+
+<div class="grid-wrap" id="gridWrap"><div class="empty-state">Loading parking spots...</div></div>
+
+<!-- ═══ BOTTOM SHEET ═══ -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-spot-id" id="sheetSpotId"></div>
+    <div class="sheet-status" id="sheetStatus"></div>
+    <div class="duration-group" id="durationGroup">
+      <div class="duration-label">Hold duration</div>
+      <div class="duration-pills">
+        <button class="duration-pill" onclick="selectDuration(10)">10 min</button>
+        <button class="duration-pill selected" onclick="selectDuration(20)">20 min</button>
+        <button class="duration-pill" onclick="selectDuration(30)">30 min</button>
+        <button class="duration-pill" onclick="selectDuration(60)">1 hr</button>
+      </div>
+    </div>
+    <div class="confirm-panel" id="confirmPanel">
+      <p id="confirmPanelMsg"></p>
+      <div class="confirm-panel-btns">
+        <button class="btn-confirm-no" onclick="hideConfirmPanel()">Go back</button>
+        <button class="btn-confirm-yes" id="confirmPanelYes" onclick="executeConfirmedAction()">Confirm</button>
+      </div>
+    </div>
+    <div class="sheet-actions" id="sheetActions"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIG
+   ============================================================ */
+var CONFIG = {
+  APP_NAME: "lax-abg",
+  PARKING_SPOTS_REPORT: "All_Parking_Spots",
+  PARKING_RELEASE_KEY: "zOw7X9CqAJnPeOqxWCAeQUt1b",
+  POLL_INTERVAL: 4000,
+  DEFAULT_HOLD_MINUTES: 20,
+  ROWS: {C:{start:46,end:60},D:{start:46,end:60},E:{start:46,end:64},F:{start:46,end:64},G:{start:46,end:64}}
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+var spots={},loggedInUser="",sdkReady=false;
+var selectedDuration=CONFIG.DEFAULT_HOLD_MINUTES;
+var activeSpotId=null,activeSpotRec=null,pendingAction=null;
+
+/* ============================================================
+   INIT — matches working widget pattern
+   ============================================================ */
+window.onload=function(){
+  ZOHO.CREATOR.UTIL.getInitParams().then(function(params){
+    loggedInUser=params.loginUser||"";
+    sdkReady=true;
+    fetchSpots();
+    setInterval(fetchSpots,CONFIG.POLL_INTERVAL);
+  }).catch(function(){
+    sdkReady=true;
+    fetchSpots();
+    setInterval(fetchSpots,CONFIG.POLL_INTERVAL);
+  });
+};
+
+/* ============================================================
+   DATE HELPER — same as dispatcher widget
+   ============================================================ */
+function parseZohoDate(d){
+  if(!d)return null;
+  try{
+    var p=d.toString().split(" ");
+    if(p.length<2)return null;
+    var dp=p[0].split("-");
+    if(dp.length<3)return null;
+    var r=dp[1]+" "+dp[0]+", "+dp[2]+" "+p.slice(1).join(" ");
+    var dt=new Date(r);
+    return isNaN(dt.getTime())?null:dt;
+  }catch(e){return null;}
+}
+
+function getCountdown(rec){
+  if(!rec)return null;
+  // Optimistic update path: use _reservedUntilMs if set
+  if(rec._reservedUntilMs){
+    var ms=rec._reservedUntilMs-Date.now();
+    if(ms<=0)return"exp";
+    return Math.ceil(ms/60000)+"m";
+  }
+  var ru=rec.Reserved_Until;
+  if(!ru||ru==="")return null;
+  var dt=parseZohoDate(ru);
+  if(!dt)return null;
+  var ms2=dt.getTime()-Date.now();
+  if(ms2<=0)return"exp";
+  return Math.ceil(ms2/60000)+"m";
+}
+
+/* ============================================================
+   FETCH
+   ============================================================ */
+function fetchSpots(){
+  if(!sdkReady)return;
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name:CONFIG.APP_NAME,
+    report_name:CONFIG.PARKING_SPOTS_REPORT,
+    page:1,
+    max_records:200
+  }).then(function(resp){
+    if(resp.code===3000&&resp.data){
+      // Merge — preserve _reservedUntilMs from optimistic updates
+      var newSpots={};
+      for(var i=0;i<resp.data.length;i++){
+        var r=resp.data[i];
+        newSpots[r.Spot_ID]=r;
+        if(spots[r.Spot_ID]&&spots[r.Spot_ID]._reservedUntilMs){
+          newSpots[r.Spot_ID]._reservedUntilMs=spots[r.Spot_ID]._reservedUntilMs;
+        }
+      }
+      spots=newSpots;
+      renderGrid();
+      updateStats();
+      document.getElementById("liveDot").className="live-dot";
+      document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();
+      if(activeSpotId&&spots[activeSpotId]){
+        activeSpotRec=spots[activeSpotId];
+        updateSheetStatus();
+      }
+    }
+  }).catch(function(){
+    document.getElementById("liveDot").className="live-dot error";
+    document.getElementById("lastUpdate").textContent="Connection error";
+  });
+}
+
+/* ============================================================
+   STATUS HELPERS
+   ============================================================ */
+function getStatus(rec){
+  if(!rec)return"inactive";
+  var active=rec.Is_Active;
+  if(active===false||active==="false")return"inactive";
+  var s=(rec.Status||"").toLowerCase();
+  if(s==="reserved")return"reserved";
+  if(s==="pending")return"pending";
+  return"available";
+}
+
+function statusColor(status){
+  return{available:"green",reserved:"amber",pending:"red",inactive:"gray"}[status]||"gray";
+}
+
+/* ============================================================
+   RENDER GRID
+   ============================================================ */
+function renderGrid(){
+  var groups=[
+    {label:"Rows C & D",rows:["C","D"]},
+    {label:"Rows E & F",rows:["E","F"]},
+    {label:"Row G",rows:["G"]}
+  ];
+  var html="";
+  for(var gi=0;gi<groups.length;gi++){
+    var g=groups[gi];
+    html+='<div class="row-group"><div class="row-group-label">'+g.label+'</div>';
+    for(var ri=0;ri<g.rows.length;ri++){
+      var row=g.rows[ri];
+      var range=CONFIG.ROWS[row];
+      html+='<div class="row-line"><div class="row-label">'+row+'</div><div class="tiles">';
+      for(var stall=range.start;stall<=range.end;stall++){
+        var spotId=row+stall;
+        var rec=spots[spotId];
+        var status=rec?getStatus(rec):"inactive";
+        var countdown=(status==="reserved")?getCountdown(rec):null;
+        html+='<div class="tile '+status+'" data-spot="'+spotId+'">';
+        html+='<span class="tile-id">'+stall+'</span>';
+        if(countdown)html+='<span class="tile-sub">'+countdown+'</span>';
+        html+='</div>';
+      }
+      html+='</div></div>';
+    }
+    html+='</div>';
+  }
+  document.getElementById("gridWrap").innerHTML=html;
+
+  // Attach tap events — pointerdown/pointerup with travel check for iPad Safari
+  var tiles=document.querySelectorAll(".tile");
+  for(var ti=0;ti<tiles.length;ti++){
+    (function(tile){
+      var ptStart={x:0,y:0};
+      tile.addEventListener("pointerdown",function(e){ptStart={x:e.clientX,y:e.clientY};});
+      tile.addEventListener("pointerup",function(e){
+        var dx=e.clientX-ptStart.x,dy=e.clientY-ptStart.y;
+        if(Math.sqrt(dx*dx+dy*dy)<8)openSheet(tile.getAttribute("data-spot"));
+      });
+    })(tiles[ti]);
+  }
+}
+
+function updateStats(){
+  var av=0,res=0,pen=0,inac=0;
+  for(var id in spots){
+    var s=getStatus(spots[id]);
+    if(s==="available")av++;
+    else if(s==="reserved")res++;
+    else if(s==="pending")pen++;
+    else inac++;
+  }
+  document.getElementById("statAvailable").textContent=av;
+  document.getElementById("statReserved").textContent=res;
+  document.getElementById("statPending").textContent=pen;
+  document.getElementById("statInactive").textContent=inac;
+}
+
+/* ============================================================
+   BOTTOM SHEET
+   ============================================================ */
+function openSheet(spotId){
+  activeSpotId=spotId;
+  activeSpotRec=spots[spotId]||null;
+  selectedDuration=CONFIG.DEFAULT_HOLD_MINUTES;
+  resetDurationPills();
+  hideConfirmPanel();
+  buildSheet();
+  document.getElementById("overlay").classList.add("active");
+}
+
+function closeSheet(){
+  document.getElementById("overlay").classList.remove("active");
+  activeSpotId=null;activeSpotRec=null;pendingAction=null;
+  hideConfirmPanel();
+}
+
+document.getElementById("overlay").addEventListener("pointerup",function(e){
+  if(e.target===this)closeSheet();
+});
+
+function buildSheet(){
+  var spotId=activeSpotId;
+  var rec=activeSpotRec;
+  var status=rec?getStatus(rec):"inactive";
+  var color=statusColor(status);
+
+  document.getElementById("sheetSpotId").textContent="Spot "+spotId;
+  document.getElementById("sheetSpotId").className="sheet-spot-id "+color;
+  updateSheetStatus();
+  document.getElementById("durationGroup").classList.toggle("active",status==="available");
+
+  var btns="";
+  if(status==="available"){
+    btns+='<button class="btn-action btn-primary" onclick="doReserve()">Reserve this spot</button>';
+    btns+='<div class="divider"></div>';
+    btns+='<button class="btn-action btn-danger" onclick="askMarkInactive()">Mark inactive</button>';
+  }else if(status==="reserved"){
+    btns+='<button class="btn-action btn-warn" onclick="askRelease()">Release spot</button>';
+    btns+='<div class="divider"></div>';
+    btns+='<button class="btn-action btn-danger" onclick="askMarkInactive()">Mark inactive</button>';
+  }else if(status==="pending"){
+    var cd=rec?getCountdown(rec):null;
+    btns+='<button class="btn-action btn-ghost" style="cursor:default;pointer-events:none;opacity:.5">Held by dispatcher'+(cd&&cd!=="exp"?" — "+cd+" left":"")+'</button>';
+  }else{
+    btns+='<button class="btn-action btn-success" onclick="doMarkActive()">Mark active</button>';
+  }
+  btns+='<button class="btn-action btn-ghost" onclick="closeSheet()">Cancel</button>';
+  document.getElementById("sheetActions").innerHTML=btns;
+}
+
+function updateSheetStatus(){
+  if(!activeSpotId)return;
+  var rec=activeSpotRec;
+  var status=rec?getStatus(rec):"inactive";
+  var cd=rec?getCountdown(rec):null;
+  var txt="";
+  if(status==="available")txt="This spot is available for assignment.";
+  else if(status==="reserved"){
+    txt="Reserved"+(cd&&cd!=="exp"?" — "+cd+" remaining":"")+ ".";
+    if(rec&&rec.Reserved_By_User)txt+="\nHeld by: "+rec.Reserved_By_User;
+  }else if(status==="pending")txt="A dispatcher has this spot held open.\nIt will auto-release shortly.";
+  else txt="Inactive — excluded from auto-assignment.";
+  document.getElementById("sheetStatus").textContent=txt;
+}
+
+function resetDurationPills(){
+  selectedDuration=CONFIG.DEFAULT_HOLD_MINUTES;
+  var pills=document.querySelectorAll(".duration-pill");
+  for(var i=0;i<pills.length;i++){
+    var txt=pills[i].textContent.trim();
+    pills[i].classList.toggle("selected",txt==="20 min");
+  }
+}
+
+function selectDuration(mins){
+  selectedDuration=mins;
+  var pills=document.querySelectorAll(".duration-pill");
+  for(var i=0;i<pills.length;i++){
+    pills[i].classList.toggle("selected",parseInt(pills[i].textContent)===mins);
+  }
+}
+
+/* ============================================================
+   INLINE CONFIRM PANEL
+   ============================================================ */
+function showConfirmPanel(msg,isDanger,onYes){
+  pendingAction=onYes;
+  document.getElementById("confirmPanelMsg").textContent=msg;
+  var panel=document.getElementById("confirmPanel");
+  var yesBtn=document.getElementById("confirmPanelYes");
+  panel.classList.toggle("danger",isDanger);
+  yesBtn.classList.toggle("danger-btn",isDanger);
+  yesBtn.textContent=isDanger?"Yes, proceed":"Confirm";
+  panel.classList.add("active");
+  document.getElementById("sheetActions").style.display="none";
+  document.getElementById("durationGroup").classList.remove("active");
+}
+
+function hideConfirmPanel(){
+  document.getElementById("confirmPanel").classList.remove("active");
+  document.getElementById("sheetActions").style.display="";
+  pendingAction=null;
+}
+
+function executeConfirmedAction(){
+  hideConfirmPanel();
+  if(pendingAction){var fn=pendingAction;pendingAction=null;fn();}
+}
+
+/* ============================================================
+   ACTIONS
+   ============================================================ */
+function setSheetLoading(){
+  var btns=document.querySelectorAll("#sheetActions .btn-action:not(.btn-ghost)");
+  for(var i=0;i<btns.length;i++){btns[i].disabled=true;btns[i].innerHTML='<div class="spinner"></div>';}
+}
+
+function doReserve(){
+  if(!activeSpotRec)return;
+  var rec=activeSpotRec;
+  var capturedSpotId=activeSpotId;
+  setSheetLoading();
+  ZOHO.CREATOR.DATA.updateRecordById({
+    app_name:CONFIG.APP_NAME,
+    report_name:CONFIG.PARKING_SPOTS_REPORT,
+    id:rec.ID.toString(),
+    payload:{data:{
+      Status:"Reserved",
+      Reserved_By_User:loggedInUser,
+      Hold_Type:"Assigned"
+    }}
+  }).then(function(resp){
+    if(resp.code===3000){
+      if(spots[capturedSpotId]){
+        spots[capturedSpotId].Status="Reserved";
+        spots[capturedSpotId].Reserved_By_User=loggedInUser;
+        spots[capturedSpotId]._reservedUntilMs=Date.now()+(selectedDuration*60000);
+      }
+      renderGrid();updateStats();closeSheet();
+    }else{
+      console.log("Reserve failed:",JSON.stringify(resp));
+      closeSheet();
+    }
+  }).catch(function(e){console.log("Reserve error:",JSON.stringify(e));closeSheet();});
+}
+
+function askRelease(){
+  var rec=activeSpotRec;
+  var cd=rec?getCountdown(rec):null;
+  var msg="Spot "+activeSpotId+" is reserved";
+  if(cd&&cd!=="exp")msg+=" with "+cd+" remaining";
+  msg+=". A vehicle may be on its way. Release anyway?";
+  showConfirmPanel(msg,true,doRelease);
+}
+
+function doRelease(){
+  if(!activeSpotRec)return;
+  var capturedSpotId=activeSpotId;
+  setSheetLoading();
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    api_name:"releaseParkingSpot",
+    http_method:"POST",
+    public_key:CONFIG.PARKING_RELEASE_KEY,
+    payload:{record_id:activeSpotRec.ID.toString()}
+  }).then(function(){
+    if(spots[capturedSpotId]){
+      spots[capturedSpotId].Status="Available";
+      spots[capturedSpotId].Reserved_Until="";
+      spots[capturedSpotId].Reserved_By_User="";
+      delete spots[capturedSpotId]._reservedUntilMs;
+    }
+    renderGrid();updateStats();closeSheet();
+  }).catch(function(e){console.log("Release error:",JSON.stringify(e));closeSheet();});
+}
+
+function askMarkInactive(){
+  showConfirmPanel(
+    "Mark spot "+activeSpotId+" as inactive? It will be excluded from auto-assignment until reactivated.",
+    true,doMarkInactive
+  );
+}
+
+function doMarkInactive(){
+  if(!activeSpotRec)return;
+  var capturedSpotId=activeSpotId;
+  setSheetLoading();
+  ZOHO.CREATOR.DATA.updateRecordById({
+    app_name:CONFIG.APP_NAME,
+    report_name:CONFIG.PARKING_SPOTS_REPORT,
+    id:activeSpotRec.ID.toString(),
+    payload:{data:{
+      Is_Active:false,
+      Status:"Available",
+      Reserved_By_User:"",
+      Hold_Type:""
+    }}
+  }).then(function(resp){
+    if(resp.code===3000){
+      if(spots[capturedSpotId]){
+        spots[capturedSpotId].Is_Active=false;
+        spots[capturedSpotId].Status="Available";
+        delete spots[capturedSpotId]._reservedUntilMs;
+      }
+      renderGrid();updateStats();closeSheet();
+    }else{console.log("Inactive failed:",JSON.stringify(resp));closeSheet();}
+  }).catch(function(e){console.log("Inactive error:",JSON.stringify(e));closeSheet();});
+}
+
+function doMarkActive(){
+  if(!activeSpotRec)return;
+  var capturedSpotId=activeSpotId;
+  setSheetLoading();
+  ZOHO.CREATOR.DATA.updateRecordById({
+    app_name:CONFIG.APP_NAME,
+    report_name:CONFIG.PARKING_SPOTS_REPORT,
+    id:activeSpotRec.ID.toString(),
+    payload:{data:{Is_Active:true}}
+  }).then(function(resp){
+    if(resp.code===3000){
+      if(spots[capturedSpotId]){spots[capturedSpotId].Is_Active=true;}
+      renderGrid();updateStats();closeSheet();
+    }else{console.log("Active failed:",JSON.stringify(resp));closeSheet();}
+  }).catch(function(e){console.log("Active error:",JSON.stringify(e));closeSheet();});
+}
+</script>
+</body>
+</html>
