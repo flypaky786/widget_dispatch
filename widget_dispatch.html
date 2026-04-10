@@ -554,13 +554,20 @@ document.getElementById("inputMva").addEventListener("input",function(){
 /* ============================================================
    AVIS LOOKUP RECORD  ← v3.4 FIX
    ============================================================ */
+/* ============================================================
+   AVIS LOOKUP RECORD  ← v3.4 — REPLACE THIS ENTIRE FUNCTION IN v3.3
+   Three changes only:
+   1. Guard: bail immediately if no vehicleRequestId
+   2. Latest flip scoped to sameRequestRecords only (not all MVA matches)
+   3. Records for OTHER vehicle requests are never touched
+   page:1 preserved (same as working v3.3)
+   ============================================================ */
 function saveAvisLookup(mva, data, vehicleRequestId) {
-  return new Promise(function(resolve) {
+  return new Promise(function(resolve, reject) {
     if (!data) { resolve(null); return; }
 
-    // GUARD: never save without a vehicle request ID.
-    // Orphaned records (empty Vehicle_Request_Form_ID) break the Latest
-    // flag logic because they all compete as "latest" in a blank-ID group.
+    // GUARD: skip entirely if no vehicle request ID — orphaned records
+    // break Latest logic and cannot be linked back to a request
     if (!vehicleRequestId) {
       console.warn("[saveAvisLookup] called without vehicleRequestId — skipping");
       resolve(null);
@@ -584,41 +591,41 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       Latest:                  true
     };
 
-    // Query by MVA only — criteria on lookup fields is unreliable in widget SDK
+    // Query by MVA only — criteria on lookup fields unreliable in widget SDK
+    // page:1 preserved (same as v3.3 which was confirmed working)
     ZOHO.CREATOR.DATA.getRecords({
       app_name:    CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
       criteria:    'MVA == "' + mva + '"',
-      from:        1,
+      page:        1,
       max_records: 200
     }).then(function(resp) {
       var existingId = null;
-      var sameRequestRecords = [];  // prior lookups for THIS vehicle request
+      var sameRequestRecords = [];
 
       if (resp.code === 3000 && resp.data && resp.data.length > 0) {
         for (var i = 0; i < resp.data.length; i++) {
           var rec = resp.data[i];
-          // Resolve the lookup field — Zoho returns object or plain string
+          // Resolve lookup field — Zoho returns object or plain string
           var recReqId = "";
           if (rec.Vehicle_Request_Form_ID) {
             recReqId = rec.Vehicle_Request_Form_ID.ID
               ? rec.Vehicle_Request_Form_ID.ID.toString()
               : rec.Vehicle_Request_Form_ID.toString();
           }
-
           if (recReqId === reqIdStr) {
             sameRequestRecords.push(rec);
             if (!existingId) existingId = rec.ID.toString();
           }
-          // Records belonging to OTHER vehicle requests: leave them alone.
-          // Their Latest flag is their own business.
+          // Records for OTHER vehicle requests: leave completely alone.
+          // Their Latest flag is scoped to their own request.
         }
       }
 
-      // Flip all older same-request records to Latest=false
+      // Flip older same-request records to Latest=false
       for (var j = 0; j < sameRequestRecords.length; j++) {
         var prId = sameRequestRecords[j].ID.toString();
-        if (prId === existingId) continue; // this one becomes the new Latest=true
+        if (prId === existingId) continue;
         ZOHO.CREATOR.DATA.updateRecordById({
           app_name:    CONFIG.APP_NAME,
           report_name: CONFIG.AVIS_LOOKUP_REPORT,
