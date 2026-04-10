@@ -191,11 +191,11 @@
   <p class="subtitle">Assigning request for: <strong id="assignVehicle"></strong></p>
 
   <!-- Parking Spot Badge -->
-  <div class="parking-badge loading active" id="parkingBadge">
-    <div class="parking-spinner" id="parkingSpinner"></div>
+  <div class="parking-badge" id="parkingBadge">
+    <div class="parking-spinner" id="parkingSpinner" style="display:none"></div>
     <div>
       <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Suggested Parking Spot</div>
-      <div class="parking-spot-label" id="parkingSpotLabel">Finding spot...</div>
+      <div class="parking-spot-label" id="parkingSpotLabel"></div>
     </div>
   </div>
 
@@ -304,7 +304,8 @@ var CONFIG = {
   PARKING_GET_NEXT_KEY: "nRCdQ27FN4vddVnHNKVCkYypa",
   PARKING_CONFIRM_KEY: "TbTb2Y0BAbJyb5O51zTQ8Z5ta",
   PARKING_RELEASE_KEY: "zOw7X9CqAJnPeOqxWCAeQUt1b",
-  PARKING_API_BASE: "https://www.zohoapis.com/creator/custom/autoflowx"
+  PARKING_API_BASE: "https://www.zohoapis.com/creator/custom/autoflowx",
+  PARKING_PENDING_HOLD_MINUTES: 1
 };
 
 /* ============================================================
@@ -474,7 +475,7 @@ function claimParkingSpot(requestId, reservedByUser){
   parkingLookupInFlight=true;
   pendingParkingRecordId=null;
   pendingParkingSpotId=null;
-  setParkingBadgeLoading();
+  // Claim silently — badge stays hidden until Next → is pressed
 
   var parkingConfig = {
     api_name: "getNextParkingSpot",
@@ -482,39 +483,29 @@ function claimParkingSpot(requestId, reservedByUser){
     public_key: CONFIG.PARKING_GET_NEXT_KEY,
     payload: {
       request_id: requestId.toString(),
-      reserved_by_user: reservedByUser
+      reserved_by_user: reservedByUser,
+      hold_minutes: CONFIG.PARKING_PENDING_HOLD_MINUTES.toString()
     }
   };
-  console.log("PARKING invokeCustomApi config:", JSON.stringify(parkingConfig));
-  console.log("PARKING SDK available:", typeof ZOHO, typeof ZOHO.CREATOR, typeof ZOHO.CREATOR.DATA, typeof ZOHO.CREATOR.DATA.invokeCustomApi);
   ZOHO.CREATOR.DATA.invokeCustomApi(parkingConfig).then(function(resp){
     parkingLookupInFlight=false;
-    console.log("PARKING raw resp:", JSON.stringify(resp));
     var result=null;
     try{
       if(resp&&resp.result){result=typeof resp.result==="string"?JSON.parse(resp.result):resp.result;}
       else if(resp&&resp.data){result=typeof resp.data==="string"?JSON.parse(resp.data):resp.data;}
       else{result=resp;}
     }catch(e){console.log("PARKING parse error:",e);}
-    console.log("PARKING parsed result:", JSON.stringify(result));
     if(result&&result.success){
       pendingParkingRecordId=result.record_id.toString();
       pendingParkingSpotId=result.spot_id;
-      setParkingBadgeSuccess(result.spot_id);
-      // Pre-fill stall only if dispatcher hasn't already typed something
-      var stallInput=document.getElementById("inputStall");
-      if(!stallInput.value||stallInput.value===CONFIG.PUMP_STALL_DEFAULT){
-        stallInput.value=result.spot_id;
-      }
+      // Don't show badge yet — wait for Next →
     }else{
-      setParkingBadgeError((result&&result.message)||"No spots available");
+      pendingParkingSpotId=null;
+      console.log("PARKING no spot available:",(result&&result.message)||"unknown");
     }
   }).catch(function(e){
     parkingLookupInFlight=false;
-    setParkingBadgeError("Spot lookup failed");
-    console.log("PARKING catch error full object:", JSON.stringify(e));
-    console.log("PARKING catch error message:", e && e.message);
-    console.log("PARKING catch error code:", e && e.code);
+    console.log("PARKING claim error:", JSON.stringify(e));
   });
 }
 
@@ -659,15 +650,29 @@ function showStallStep(){
   document.getElementById("vcfGroup").classList.add("active");
   document.getElementById("stallGroup").style.display="block";
   revealAssignButton();
-  // Show parking badge now that dispatcher has pressed Next
-  var badge=document.getElementById("parkingBadge");
+  // Now reveal the parking badge
   if(pendingParkingRecordId){
+    // Already resolved
     setParkingBadgeSuccess(pendingParkingSpotId);
     document.getElementById("inputStall").value=pendingParkingSpotId;
+  }else if(parkingLookupInFlight){
+    // Still in flight — show loading, fill stall when it resolves
+    setParkingBadgeLoading();
+    var stallFillInterval=setInterval(function(){
+      if(!parkingLookupInFlight){
+        clearInterval(stallFillInterval);
+        if(pendingParkingRecordId){
+          setParkingBadgeSuccess(pendingParkingSpotId);
+          var stall=document.getElementById("inputStall");
+          if(!stall.value)stall.value=pendingParkingSpotId;
+        }else{
+          setParkingBadgeError("No spots available");
+        }
+      }
+    },300);
   }else{
-    badge.className="parking-badge loading active";
-    document.getElementById("parkingSpinner").style.display="block";
-    document.getElementById("parkingSpotLabel").textContent="Finding spot...";
+    // Claim failed or no spots
+    setParkingBadgeError("No spots available");
   }
   setTimeout(function(){document.getElementById("inputStall").focus();},100);
 }
@@ -827,7 +832,6 @@ function resetPopupRoverState(){
 }
 
 function resetParkingState(){
-  
   pendingParkingRecordId=null;
   pendingParkingSpotId=null;
   parkingLookupInFlight=false;
