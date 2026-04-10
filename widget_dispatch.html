@@ -928,24 +928,24 @@ function checkStallAndProceed(stall, capturedAssignRecordId, capturedLoggedInUse
     onProceed(pendingParkingRecordId, false);
     return;
   }
-  // Query Parking_Spots for this stall
+  // Fetch all parking spots and filter in JS (criteria queries 400 in widget context)
   ZOHO.CREATOR.DATA.getRecords({
     app_name: CONFIG.APP_NAME,
     report_name: "All_Parking_Spots",
-    criteria: 'Spot_ID == "'+stall.toUpperCase()+'"',
     page: 1,
-    max_records: 1
+    max_records: 200
   }).then(function(resp){
-    if(resp.code!==3000||!resp.data||!resp.data.length){
-      // Scenario D: not a standard spot
-      showStallWarning(
-        "Non-standard parking spot",
-        '"'+stall+'" is not a standard parking spot. Continue with assignment?',
-        function(){ onProceed(null, true); }
-      );
-      return;
+    console.log("PARKING_SPOTS fetch code:", resp.code, "records:", resp.data ? resp.data.length : 0);
+    var spotRec=null;
+    if(resp.code===3000&&resp.data&&resp.data.length>0){
+      for(var i=0;i<resp.data.length;i++){
+        if((resp.data[i].Spot_ID||"").toUpperCase()===stall.toUpperCase()){
+          spotRec=resp.data[i];
+          break;
+        }
+      }
     }
-    var spotRec=resp.data[0];
+    if(!spotRec){
     var spotStatus=(spotRec.Status||"").toLowerCase();
     var spotRecordId=spotRec.ID.toString();
     var reservedUntil=spotRec.Reserved_Until||"";
