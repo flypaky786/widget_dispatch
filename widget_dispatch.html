@@ -476,7 +476,7 @@ function claimParkingSpot(requestId, reservedByUser){
   pendingParkingSpotId=null;
   setParkingBadgeLoading();
 
-  ZOHO.CREATOR.DATA.invokeCustomApi({
+  var parkingConfig = {
     api_name: "getNextParkingSpot",
     http_method: "POST",
     public_key: CONFIG.PARKING_GET_NEXT_KEY,
@@ -484,7 +484,10 @@ function claimParkingSpot(requestId, reservedByUser){
       request_id: requestId.toString(),
       reserved_by_user: reservedByUser
     }
-  }).then(function(resp){
+  };
+  console.log("PARKING invokeCustomApi config:", JSON.stringify(parkingConfig));
+  console.log("PARKING SDK available:", typeof ZOHO, typeof ZOHO.CREATOR, typeof ZOHO.CREATOR.DATA, typeof ZOHO.CREATOR.DATA.invokeCustomApi);
+  ZOHO.CREATOR.DATA.invokeCustomApi(parkingConfig).then(function(resp){
     parkingLookupInFlight=false;
     var result=null;
     try{result=typeof resp.data==="string"?JSON.parse(resp.data):resp.data;}catch(e){}
@@ -503,7 +506,9 @@ function claimParkingSpot(requestId, reservedByUser){
   }).catch(function(e){
     parkingLookupInFlight=false;
     setParkingBadgeError("Spot lookup failed");
-    console.log("Parking spot lookup error:",e);
+    console.log("PARKING catch error full object:", JSON.stringify(e));
+    console.log("PARKING catch error message:", e && e.message);
+    console.log("PARKING catch error code:", e && e.code);
   });
 }
 
