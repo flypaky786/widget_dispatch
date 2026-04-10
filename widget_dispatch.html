@@ -1035,6 +1035,8 @@ function doConfirmParkingById(recordId, requestId, reservedByUser){
     console.log("PARKING confirm error:",JSON.stringify(e));
   });
 }
+
+function closeAssignPopup(){
   // Release the claimed parking spot if dispatcher cancels
   releaseParkingSpot();
   assignRecordId=null;isReassign=false;
