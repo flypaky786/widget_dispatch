@@ -10,7 +10,11 @@
   - Latest flag now scoped per vehicle request only — does not flip records
     belonging to other vehicle requests (same MVA, different request)
   - Orphaned records (empty Vehicle_Request_Form_ID) are never touched
-  - getRecords uses `from:1` (not `page:1`) per SDK spec
+  - page:1 preserved (same as working v3.3)
+  - @@SECTION anchors added throughout for surgical editing:
+    CONFIG, STATE, AUDIO, STATUS_HELPERS, DATE_HELPERS, CELL_BUILDERS,
+    SORT, SEARCH, VALIDATION, PARKING, ROVER, AVIS_LOOKUP, AUTO_DELETE,
+    RENDER_TABLE, SORT_SEARCH_EVENTS, ASSIGN_POPUP, SUBMIT_ASSIGN, POLLING_INIT
 
   v3.3:
   - Parking spot auto-assignment integrated into assign modal
@@ -259,6 +263,7 @@
 </div>
 
 <script>
+/* @@SECTION:CONFIG@@ */
 /* ============================================================
    CONFIG
    ============================================================ */
@@ -296,6 +301,7 @@ var CONFIG = {
   PARKING_PENDING_HOLD_MINUTES: 1
 };
 
+/* @@SECTION:STATE@@ */
 /* ============================================================
    STATE
    ============================================================ */
@@ -312,6 +318,7 @@ var crossBorderRequested=false;
 var pendingParkingRecordId=null,pendingParkingSpotId=null,parkingLookupInFlight=false;
 var stallWarnCallback=null;
 
+/* @@SECTION:AUDIO@@ */
 /* ============================================================
    AUDIO
    ============================================================ */
@@ -322,6 +329,7 @@ document.addEventListener("keydown",unlockAudio,{once:true});
 function playDing(){if(!audioUnlocked||!audioCtx)return;try{var n=audioCtx.currentTime;var o1=audioCtx.createOscillator(),g1=audioCtx.createGain();o1.connect(g1);g1.connect(audioCtx.destination);o1.frequency.value=CONFIG.DING_FREQ_1;o1.type="sine";g1.gain.setValueAtTime(.3,n);g1.gain.exponentialRampToValueAtTime(.001,n+.4);o1.start(n);o1.stop(n+.4);var o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.frequency.value=CONFIG.DING_FREQ_2;o2.type="sine";g2.gain.setValueAtTime(.2,n+.15);g2.gain.exponentialRampToValueAtTime(.001,n+.6);o2.start(n+.15);o2.stop(n+.6);}catch(e){}}
 function checkForNewRequests(recs){if(!firstLoadComplete){for(var k=0;k<recs.length;k++){var kid=recs[k].ID?recs[k].ID.toString():"";if(kid)previousRecordIds[kid]=true;}return;}var dinged=false;for(var i=0;i<recs.length;i++){var rec=recs[i],id=rec.ID?rec.ID.toString():"";if(!id)continue;var st=(rec.Dispatch_Status||"").toLowerCase();if(!previousRecordIds[id]&&st.indexOf("new")>=0){if(!dinged){playDing();dinged=true;}}previousRecordIds[id]=true;}}
 
+/* @@SECTION:STATUS_HELPERS@@ */
 /* ============================================================
    STATUS HELPERS
    ============================================================ */
@@ -334,6 +342,7 @@ function isInProgressStatus(s){s=(s||"").toLowerCase();return s.indexOf("in prog
 function isNewStatus(s){return!isAssignedStatus(s)&&!isInProgressStatus(s)&&!isCancelledStatus(s)&&(s||"").toLowerCase().indexOf("complet")<0;}
 function isCancelledStatus(s){return(s||"").toLowerCase().indexOf("cancel")>=0;}
 
+/* @@SECTION:DATE_HELPERS@@ */
 /* ============================================================
    DATE HELPERS
    ============================================================ */
@@ -344,6 +353,7 @@ function buildZohoTime(date){var h=date.getHours(),m=date.getMinutes(),s=date.ge
 function showPopupError(m){var e=document.getElementById("popupError");e.textContent=m;e.classList.add("active");}
 function clearPopupError(){document.getElementById("popupError").classList.remove("active");}
 
+/* @@SECTION:CELL_BUILDERS@@ */
 /* ============================================================
    CELL BUILDERS
    ============================================================ */
@@ -369,6 +379,7 @@ function buildAssignCell(rec){
   return line1+'<br>'+line2;
 }
 
+/* @@SECTION:SORT@@ */
 /* ============================================================
    SORT
    ============================================================ */
@@ -390,6 +401,7 @@ function getSortValue(r,col){switch(col){case"age":return getAge(r.Added_Time).m
 function columnSort(records,col,dir){var s=records.slice();s.sort(function(a,b){var va=getSortValue(a,col),vb=getSortValue(b,col),c=0;if(typeof va==="number"&&typeof vb==="number")c=va-vb;else c=va.toString().localeCompare(vb.toString());return dir==="desc"?-c:c;});return s;}
 function updateSortHeaders(){var ths=document.querySelectorAll("#headerRow th[data-col]");for(var i=0;i<ths.length;i++){var th=ths[i],ar=th.querySelector(".sort-arrow");if(sortCol&&th.getAttribute("data-col")===sortCol){th.classList.add("sort-active");ar.textContent=sortDir==="desc"?"▼":"▲";}else{th.classList.remove("sort-active");ar.textContent="▼";}}}
 
+/* @@SECTION:SEARCH@@ */
 /* ============================================================
    SEARCH
    ============================================================ */
@@ -404,6 +416,7 @@ function refreshTable(){
   else{var uc=sorted.filter(function(r){return!isAssignedStatus(r.Dispatch_Status)&&!isCancelledStatus(r.Dispatch_Status);}).length;ce.textContent=uc+" active request"+(uc!==1?"s":"");}
 }
 
+/* @@SECTION:VALIDATION@@ */
 /* ============================================================
    VALIDATION
    ============================================================ */
@@ -421,6 +434,7 @@ function validateAssignment(mva,stall,rid,live,reass){
 function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseText);if(p.alert_message)return p.alert_message;if(p.message&&p.message!=="error")return p.message;}if(r.message&&r.message!=="error")return r.message;}catch(e){}return"Operation failed.";}
 function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,from:1,max_records:CONFIG.MAX_RECORDS});}
 
+/* @@SECTION:PARKING@@ */
 /* ============================================================
    PARKING SPOT FUNCTIONS
    ============================================================ */
@@ -449,6 +463,7 @@ function releaseParkingSpot(){
 function doReleaseParkingById(recordId){if(!recordId)return;ZOHO.CREATOR.DATA.invokeCustomApi({api_name:"releaseParkingSpot",http_method:"POST",public_key:CONFIG.PARKING_RELEASE_KEY,payload:{record_id:recordId}}).catch(function(e){console.log("PARKING release error:",JSON.stringify(e));});}
 function doConfirmParkingById(recordId,requestId,reservedByUser){if(!recordId)return;ZOHO.CREATOR.DATA.invokeCustomApi({api_name:"confirmParkingSpot",http_method:"POST",public_key:CONFIG.PARKING_CONFIRM_KEY,payload:{record_id:recordId,request_id:requestId.toString(),reserved_by_user:reservedByUser}}).then(function(resp){console.log("PARKING confirmed:",recordId,JSON.stringify(resp));}).catch(function(e){console.log("PARKING confirm error:",JSON.stringify(e));});}
 
+/* @@SECTION:ROVER@@ */
 /* ============================================================
    ROVER / WAND LOOKUP
    ============================================================ */
@@ -551,23 +566,17 @@ document.getElementById("inputMva").addEventListener("input",function(){
   }
 });
 
+/* @@SECTION:AVIS_LOOKUP@@ */
 /* ============================================================
    AVIS LOOKUP RECORD  ← v3.4 FIX
    ============================================================ */
-/* ============================================================
-   AVIS LOOKUP RECORD  ← v3.4 — REPLACE THIS ENTIRE FUNCTION IN v3.3
-   Three changes only:
-   1. Guard: bail immediately if no vehicleRequestId
-   2. Latest flip scoped to sameRequestRecords only (not all MVA matches)
-   3. Records for OTHER vehicle requests are never touched
-   page:1 preserved (same as working v3.3)
-   ============================================================ */
 function saveAvisLookup(mva, data, vehicleRequestId) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     if (!data) { resolve(null); return; }
 
-    // GUARD: skip entirely if no vehicle request ID — orphaned records
-    // break Latest logic and cannot be linked back to a request
+    // GUARD: never save without a vehicle request ID.
+    // Orphaned records (empty Vehicle_Request_Form_ID) break the Latest
+    // flag logic because they all compete as "latest" in a blank-ID group.
     if (!vehicleRequestId) {
       console.warn("[saveAvisLookup] called without vehicleRequestId — skipping");
       resolve(null);
@@ -591,41 +600,41 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       Latest:                  true
     };
 
-    // Query by MVA only — criteria on lookup fields unreliable in widget SDK
-    // page:1 preserved (same as v3.3 which was confirmed working)
+    // Query by MVA only — criteria on lookup fields is unreliable in widget SDK
     ZOHO.CREATOR.DATA.getRecords({
       app_name:    CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
       criteria:    'MVA == "' + mva + '"',
-      page:        1,
+      from:        1,
       max_records: 200
     }).then(function(resp) {
       var existingId = null;
-      var sameRequestRecords = [];
+      var sameRequestRecords = [];  // prior lookups for THIS vehicle request
 
       if (resp.code === 3000 && resp.data && resp.data.length > 0) {
         for (var i = 0; i < resp.data.length; i++) {
           var rec = resp.data[i];
-          // Resolve lookup field — Zoho returns object or plain string
+          // Resolve the lookup field — Zoho returns object or plain string
           var recReqId = "";
           if (rec.Vehicle_Request_Form_ID) {
             recReqId = rec.Vehicle_Request_Form_ID.ID
               ? rec.Vehicle_Request_Form_ID.ID.toString()
               : rec.Vehicle_Request_Form_ID.toString();
           }
+
           if (recReqId === reqIdStr) {
             sameRequestRecords.push(rec);
             if (!existingId) existingId = rec.ID.toString();
           }
-          // Records for OTHER vehicle requests: leave completely alone.
-          // Their Latest flag is scoped to their own request.
+          // Records belonging to OTHER vehicle requests: leave them alone.
+          // Their Latest flag is their own business.
         }
       }
 
-      // Flip older same-request records to Latest=false
+      // Flip all older same-request records to Latest=false
       for (var j = 0; j < sameRequestRecords.length; j++) {
         var prId = sameRequestRecords[j].ID.toString();
-        if (prId === existingId) continue;
+        if (prId === existingId) continue; // this one becomes the new Latest=true
         ZOHO.CREATOR.DATA.updateRecordById({
           app_name:    CONFIG.APP_NAME,
           report_name: CONFIG.AVIS_LOOKUP_REPORT,
@@ -657,6 +666,7 @@ function doAddAvisRecord(payload,resolve){
   }).catch(function(){resolve(null);});
 }
 
+/* @@SECTION:AUTO_DELETE@@ */
 /* ============================================================
    AUTO-DELETE / MARK IP / UNCLAIM
    ============================================================ */
@@ -664,6 +674,7 @@ function autoDeleteExpired(all){var now=Date.now();for(var i=0;i<all.length;i++)
 function markInProgress(id){if(!loggedInUser){alert("Could not determine identity.");return;}ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"In Progress",Claimed_By_Email:loggedInUser}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else{var msg="Operation failed.";try{if(resp.error)for(var i=0;i<resp.error.length;i++)if(resp.error[i].alert_message){msg=resp.error[i].alert_message;break;}}catch(e){}alert("Mark IP failed: "+msg);}}).catch(function(){alert("Failed to mark In Progress.");});}
 function unclaimRecord(id){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:id,payload:{data:{Dispatch_Status:"New",Claimed_By_Email:""}}}).then(function(resp){if(resp.code===3000)fetchDispatches();else alert(parseUpdateError(resp));}).catch(function(){alert("Failed to unclaim.");});}
 
+/* @@SECTION:RENDER_TABLE@@ */
 /* ============================================================
    ACTION BUTTONS / RENDER TABLE
    ============================================================ */
@@ -703,12 +714,14 @@ function renderTable(records){
   tbody.innerHTML=html;
 }
 
+/* @@SECTION:SORT_SEARCH_EVENTS@@ */
 /* ============================================================
    SORT HEADER + SEARCH
    ============================================================ */
 document.getElementById("headerRow").addEventListener("click",function(e){var th=e.target.closest("th[data-col]");if(!th)return;var col=th.getAttribute("data-col");if(col===sortCol)sortDir=sortDir==="desc"?"asc":"desc";else{sortCol=col;sortDir="desc";}refreshTable();});
 var searchTimeout=null;document.getElementById("searchBox").addEventListener("input",function(){clearTimeout(searchTimeout);searchTimeout=setTimeout(refreshTable,150);});
 
+/* @@SECTION:ASSIGN_POPUP@@ */
 /* ============================================================
    ASSIGN POPUP — OPEN / CLOSE
    ============================================================ */
@@ -764,6 +777,7 @@ function checkStallAndProceed(stall,capturedAssignRecordId,capturedLoggedInUser,
 
 function closeAssignPopup(){releaseParkingSpot();assignRecordId=null;isReassign=false;document.getElementById("assignOverlay").classList.remove("active");resetPopupRoverState();}
 
+/* @@SECTION:SUBMIT_ASSIGN@@ */
 /* ============================================================
    SUBMIT ASSIGN
    ============================================================ */
@@ -827,6 +841,7 @@ function doSubmitAssign(mva,stall,capturedAssignRecordId,capturedLoggedInUser,et
 document.getElementById("inputStall").addEventListener("input",clearPopupError);
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeAssignPopup();if(e.key==="Enter"&&assignRecordId){var btn=document.getElementById("btnSubmitAssign");if(btn&&btn.style.display!=="none"&&!btn.disabled)submitAssign();}});
 
+/* @@SECTION:POLLING_INIT@@ */
 /* ============================================================
    FILTER + POLLING + INIT
    ============================================================ */
