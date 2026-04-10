@@ -489,8 +489,14 @@ function claimParkingSpot(requestId, reservedByUser){
   console.log("PARKING SDK available:", typeof ZOHO, typeof ZOHO.CREATOR, typeof ZOHO.CREATOR.DATA, typeof ZOHO.CREATOR.DATA.invokeCustomApi);
   ZOHO.CREATOR.DATA.invokeCustomApi(parkingConfig).then(function(resp){
     parkingLookupInFlight=false;
+    console.log("PARKING raw resp:", JSON.stringify(resp));
     var result=null;
-    try{result=typeof resp.data==="string"?JSON.parse(resp.data):resp.data;}catch(e){}
+    try{
+      if(resp&&resp.result){result=typeof resp.result==="string"?JSON.parse(resp.result):resp.result;}
+      else if(resp&&resp.data){result=typeof resp.data==="string"?JSON.parse(resp.data):resp.data;}
+      else{result=resp;}
+    }catch(e){console.log("PARKING parse error:",e);}
+    console.log("PARKING parsed result:", JSON.stringify(result));
     if(result&&result.success){
       pendingParkingRecordId=result.record_id.toString();
       pendingParkingSpotId=result.spot_id;
