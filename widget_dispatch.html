@@ -605,7 +605,7 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       app_name:    CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
       criteria:    'MVA == "' + mva + '"',
-      from:        1,
+      page:        1,
       max_records: 200
     }).then(function(resp) {
       var existingId = null;
