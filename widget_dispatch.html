@@ -432,7 +432,7 @@ function validateAssignment(mva,stall,rid,live,reass){
   return null;
 }
 function parseUpdateError(r){try{if(r.responseText){var p=JSON.parse(r.responseText);if(p.alert_message)return p.alert_message;if(p.message&&p.message!=="error")return p.message;}if(r.message&&r.message!=="error")return r.message;}catch(e){}return"Operation failed.";}
-function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,from:1,max_records:CONFIG.MAX_RECORDS});}
+function fetchLatestRecords(){return ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,page:1,max_records:CONFIG.MAX_RECORDS});}
 
 /* @@SECTION:PARKING@@ */
 /* ============================================================
@@ -474,7 +474,7 @@ function classPrefix(str){if(!str)return"";var s=str.trim();var dash=s.indexOf("
 function loadSubRules(requestedFullClass){
   subRules=null;subRulesLoaded=false;
   if(!requestedFullClass){subRulesLoaded=true;return;}
-  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.SUB_RULES_REPORT,criteria:'Vehicle_Type == "'+requestedFullClass+'"',from:1,max_records:200}).then(function(resp){
+  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.SUB_RULES_REPORT,criteria:'Vehicle_Type == "'+requestedFullClass+'"',page:1,max_records:200}).then(function(resp){
     if(resp.code!==3000||!resp.data||!resp.data.length){subRules=null;subRulesLoaded=true;return;}
     var valid=[],today=new Date(),todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
     var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -583,8 +583,8 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       return;
     }
 
-var reqIdStr = vehicleRequestId.toString();
-console.log("[saveAvisLookup] mva:", mva, "reqId:", reqIdStr);
+    var reqIdStr = vehicleRequestId.toString();
+
     var payload = {
       MVA:                     mva,
       Vehicle_Request_Form_ID: reqIdStr,
@@ -764,7 +764,7 @@ function confirmStallWarning(){document.getElementById("stallWarnOverlay").class
 
 function checkStallAndProceed(stall,capturedAssignRecordId,capturedLoggedInUser,etaMinutes,vcfSel,mva,onProceed){
   if(pendingParkingSpotId&&stall.toUpperCase()===pendingParkingSpotId.toUpperCase()){onProceed(pendingParkingRecordId,false);return;}
-  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:"All_Parking_Spots",from:1,max_records:200}).then(function(resp){
+  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:"All_Parking_Spots",page:1,max_records:200}).then(function(resp){
     var spotRec=null;
     if(resp.code===3000&&resp.data&&resp.data.length>0){for(var i=0;i<resp.data.length;i++){if((resp.data[i].Spot_ID||"").toUpperCase()===stall.toUpperCase()){spotRec=resp.data[i];break;}}}
     if(!spotRec){showStallWarning("Non-standard parking spot",'"'+stall+'" is not a standard parking spot. Continue with assignment?',function(){onProceed(null,true);});return;}
