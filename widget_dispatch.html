@@ -895,9 +895,27 @@ function submitAssign(){
     ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:payload}}).then(function(ur){
       btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
       if(ur.code===3000){
-        // Confirm the parking spot reservation
-        confirmParkingSpot(capturedAssignRecordId, capturedLoggedInUser);
+        // Capture parking record ID before closeAssignPopup clears state
+        var parkingRecordToConfirm = pendingParkingRecordId;
+        pendingParkingRecordId = null; // prevent releaseParkingSpot from firing in closeAssignPopup
         closeAssignPopup();
+        // Confirm the parking spot reservation
+        if(parkingRecordToConfirm){
+          ZOHO.CREATOR.DATA.invokeCustomApi({
+            api_name: "confirmParkingSpot",
+            http_method: "POST",
+            public_key: CONFIG.PARKING_CONFIRM_KEY,
+            payload: {
+              record_id: parkingRecordToConfirm,
+              request_id: capturedAssignRecordId.toString(),
+              reserved_by_user: capturedLoggedInUser
+            }
+          }).then(function(resp){
+            console.log("PARKING confirmed:",parkingRecordToConfirm);
+          }).catch(function(e){
+            console.log("PARKING confirm error:",e);
+          });
+        }
         fetchDispatches();
         if(roverData){saveAvisLookup(mva,roverData,capturedAssignRecordId).then(function(avisId){
           if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
