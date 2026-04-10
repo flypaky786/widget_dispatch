@@ -165,6 +165,16 @@
     .vcf-eta-group.active{display:block}
     .vcf-eta-group label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.4px}
 
+    /* ── STALL WARNING OVERLAY ── */
+    .stall-warn-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:1100;justify-content:center;align-items:center}
+    .stall-warn-overlay.active{display:flex}
+    .stall-warn-box{background:var(--card);border-radius:16px;padding:28px 32px;max-width:400px;width:92%;box-shadow:var(--shadow-lg);animation:popIn .2s ease-out}
+    .stall-warn-box h4{font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px}
+    .stall-warn-box p{font-size:14px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+    .stall-warn-buttons{display:flex;gap:12px;justify-content:flex-end}
+    .btn-warn-cancel{background:#f1f5f9;color:var(--text-muted);border:none;padding:12px 24px;border-radius:var(--radius);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn-warn-confirm{background:var(--amber);color:#fff;border:none;padding:12px 24px;border-radius:var(--radius);font-size:14px;font-weight:600;font-family:inherit;cursor:pointer}
+
     @media(max-width:1024px){.header{padding:16px}.toolbar{padding:12px 16px}.table-wrap{padding:0 16px 16px}th{padding:12px 10px;font-size:14px}td{padding:10px 8px;font-size:15px}}
   </style>
 </head>
@@ -251,6 +261,15 @@
     </div>
   </div>
 
+  <!-- Parking Spot Badge — shown after Next → above Stall # -->
+  <div class="parking-badge" id="parkingBadge">
+    <div class="parking-spinner" id="parkingSpinner" style="display:none"></div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Suggested Parking Spot</div>
+      <div class="parking-spot-label" id="parkingSpotLabel"></div>
+    </div>
+  </div>
+
   <div class="form-group" id="stallGroup" style="display:none">
     <label for="inputStall">Stall #</label>
     <input type="text" id="inputStall" placeholder="Enter stall number">
@@ -263,6 +282,18 @@
     <button class="btn-submit" id="btnSubmitAssign" onclick="submitAssign()" style="display:none">Assign</button>
   </div>
 </div></div>
+
+<!-- ═══ STALL WARNING OVERLAY ═══ -->
+<div class="stall-warn-overlay" id="stallWarnOverlay">
+  <div class="stall-warn-box">
+    <h4 id="stallWarnTitle">Parking Spot Conflict</h4>
+    <p id="stallWarnMessage"></p>
+    <div class="stall-warn-buttons">
+      <button class="btn-warn-cancel" onclick="closeStallWarning()">Go Back</button>
+      <button class="btn-warn-confirm" onclick="confirmStallWarning()">Continue Anyway</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ============================================================
@@ -323,9 +354,12 @@ var onMoveBlocked=false;
 var crossBorderRequested=false;
 
 // ── PARKING STATE ──
-var pendingParkingRecordId=null;  // Creator record ID of the Parking_Spots record currently claimed
-var pendingParkingSpotId=null;    // Human-readable spot e.g. "C46"
+var pendingParkingRecordId=null;
+var pendingParkingSpotId=null;
 var parkingLookupInFlight=false;
+
+// ── STALL WARNING STATE ──
+var stallWarnCallback=null;  // function to call if dispatcher confirms warning
 
 /* ============================================================
    AUDIO
@@ -882,7 +916,125 @@ function openReassignPopup(id,v,m,s,vc){
   claimParkingSpot(id, loggedInUser);
 }
 
-function closeAssignPopup(){
+function showStallWarning(title, message, onConfirm){
+  stallWarnCallback=onConfirm;
+  document.getElementById("stallWarnTitle").textContent=title;
+  document.getElementById("stallWarnMessage").textContent=message;
+  document.getElementById("stallWarnOverlay").classList.add("active");
+}
+function closeStallWarning(){
+  stallWarnCallback=null;
+  document.getElementById("stallWarnOverlay").classList.remove("active");
+}
+function confirmStallWarning(){
+  document.getElementById("stallWarnOverlay").classList.remove("active");
+  if(stallWarnCallback){var cb=stallWarnCallback;stallWarnCallback=null;cb();}
+}
+
+function checkStallAndProceed(stall, capturedAssignRecordId, capturedLoggedInUser, etaMinutes, vcfSel, mva, onProceed){
+  // If stall matches the already-suggested spot, no need to query
+  if(pendingParkingSpotId && stall.toUpperCase()===pendingParkingSpotId.toUpperCase()){
+    onProceed(pendingParkingRecordId, false);
+    return;
+  }
+  // Query Parking_Spots for this stall
+  ZOHO.CREATOR.DATA.getRecords({
+    app_name: CONFIG.APP_NAME,
+    report_name: "All_Parking_Spots",
+    criteria: 'Spot_ID == "'+stall.toUpperCase()+'"',
+    page: 1,
+    max_records: 1
+  }).then(function(resp){
+    if(resp.code!==3000||!resp.data||!resp.data.length){
+      // Scenario D: not a standard spot
+      showStallWarning(
+        "Non-standard parking spot",
+        '"'+stall+'" is not a standard parking spot. Continue with assignment?',
+        function(){ onProceed(null, true); }
+      );
+      return;
+    }
+    var spotRec=resp.data[0];
+    var spotStatus=(spotRec.Status||"").toLowerCase();
+    var spotRecordId=spotRec.ID.toString();
+    var reservedUntil=spotRec.Reserved_Until||"";
+
+    if(spotStatus==="reserved"){
+      // Scenario A
+      var untilStr=reservedUntil?(" until "+reservedUntil):"";
+      showStallWarning(
+        "Spot may be occupied",
+        "Spot "+stall+" is currently reserved"+untilStr+". A vehicle may already be on its way. Continue anyway?",
+        function(){
+          // Release originally claimed spot if different
+          if(pendingParkingRecordId&&pendingParkingRecordId!==spotRecordId){
+            doReleaseParkingById(pendingParkingRecordId);
+            pendingParkingRecordId=null;
+            pendingParkingSpotId=null;
+          }
+          onProceed(spotRecordId, false);
+        }
+      );
+    }else if(spotStatus==="pending"){
+      // Scenario B
+      showStallWarning(
+        "Spot held by another dispatcher",
+        "Spot "+stall+" is currently held by another dispatcher. Continue anyway?",
+        function(){
+          if(pendingParkingRecordId&&pendingParkingRecordId!==spotRecordId){
+            doReleaseParkingById(pendingParkingRecordId);
+            pendingParkingRecordId=null;
+            pendingParkingSpotId=null;
+          }
+          onProceed(spotRecordId, false);
+        }
+      );
+    }else{
+      // Scenario C: available — release original if different, use this spot
+      if(pendingParkingRecordId&&pendingParkingRecordId!==spotRecordId){
+        doReleaseParkingById(pendingParkingRecordId);
+        pendingParkingRecordId=null;
+        pendingParkingSpotId=null;
+      }
+      onProceed(spotRecordId, false);
+    }
+  }).catch(function(){
+    // Query failed — treat as non-standard, warn and proceed
+    showStallWarning(
+      "Could not verify spot",
+      "Could not verify spot \""+stall+"\". It may not be a standard parking spot. Continue anyway?",
+      function(){ onProceed(null, true); }
+    );
+  });
+}
+
+function doReleaseParkingById(recordId){
+  if(!recordId)return;
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    api_name: "releaseParkingSpot",
+    http_method: "POST",
+    public_key: CONFIG.PARKING_RELEASE_KEY,
+    payload: {record_id: recordId}
+  }).catch(function(e){console.log("PARKING release error:",JSON.stringify(e));});
+}
+
+function doConfirmParkingById(recordId, requestId, reservedByUser){
+  if(!recordId)return;
+  ZOHO.CREATOR.DATA.invokeCustomApi({
+    api_name: "confirmParkingSpot",
+    http_method: "POST",
+    public_key: CONFIG.PARKING_CONFIRM_KEY,
+    payload: {
+      record_id: recordId,
+      request_id: requestId.toString(),
+      reserved_by_user: reservedByUser
+    }
+  }).then(function(resp){
+    console.log("PARKING confirmed:",recordId,JSON.stringify(resp));
+  }).catch(function(e){
+    console.log("PARKING confirm error:",JSON.stringify(e));
+  });
+}
   // Release the claimed parking spot if dispatcher cancels
   releaseParkingSpot();
   assignRecordId=null;isReassign=false;
@@ -929,51 +1081,45 @@ function submitAssign(){
     var error=validateAssignment(mva,stall,capturedAssignRecordId,live,isReassign);
     if(error){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(error);if(error.indexOf("another")>=0||error.indexOf("deleted")>=0)setTimeout(function(){closeAssignPopup();fetchDispatches();},2000);return;}
 
-    btn.textContent=isReassign?"Re-assigning...":"Assigning...";
-    var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
-    var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
-    var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
-    var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
+    btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
 
-    var etaDate=new Date(Date.now()+etaMinutes*60*1000);
-    var etaTime=etaMinutes>0?buildZohoTime(etaDate):"";
-    var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
-    if(vcfSel){payload.Vehicle_Coming_From=vcfSel.value;payload.ETA_Minutes=etaMinutes;if(etaTime)payload.ETA=etaTime;}
-
-    ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:payload}}).then(function(ur){
-      btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
-      if(ur.code===3000){
-        // Capture parking record ID before closeAssignPopup clears state
-        var parkingRecordToConfirm = pendingParkingRecordId;
-        pendingParkingRecordId = null; // prevent releaseParkingSpot from firing in closeAssignPopup
-        closeAssignPopup();
-        // Confirm the parking spot reservation
-        if(parkingRecordToConfirm){
-          var confirmConfig = {
-            api_name: "confirmParkingSpot",
-            http_method: "POST",
-            public_key: CONFIG.PARKING_CONFIRM_KEY,
-            payload: {
-              record_id: parkingRecordToConfirm,
-              request_id: capturedAssignRecordId.toString(),
-              reserved_by_user: capturedLoggedInUser
-            }
-          };
-          console.log("PARKING confirm config:", JSON.stringify(confirmConfig));
-          ZOHO.CREATOR.DATA.invokeCustomApi(confirmConfig).then(function(resp){
-            console.log("PARKING confirmed resp:", JSON.stringify(resp));
-          }).catch(function(e){
-            console.log("PARKING confirm error:", JSON.stringify(e));
-          });
-        }
-        fetchDispatches();
-        if(roverData){saveAvisLookup(mva,roverData,capturedAssignRecordId).then(function(avisId){
-          if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
-        });}
-      }else{showPopupError(parseUpdateError(ur));}
-    }).catch(function(ue){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(parseUpdateError(ue));});
+    // Check stall status before proceeding
+    checkStallAndProceed(stall, capturedAssignRecordId, capturedLoggedInUser, etaMinutes, vcfSel, mva, function(spotRecordIdToConfirm, isNonStandard){
+      doSubmitAssign(mva, stall, capturedAssignRecordId, capturedLoggedInUser, etaMinutes, vcfSel, spotRecordIdToConfirm);
+    });
   }).catch(function(){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError("Could not verify queue.");});
+}
+
+function doSubmitAssign(mva, stall, capturedAssignRecordId, capturedLoggedInUser, etaMinutes, vcfSel, spotRecordIdToConfirm){
+  var btn=document.getElementById("btnSubmitAssign");btn.textContent=isReassign?"Re-assigning...":"Assigning...";btn.disabled=true;
+
+  var now=new Date(),months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var dd=("0"+now.getDate()).slice(-2),mmm=months[now.getMonth()],yyyy=now.getFullYear();
+  var hh=now.getHours(),ampm=hh>=12?"PM":"AM";hh=hh%12;if(hh===0)hh=12;
+  var mm=("0"+now.getMinutes()).slice(-2),ss=("0"+now.getSeconds()).slice(-2);
+  var ts=dd+"-"+mmm+"-"+yyyy+" "+("0"+hh).slice(-2)+":"+mm+":"+ss+" "+ampm;
+
+  var etaDate=new Date(Date.now()+etaMinutes*60*1000);
+  var etaTime=etaMinutes>0?buildZohoTime(etaDate):"";
+  var payload={Assigned_MVA:mva,Stall_Number:stall,Dispatch_Status:"Assigned",Assignment_Time:ts};
+  if(vcfSel){payload.Vehicle_Coming_From=vcfSel.value;payload.ETA_Minutes=etaMinutes;if(etaTime)payload.ETA=etaTime;}
+
+  ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:payload}}).then(function(ur){
+    btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;
+    if(ur.code===3000){
+      // Null out pendingParkingRecordId to prevent release on closeAssignPopup
+      pendingParkingRecordId=null;
+      closeAssignPopup();
+      // Confirm the parking spot
+      if(spotRecordIdToConfirm){
+        doConfirmParkingById(spotRecordIdToConfirm, capturedAssignRecordId, capturedLoggedInUser);
+      }
+      fetchDispatches();
+      if(roverData){saveAvisLookup(mva,roverData,capturedAssignRecordId).then(function(avisId){
+        if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:capturedAssignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
+      });}
+    }else{showPopupError(parseUpdateError(ur));}
+  }).catch(function(ue){btn.textContent=isReassign?"Re-assign":"Assign";btn.disabled=false;showPopupError(parseUpdateError(ue));});
 }
 
 document.getElementById("inputStall").addEventListener("input",clearPopupError);
