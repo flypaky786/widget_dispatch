@@ -946,6 +946,14 @@ function checkStallAndProceed(stall, capturedAssignRecordId, capturedLoggedInUse
       }
     }
     if(!spotRec){
+      // Scenario D: not a standard spot
+      showStallWarning(
+        "Non-standard parking spot",
+        '"'+stall+'" is not a standard parking spot. Continue with assignment?',
+        function(){ onProceed(null, true); }
+      );
+      return;
+    }
     var spotStatus=(spotRec.Status||"").toLowerCase();
     var spotRecordId=spotRec.ID.toString();
     var reservedUntil=spotRec.Reserved_Until||"";
