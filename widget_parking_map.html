@@ -159,6 +159,8 @@ var CONFIG = {
 var spots={},loggedInUser="",sdkReady=false;
 var selectedDuration=CONFIG.DEFAULT_HOLD_MINUTES;
 var activeSpotId=null,activeSpotRec=null,pendingAction=null;
+var sheetOpen=false;
+var pollTimer=null;
 
 /* ============================================================
    INIT — matches working widget pattern
@@ -168,11 +170,11 @@ window.onload=function(){
     loggedInUser=params.loginUser||"";
     sdkReady=true;
     fetchSpots();
-    setInterval(fetchSpots,CONFIG.POLL_INTERVAL);
+    pollTimer=setInterval(function(){if(!sheetOpen)fetchSpots();},CONFIG.POLL_INTERVAL);
   }).catch(function(){
     sdkReady=true;
     fetchSpots();
-    setInterval(fetchSpots,CONFIG.POLL_INTERVAL);
+    pollTimer=setInterval(function(){if(!sheetOpen)fetchSpots();},CONFIG.POLL_INTERVAL);
   });
 };
 
@@ -235,10 +237,6 @@ function fetchSpots(){
       updateStats();
       document.getElementById("liveDot").className="live-dot";
       document.getElementById("lastUpdate").textContent="Updated "+new Date().toLocaleTimeString();
-      if(activeSpotId&&spots[activeSpotId]){
-        activeSpotRec=spots[activeSpotId];
-        updateSheetStatus();
-      }
     }
   }).catch(function(){
     document.getElementById("liveDot").className="live-dot error";
@@ -329,6 +327,7 @@ function updateStats(){
    BOTTOM SHEET
    ============================================================ */
 function openSheet(spotId){
+  sheetOpen=true;
   activeSpotId=spotId;
   activeSpotRec=spots[spotId]||null;
   selectedDuration=CONFIG.DEFAULT_HOLD_MINUTES;
@@ -339,9 +338,12 @@ function openSheet(spotId){
 }
 
 function closeSheet(){
+  sheetOpen=false;
   document.getElementById("overlay").classList.remove("active");
   activeSpotId=null;activeSpotRec=null;pendingAction=null;
   hideConfirmPanel();
+  // Resume polling — fetch immediately to sync any changes
+  fetchSpots();
 }
 
 document.getElementById("overlay").addEventListener("pointerup",function(e){
