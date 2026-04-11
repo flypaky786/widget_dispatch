@@ -317,6 +317,9 @@ var onMoveBlocked=false;
 var crossBorderRequested=false;
 var pendingParkingRecordId=null,pendingParkingSpotId=null,parkingLookupInFlight=false;
 var stallWarnCallback=null;
+// Session cache: prevents duplicate Avis lookup records for same MVA on same day
+// key: "MVA_YYYY-M-D" → avisId. Resets on page refresh (acceptable).
+var avisLookupCache={};
 
 /* @@SECTION:AUDIO@@ */
 /* ============================================================
@@ -521,16 +524,16 @@ function doRoverLookup(mva){
     roverData=json;roverLookupDone=true;roverLookupFailed=false;
     document.getElementById("roverLoading").classList.remove("active");document.getElementById("inputMva").disabled=false;
     renderRoverCard(json,mva);
+    // Save to Avis lookup on every WAND result, not just on-move
+    if(assignRecordId){
+      saveAvisLookup(mva,json,assignRecordId).then(function(avisId){
+        if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:assignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
+      });
+    }
     if(isOnMove(json.statusFull)){
       onMoveBlocked=true;
       document.getElementById("roverBlock").textContent="Vehicle is On Move -- existing RA needs to be closed";
       document.getElementById("roverBlock").classList.add("active");
-      // Save Avis lookup on on-move — assignRecordId is always set before popup opens
-      if(assignRecordId){
-        saveAvisLookup(mva,json,assignRecordId).then(function(avisId){
-          if(avisId){ZOHO.CREATOR.DATA.updateRecordById({app_name:CONFIG.APP_NAME,report_name:CONFIG.REPORT_NAME,id:assignRecordId,payload:{data:{Avis_lookup_ID:avisId}}}).catch(function(){});}
-        });
-      }
       return;
     }
     document.getElementById("btnNext").style.display="flex";
@@ -568,13 +571,13 @@ document.getElementById("inputMva").addEventListener("input",function(){
 
 /* @@SECTION:AVIS_LOOKUP@@ */
 /* ============================================================
-   AVIS LOOKUP RECORD  ← v3.5
+   AVIS LOOKUP RECORD  ← v3.6
    No criteria queries — All_Avis_Lookup_Requests criteria always 400s.
-   Logic:
-   1. Always create a new record (each MVA attempt = new record, Latest:true)
-   2. Find the previous Avis_lookup_ID from currentRecords (already in memory)
-   3. If previous ID exists and differs from new → flip it to Latest:false
-   4. Return new ID to caller for writeback to Vehicle_Requests
+   Dedup rules:
+   1. Same MVA + same day (any request) → return cached ID, skip create
+   2. Always create new record for new MVA (each attempt = new record)
+   3. Previous Avis_lookup_ID from currentRecords → flip to Latest:false
+   4. Return new ID for writeback to Vehicle_Requests
    ============================================================ */
 function saveAvisLookup(mva, data, vehicleRequestId) {
   return new Promise(function(resolve) {
@@ -587,6 +590,16 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
     }
 
     var reqIdStr = vehicleRequestId.toString();
+
+    // Same-day dedup: if this MVA was already saved today this session, skip
+    var today = new Date();
+    var dateKey = today.getFullYear() + "-" + today.getMonth() + "-" + today.getDate();
+    var cacheKey = mva + "_" + dateKey;
+    if (avisLookupCache[cacheKey]) {
+      console.log("[saveAvisLookup] MVA already saved today, returning cached id:", avisLookupCache[cacheKey]);
+      resolve(avisLookupCache[cacheKey]);
+      return;
+    }
 
     var payload = {
       MVA:                     mva,
@@ -603,21 +616,22 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       Latest:                  true
     };
 
-    // Find the previous Avis lookup ID from currentRecords (no API call needed)
+    // Find previous Avis lookup ID from currentRecords (no API call needed)
     var previousAvisId = null;
     for (var i = 0; i < currentRecords.length; i++) {
       if (currentRecords[i].ID && currentRecords[i].ID.toString() === reqIdStr) {
         var av = currentRecords[i].Avis_lookup_ID;
         if (av) {
-          previousAvisId = (typeof av === "object") ? (av.ID || av.zc_display_value || "").toString() : av.toString();
-          if (previousAvisId) previousAvisId = previousAvisId.trim();
+          previousAvisId = (typeof av === "object")
+            ? (av.ID || av.zc_display_value || "").toString().trim()
+            : av.toString().trim();
         }
         break;
       }
     }
     console.log("[saveAvisLookup] mva:", mva, "reqId:", reqIdStr, "previousAvisId:", previousAvisId);
 
-    // Always create a new record for this MVA attempt
+    // Create new record for this MVA attempt
     ZOHO.CREATOR.DATA.addRecords({
       app_name:  CONFIG.APP_NAME,
       form_name: CONFIG.AVIS_LOOKUP_FORM,
@@ -627,7 +641,10 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
         var newAvisId = ar.data.ID.toString();
         console.log("[saveAvisLookup] create success:", newAvisId);
 
-        // Flip previous record to Latest=false if it exists and is different
+        // Store in session cache to prevent same-day duplicates
+        avisLookupCache[cacheKey] = newAvisId;
+
+        // Flip previous record to Latest=false
         if (previousAvisId && previousAvisId !== newAvisId) {
           console.log("[saveAvisLookup] flipping previous to Latest:false:", previousAvisId);
           ZOHO.CREATOR.DATA.updateRecordById({
