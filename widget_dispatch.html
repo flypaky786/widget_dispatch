@@ -581,6 +581,7 @@ document.getElementById("inputMva").addEventListener("input",function(){
    ============================================================ */
 function saveAvisLookup(mva, data, vehicleRequestId) {
   return new Promise(function(resolve) {
+    console.log("[saveAvisLookup] ENTRY mva:", mva, "vehicleRequestId:", vehicleRequestId);
     if (!data) { resolve(null); return; }
 
     if (!vehicleRequestId) {
