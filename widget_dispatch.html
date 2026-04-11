@@ -474,7 +474,7 @@ function classPrefix(str){if(!str)return"";var s=str.trim();var dash=s.indexOf("
 function loadSubRules(requestedFullClass){
   subRules=null;subRulesLoaded=false;
   if(!requestedFullClass){subRulesLoaded=true;return;}
-  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.SUB_RULES_REPORT,criteria:'Vehicle_Type == "'+requestedFullClass+'"',page:1,max_records:200}).then(function(resp){
+  ZOHO.CREATOR.DATA.getRecords({app_name:CONFIG.APP_NAME,report_name:CONFIG.SUB_RULES_REPORT,criteria:'Vehicle_Type == "'+requestedFullClass+'"',max_records:200}).then(function(resp){
     if(resp.code!==3000||!resp.data||!resp.data.length){subRules=null;subRulesLoaded=true;return;}
     var valid=[],today=new Date(),todayMidnight=new Date(today.getFullYear(),today.getMonth(),today.getDate());
     var months2=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -605,7 +605,6 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       app_name:    CONFIG.APP_NAME,
       report_name: CONFIG.AVIS_LOOKUP_REPORT,
       criteria:    'MVA == "' + mva + '"',
-      page:        1,
       max_records: 200
     }).then(function(resp) {
       var existingId = null;
