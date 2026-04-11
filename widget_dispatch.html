@@ -614,20 +614,21 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       if (resp.code === 3000 && resp.data && resp.data.length > 0) {
         for (var i = 0; i < resp.data.length; i++) {
           var rec = resp.data[i];
-          // Resolve the lookup field — Zoho returns object or plain string
           var recReqId = "";
           if (rec.Vehicle_Request_Form_ID) {
-            recReqId = rec.Vehicle_Request_Form_ID.ID
-              ? rec.Vehicle_Request_Form_ID.ID.toString()
-              : rec.Vehicle_Request_Form_ID.toString();
+            // Zoho returns lookup as object {ID, zc_display_value} or plain string/number
+            if (typeof rec.Vehicle_Request_Form_ID === "object") {
+              recReqId = (rec.Vehicle_Request_Form_ID.ID || rec.Vehicle_Request_Form_ID.zc_display_value || "").toString().trim();
+            } else {
+              recReqId = rec.Vehicle_Request_Form_ID.toString().trim();
+            }
           }
-
+          console.log("[saveAvisLookup] rec", rec.ID, "recReqId:", recReqId, "reqIdStr:", reqIdStr, "match:", recReqId === reqIdStr);
           if (recReqId === reqIdStr) {
             sameRequestRecords.push(rec);
             if (!existingId) existingId = rec.ID.toString();
           }
-          // Records belonging to OTHER vehicle requests: leave them alone.
-          // Their Latest flag is their own business.
+          // Records for OTHER vehicle requests: leave completely alone.
         }
       }
 
@@ -658,6 +659,8 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
           resolve(existingId);
         });
       } else {
+        // Only create if no record exists for this MVA + vehicle request combo
+        console.log("[saveAvisLookup] no existing record found — creating new");
         doAddAvisRecord(payload, resolve);
       }
     }).catch(function() {
