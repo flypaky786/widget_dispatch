@@ -568,15 +568,18 @@ document.getElementById("inputMva").addEventListener("input",function(){
 
 /* @@SECTION:AVIS_LOOKUP@@ */
 /* ============================================================
-   AVIS LOOKUP RECORD  ← v3.4 FIX
+   AVIS LOOKUP RECORD  ← v3.5
+   No criteria queries — All_Avis_Lookup_Requests criteria always 400s.
+   Logic:
+   1. Always create a new record (each MVA attempt = new record, Latest:true)
+   2. Find the previous Avis_lookup_ID from currentRecords (already in memory)
+   3. If previous ID exists and differs from new → flip it to Latest:false
+   4. Return new ID to caller for writeback to Vehicle_Requests
    ============================================================ */
 function saveAvisLookup(mva, data, vehicleRequestId) {
   return new Promise(function(resolve) {
     if (!data) { resolve(null); return; }
 
-    // GUARD: never save without a vehicle request ID.
-    // Orphaned records (empty Vehicle_Request_Form_ID) break the Latest
-    // flag logic because they all compete as "latest" in a blank-ID group.
     if (!vehicleRequestId) {
       console.warn("[saveAvisLookup] called without vehicleRequestId — skipping");
       resolve(null);
@@ -600,87 +603,52 @@ function saveAvisLookup(mva, data, vehicleRequestId) {
       Latest:                  true
     };
 
-    // Query by MVA only — criteria on lookup fields is unreliable in widget SDK
-    ZOHO.CREATOR.DATA.getRecords({
-      app_name:    CONFIG.APP_NAME,
-      report_name: CONFIG.AVIS_LOOKUP_REPORT,
-      criteria:    'MVA == "' + mva + '"',
-      max_records: 200
-    }).then(function(resp) {
-      var existingId = null;
-      var sameRequestRecords = [];  // prior lookups for THIS vehicle request
-
-      if (resp.code === 3000 && resp.data && resp.data.length > 0) {
-        for (var i = 0; i < resp.data.length; i++) {
-          var rec = resp.data[i];
-          var recReqId = "";
-          if (rec.Vehicle_Request_Form_ID) {
-            // Zoho returns lookup as object {ID, zc_display_value} or plain string/number
-            if (typeof rec.Vehicle_Request_Form_ID === "object") {
-              recReqId = (rec.Vehicle_Request_Form_ID.ID || rec.Vehicle_Request_Form_ID.zc_display_value || "").toString().trim();
-            } else {
-              recReqId = rec.Vehicle_Request_Form_ID.toString().trim();
-            }
-          }
-          console.log("[saveAvisLookup] rec", rec.ID, "recReqId:", recReqId, "reqIdStr:", reqIdStr, "match:", recReqId === reqIdStr);
-          if (recReqId === reqIdStr) {
-            sameRequestRecords.push(rec);
-            if (!existingId) existingId = rec.ID.toString();
-          }
-          // Records for OTHER vehicle requests: leave completely alone.
+    // Find the previous Avis lookup ID from currentRecords (no API call needed)
+    var previousAvisId = null;
+    for (var i = 0; i < currentRecords.length; i++) {
+      if (currentRecords[i].ID && currentRecords[i].ID.toString() === reqIdStr) {
+        var av = currentRecords[i].Avis_lookup_ID;
+        if (av) {
+          previousAvisId = (typeof av === "object") ? (av.ID || av.zc_display_value || "").toString() : av.toString();
+          if (previousAvisId) previousAvisId = previousAvisId.trim();
         }
+        break;
       }
-
-      // Flip all older same-request records to Latest=false
-      for (var j = 0; j < sameRequestRecords.length; j++) {
-        var prId = sameRequestRecords[j].ID.toString();
-        if (prId === existingId) continue; // this one becomes the new Latest=true
-        ZOHO.CREATOR.DATA.updateRecordById({
-          app_name:    CONFIG.APP_NAME,
-          report_name: CONFIG.AVIS_LOOKUP_REPORT,
-          id:          prId,
-          payload:     { data: { Latest: false } }
-        }).catch(function() {});
-      }
-
-      if (existingId) {
-        console.log("[saveAvisLookup] updating existing record:", existingId, "mva:", mva, "reqId:", reqIdStr);
-        ZOHO.CREATOR.DATA.updateRecordById({
-          app_name:    CONFIG.APP_NAME,
-          report_name: CONFIG.AVIS_LOOKUP_REPORT,
-          id:          existingId,
-          payload:     { data: payload }
-        }).then(function() {
-          console.log("[saveAvisLookup] update success:", existingId);
-          resolve(existingId);
-        }).catch(function(e) {
-          console.error("[saveAvisLookup] update failed:", existingId, JSON.stringify(e));
-          resolve(existingId);
-        });
-      } else {
-        // Only create if no record exists for this MVA + vehicle request combo
-        console.log("[saveAvisLookup] no existing record found — creating new");
-        doAddAvisRecord(payload, resolve);
-      }
-    }).catch(function() {
-      doAddAvisRecord(payload, resolve);
-    });
-  });
-}
-
-function doAddAvisRecord(payload,resolve){
-  console.log("[saveAvisLookup] creating new record, mva:", payload.MVA, "reqId:", payload.Vehicle_Request_Form_ID);
-  ZOHO.CREATOR.DATA.addRecords({app_name:CONFIG.APP_NAME,form_name:CONFIG.AVIS_LOOKUP_FORM,payload:{data:payload}}).then(function(ar){
-    if(ar.code===3000&&ar.data&&ar.data.ID){
-      console.log("[saveAvisLookup] create success:", ar.data.ID.toString());
-      resolve(ar.data.ID.toString());
-    } else {
-      console.error("[saveAvisLookup] create failed, response:", JSON.stringify(ar));
-      resolve(null);
     }
-  }).catch(function(e){
-    console.error("[saveAvisLookup] create error:", JSON.stringify(e));
-    resolve(null);
+    console.log("[saveAvisLookup] mva:", mva, "reqId:", reqIdStr, "previousAvisId:", previousAvisId);
+
+    // Always create a new record for this MVA attempt
+    ZOHO.CREATOR.DATA.addRecords({
+      app_name:  CONFIG.APP_NAME,
+      form_name: CONFIG.AVIS_LOOKUP_FORM,
+      payload:   { data: payload }
+    }).then(function(ar) {
+      if (ar.code === 3000 && ar.data && ar.data.ID) {
+        var newAvisId = ar.data.ID.toString();
+        console.log("[saveAvisLookup] create success:", newAvisId);
+
+        // Flip previous record to Latest=false if it exists and is different
+        if (previousAvisId && previousAvisId !== newAvisId) {
+          console.log("[saveAvisLookup] flipping previous to Latest:false:", previousAvisId);
+          ZOHO.CREATOR.DATA.updateRecordById({
+            app_name:    CONFIG.APP_NAME,
+            report_name: CONFIG.AVIS_LOOKUP_REPORT,
+            id:          previousAvisId,
+            payload:     { data: { Latest: false } }
+          }).catch(function(e) {
+            console.warn("[saveAvisLookup] flip Latest:false failed:", previousAvisId, JSON.stringify(e));
+          });
+        }
+
+        resolve(newAvisId);
+      } else {
+        console.error("[saveAvisLookup] create failed:", JSON.stringify(ar));
+        resolve(null);
+      }
+    }).catch(function(e) {
+      console.error("[saveAvisLookup] create error:", JSON.stringify(e));
+      resolve(null);
+    });
   });
 }
 
