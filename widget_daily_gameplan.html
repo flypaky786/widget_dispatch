@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Daily Game Plan</title>
+<script src="https://js.zohostatic.com/creator/widgets/version/2.0/widgetsdk-min.js"></script>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif; background: #F5F4F0; color: #1A1A1A; font-size: 15px; -webkit-tap-highlight-color: transparent; }
+
+  /* ── Layout ── */
+  .app { display: flex; flex-direction: column; height: 100vh; max-width: 1024px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .header { background: #1A2B45; padding: 12px 16px 0; flex-shrink: 0; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .brand-logo { width: 32px; height: 32px; background: #C8102E; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .brand-logo svg { width: 18px; height: 18px; fill: white; }
+  .brand-title { font-size: 17px; font-weight: 600; color: white; letter-spacing: -0.3px; }
+  .brand-sub { font-size: 12px; color: rgba(255,255,255,0.5); letter-spacing: 0.02em; }
+  .header-meta { text-align: right; }
+  .date-chip { font-size: 13px; font-weight: 500; color: white; background: rgba(255,255,255,0.12); padding: 5px 12px; border-radius: 20px; }
+  .ack-chip { font-size: 11px; margin-top: 4px; color: rgba(255,255,255,0.55); }
+  .ack-chip.done { color: #6FCF97; }
+
+  /* ── Tab bar ── */
+  .tabs { display: flex; gap: 0; padding: 0 4px; }
+  .tab { flex: 1; padding: 10px 4px 11px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.45); border-bottom: 2px solid transparent; text-align: center; cursor: pointer; transition: color 0.15s, border-color 0.15s; letter-spacing: 0.02em; user-select: none; -webkit-user-select: none; }
+  .tab.active { color: white; border-bottom-color: #C8102E; }
+  .tab-badge { display: inline-block; background: #C8102E; color: white; font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; margin-left: 4px; vertical-align: middle; }
+
+  /* ── Pages ── */
+  .pages { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .page { display: none; padding: 14px 14px 24px; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
+  .card { background: white; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; }
+  .card-header { padding: 10px 14px 8px; border-bottom: 0.5px solid rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+  .card-body { padding: 12px 14px; }
+
+  /* ── Metric row ── */
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .metric { background: white; border-radius: 10px; padding: 10px 12px; border: 0.5px solid rgba(0,0,0,0.08); }
+  .metric-label { font-size: 10px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .metric-value { font-size: 22px; font-weight: 600; color: #1A1A1A; line-height: 1; }
+  .metric-sub { font-size: 11px; color: #AAA; margin-top: 3px; }
+  .metric.accent { background: #1A2B45; }
+  .metric.accent .metric-label { color: rgba(255,255,255,0.5); }
+  .metric.accent .metric-value { color: white; }
+  .metric.accent .metric-sub { color: rgba(255,255,255,0.4); }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── Message board ── */
+  .message { border-left: 3px solid #1A2B45; background: #F8F9FB; border-radius: 0 8px 8px 0; padding: 10px 12px; margin-bottom: 8px; }
+  .message:last-child { margin-bottom: 0; }
+  .message-from { font-size: 11px; font-weight: 600; color: #1A2B45; margin-bottom: 4px; }
+  .message-text { font-size: 14px; color: #2D2D2D; line-height: 1.5; }
+  .message.alert { border-left-color: #C8102E; background: #FEF5F5; }
+  .message.alert .message-from { color: #C8102E; }
+
+  /* ── Fuel banner ── */
+  .fuel-banner { background: #1A2B45; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .fuel-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.05em; }
+  .fuel-note { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .fuel-price { font-size: 32px; font-weight: 700; color: white; letter-spacing: -1px; }
+
+  /* ── Staff ── */
+  .shift-label { font-size: 10px; font-weight: 700; color: #BBB; text-transform: uppercase; letter-spacing: 0.08em; margin: 10px 0 6px; }
+  .shift-label:first-child { margin-top: 0; }
+  .staff-list { display: flex; flex-direction: column; gap: 6px; }
+  .staff-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: #F8F9FB; border-radius: 8px; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .avatar.blue { background: #DDEEFF; color: #1A2B45; }
+  .avatar.red { background: #FDEAEA; color: #C8102E; }
+  .staff-name { font-size: 13px; font-weight: 500; color: #1A1A1A; }
+  .staff-role { font-size: 11px; color: #AAA; }
+  .sup-badge { font-size: 10px; font-weight: 600; background: #1A2B45; color: white; padding: 2px 7px; border-radius: 8px; margin-left: auto; }
+
+  /* ── Rate table ── */
+  .rate-section-title { font-size: 12px; font-weight: 700; color: #1A2B45; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 14px 6px; border-bottom: 0.5px solid rgba(0,0,0,0.06); }
+  .rate-section-title.sig { color: #C8102E; }
+  .rate-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rate-table th { font-size: 10px; font-weight: 600; color: #AAA; text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 10px; text-align: right; border-bottom: 0.5px solid rgba(0,0,0,0.06); }
+  .rate-table th:first-child { text-align: left; }
+  .rate-table td { padding: 7px 10px; text-align: right; border-bottom: 0.5px solid rgba(0,0,0,0.04); color: #444; }
+  .rate-table td:first-child { text-align: left; }
+  .rate-table tr:last-child td { border-bottom: none; }
+  .class-chip { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; font-size: 11px; font-weight: 700; background: #EEF3FA; color: #1A2B45; margin-right: 6px; }
+  .class-chip.sig { background: #FEF0EA; color: #C8102E; }
+  .vehicle-name { font-size: 13px; color: #333; }
+  .rate-val { font-weight: 500; color: #1A1A1A; }
+  .rate-empty { color: #CCC; font-size: 12px; }
+
+  /* ── Acknowledgement page ── */
+  .ack-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
+  .ack-modal { background: white; border-radius: 20px 20px 0 0; padding: 20px 20px 36px; width: 100%; max-width: 600px; }
+  .ack-modal-title { font-size: 17px; font-weight: 600; color: #1A1A1A; margin-bottom: 4px; }
+  .ack-modal-sub { font-size: 13px; color: #888; margin-bottom: 16px; }
+  .employee-search { width: 100%; padding: 12px 14px; font-size: 15px; border: 1.5px solid #E0E0E0; border-radius: 10px; outline: none; margin-bottom: 10px; }
+  .employee-search:focus { border-color: #1A2B45; }
+  .employee-list { max-height: 200px; overflow-y: auto; border: 0.5px solid #E8E8E8; border-radius: 10px; }
+  .employee-item { padding: 12px 14px; font-size: 14px; font-weight: 500; color: #1A1A1A; border-bottom: 0.5px solid #F0F0F0; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+  .employee-item:last-child { border-bottom: none; }
+  .employee-item:active, .employee-item.selected { background: #EEF3FA; color: #1A2B45; }
+  .employee-item .emp-role { font-size: 11px; color: #AAA; font-weight: 400; margin-left: auto; }
+  .modal-cancel { width: 100%; padding: 13px; font-size: 15px; color: #888; background: none; border: none; cursor: pointer; margin-top: 8px; font-weight: 500; }
+
+  /* ── Ack confirm screen ── */
+  .ack-page-content { padding: 8px 0; }
+  .ack-agent-bar { background: white; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08); padding: 14px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+  .ack-agent-avatar { width: 42px; height: 42px; border-radius: 50%; background: #EEF3FA; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #1A2B45; flex-shrink: 0; }
+  .ack-agent-name { font-size: 16px; font-weight: 600; color: #1A1A1A; }
+  .ack-agent-sub { font-size: 12px; color: #999; margin-top: 1px; }
+  .ack-change { font-size: 12px; color: #1A2B45; font-weight: 500; margin-left: auto; cursor: pointer; }
+
+  .ack-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .ack-item { display: flex; align-items: flex-start; gap: 12px; background: white; border-radius: 10px; padding: 12px 14px; border: 0.5px solid rgba(0,0,0,0.07); }
+  .ack-bullet { width: 20px; height: 20px; border-radius: 50%; background: #EEF3FA; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .ack-bullet-inner { width: 8px; height: 8px; border-radius: 50%; background: #1A2B45; }
+  .ack-item-text { font-size: 14px; color: #333; line-height: 1.55; }
+
+  .ack-btn { width: 100%; padding: 16px; background: #1A2B45; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; letter-spacing: -0.2px; transition: opacity 0.15s; }
+  .ack-btn:active { opacity: 0.85; transform: scale(0.99); }
+  .ack-btn.done { background: #27AE60; }
+  .ack-device-note { text-align: center; font-size: 11px; color: #BBB; margin-top: 8px; }
+
+  /* ── Already acked state ── */
+  .acked-state { display: flex; flex-direction: column; align-items: center; padding: 32px 16px; text-align: center; }
+  .acked-icon { width: 64px; height: 64px; border-radius: 50%; background: #EAF7EF; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  .acked-icon-inner { width: 32px; height: 32px; border-radius: 50%; background: #27AE60; }
+  .acked-name { font-size: 20px; font-weight: 600; color: #1A1A1A; margin-bottom: 4px; }
+  .acked-time { font-size: 14px; color: #888; margin-bottom: 20px; }
+  .acked-re-prompt { font-size: 13px; color: #AAA; }
+  .acked-timer { font-size: 13px; font-weight: 500; color: #1A2B45; margin-top: 6px; }
+
+  /* ── Team status tab ── */
+  .progress-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .progress-label { font-size: 13px; color: #555; }
+  .progress-pct { font-size: 13px; font-weight: 600; color: #27AE60; }
+  .progress-track { height: 6px; background: #EEE; border-radius: 10px; margin-bottom: 14px; }
+  .progress-fill { height: 6px; background: #27AE60; border-radius: 10px; transition: width 0.4s; }
+  .ack-row { display: flex; align-items: center; padding: 10px 14px; border-bottom: 0.5px solid rgba(0,0,0,0.05); gap: 10px; }
+  .ack-row:last-child { border-bottom: none; }
+  .ack-row-avatar { width: 32px; height: 32px; border-radius: 50%; background: #EEF3FA; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1A2B45; flex-shrink: 0; }
+  .ack-row-name { font-size: 14px; font-weight: 500; color: #1A1A1A; flex: 1; }
+  .ack-row-shift { font-size: 11px; color: #BBB; }
+  .ack-row-time { font-size: 12px; color: #888; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+  .badge-yes { background: #EAF7EF; color: #27AE60; }
+  .badge-no { background: #FEF5F5; color: #C8102E; }
+  .badge-pending { background: #FFF8EC; color: #E67E22; }
+
+  /* ── Manifest ── */
+  .manifest-date-bar { background: #1A2B45; border-radius: 10px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .manifest-date-label { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.05em; }
+  .manifest-date-val { font-size: 15px; font-weight: 600; color: white; }
+  .manifest-summary { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .manifest-chip { font-size: 11px; font-weight: 600; background: white; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 20px; padding: 4px 10px; color: #555; }
+  .manifest-chip span { font-weight: 700; color: #1A2B45; }
+  .manifest-section { background: white; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08); margin-bottom: 10px; overflow: hidden; }
+  .manifest-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #F4F6FA; border-bottom: 0.5px solid rgba(0,0,0,0.06); cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .manifest-section-header:active { background: #ECF0F8; }
+  .manifest-type-label { font-size: 13px; font-weight: 700; color: #1A2B45; }
+  .manifest-count-badge { font-size: 11px; font-weight: 600; background: #1A2B45; color: white; padding: 2px 8px; border-radius: 10px; }
+  .manifest-count-badge.empty { background: #E8E8E8; color: #AAA; }
+  .manifest-chevron { font-size: 11px; color: #AAA; margin-left: 8px; transition: transform 0.2s; }
+  .manifest-section.collapsed .manifest-chevron { transform: rotate(-90deg); }
+  .manifest-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .manifest-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+  .manifest-table th { font-size: 10px; font-weight: 600; color: #AAA; text-transform: uppercase; letter-spacing: 0.04em; padding: 7px 12px; text-align: left; border-bottom: 0.5px solid rgba(0,0,0,0.06); white-space: nowrap; }
+  .manifest-table td { padding: 9px 12px; border-bottom: 0.5px solid rgba(0,0,0,0.04); color: #333; vertical-align: top; }
+  .manifest-table tr:last-child td { border-bottom: none; }
+  .manifest-table tr:hover td { background: #FAFBFD; }
+  .mva-chip { font-family: 'SF Mono', 'Menlo', monospace; font-size: 12px; font-weight: 600; color: #1A2B45; background: #EEF3FA; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+  .plate-chip { font-family: 'SF Mono', 'Menlo', monospace; font-size: 12px; color: #555; background: #F5F5F5; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+  .space-chip { font-size: 12px; font-weight: 600; color: #C8102E; background: #FEF0F0; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+  .manifest-empty { padding: 20px 16px; text-align: center; color: #CCC; font-size: 13px; }
+  .manifest-instructions { font-size: 12px; color: #888; max-width: 200px; }
+  .section-body { }
+  .section-body.hidden { display: none; }
+
+  /* ── Scrollbar ── */
+  .pages::-webkit-scrollbar { width: 4px; }
+  .pages::-webkit-scrollbar-track { background: transparent; }
+  .pages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <div class="brand-title">Daily Game Plan</div>
+          <div class="brand-sub">Avis Budget · SNA Counter</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div class="date-chip" id="header-date">—</div>
+        <div class="ack-chip" id="header-ack-status">Not yet acknowledged</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="briefing" ontouchstart="" onclick="switchTab('briefing', this)">Briefing</div>
+      <div class="tab" data-tab="rates" ontouchstart="" onclick="switchTab('rates', this)">Rates</div>
+      <div class="tab" data-tab="acknowledge" ontouchstart="" onclick="switchTab('acknowledge', this)">Acknowledge</div>
+      <div class="tab" data-tab="manifest" ontouchstart="" onclick="switchTab('manifest', this)">Manifest</div>
+      <div class="tab" data-tab="team" ontouchstart="" onclick="switchTab('team', this)">Team <span class="tab-badge" id="pending-badge">3</span></div>
+    </div>
+  </div>
+
+  <!-- PAGES -->
+  <div class="pages">
+
+    <!-- ── BRIEFING TAB ── -->
+    <div class="page active" id="page-briefing">
+
+      <div class="metrics">
+        <div class="metric accent">
+          <div class="metric-label">Fuel today</div>
+          <div class="metric-value" id="metric-fuel">$4.89</div>
+          <div class="metric-sub">per gallon</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Team ack'd</div>
+          <div class="metric-value" id="metric-acked">7/10</div>
+          <div class="metric-sub">today</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Upsell goal</div>
+          <div class="metric-value">$38</div>
+          <div class="metric-sub">avg / rental</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Protection</div>
+          <div class="metric-value">65%</div>
+          <div class="metric-sub">attach target</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Message board</span></div>
+            <div class="card-body">
+              <div class="message">
+                <div class="message-from">Manager · This morning</div>
+                <div class="message-text" id="msg-1">Big weekend ahead — stadium event Saturday night. Push full-size and SUVs. Remind customers of prepay fuel savings vs pump price.</div>
+              </div>
+              <div class="message alert">
+                <div class="message-from">Upsell focus</div>
+                <div class="message-text" id="msg-2">Push Signature Series on every walk-up. Mustang and Range Rover Velar are in fleet today.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title">Support team</span></div>
+            <div class="card-body" style="padding-top:6px;">
+              <div class="shift-label">AM Shift</div>
+              <div class="staff-list" id="staff-am">
+                <div class="staff-row"><div class="avatar blue">JR</div><div><div class="staff-name">J. Ramirez</div><div class="staff-role">Counter</div></div></div>
+                <div class="staff-row"><div class="avatar blue">TN</div><div><div class="staff-name">T. Nguyen</div><div class="staff-role">Counter</div></div><span class="sup-badge">SUP</span></div>
+                <div class="staff-row"><div class="avatar blue">BK</div><div><div class="staff-name">B. Kim</div><div class="staff-role">Counter</div></div></div>
+              </div>
+              <div class="shift-label" style="margin-top:12px;">PM Shift</div>
+              <div class="staff-list" id="staff-pm">
+                <div class="staff-row"><div class="avatar red">AP</div><div><div class="staff-name">A. Patel</div><div class="staff-role">Counter</div></div></div>
+                <div class="staff-row"><div class="avatar red">SW</div><div><div class="staff-name">S. Wilson</div><div class="staff-role">Counter</div></div><span class="sup-badge">SUP</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="fuel-banner">
+            <div>
+              <div class="fuel-label">Today's fuel price</div>
+              <div class="fuel-note">Use when discussing prepay option</div>
+            </div>
+            <div class="fuel-price" id="fuel-big">$4.89</div>
+          </div>
+
+          <div class="card">
+            <div class="rate-section-title">Quick upsell reference</div>
+            <table class="rate-table">
+              <thead><tr><th>Class</th><th>Vehicle</th><th>Weekly</th><th>Daily</th></tr></thead>
+              <tbody>
+                <tr><td><span class="class-chip">D</span></td><td class="vehicle-name">Standard</td><td class="rate-val">$189</td><td class="rate-val">$45</td></tr>
+                <tr><td><span class="class-chip">E</span></td><td class="vehicle-name">Full-size</td><td class="rate-val">$219</td><td class="rate-val">$55</td></tr>
+                <tr><td><span class="class-chip">W</span></td><td class="vehicle-name">Std SUV (5)</td><td class="rate-val">$259</td><td class="rate-val">$69</td></tr>
+                <tr><td><span class="class-chip">L</span></td><td class="vehicle-name">Premium SUV</td><td class="rate-val">$319</td><td class="rate-val">$89</td></tr>
+                <tr><td><span class="class-chip sig">XB</span></td><td class="vehicle-name">Mustang</td><td class="rate-val">$399</td><td class="rate-val">$109</td></tr>
+                <tr><td><span class="class-chip sig">XE</span></td><td class="vehicle-name">Range Rover Velar</td><td class="rate-val">$499</td><td class="rate-val">$139</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RATES TAB ── -->
+    <div class="page" id="page-rates">
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <div class="rate-section-title">Standard fleet</div>
+            <table class="rate-table">
+              <thead><tr><th>Class</th><th>Vehicle</th><th>Wkly</th><th>Daily</th><th>Wknd</th></tr></thead>
+              <tbody id="rates-standard">
+                <tr><td><span class="class-chip">A</span></td><td class="vehicle-name">Subcompact</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">B</span></td><td class="vehicle-name">Compact</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">C</span></td><td class="vehicle-name">Mid-size</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">D</span></td><td class="vehicle-name">Standard</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">E</span></td><td class="vehicle-name">Full-size</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">G</span></td><td class="vehicle-name">Premium</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">H</span></td><td class="vehicle-name">Luxury</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">K</span></td><td class="vehicle-name">Convertible</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">F</span></td><td class="vehicle-name">Int. SUV</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">W</span></td><td class="vehicle-name">Std SUV (5)</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">S</span></td><td class="vehicle-name">Elite SUV (7)</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">Z</span></td><td class="vehicle-name">Large SUV</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">L</span></td><td class="vehicle-name">Premium SUV</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">V</span></td><td class="vehicle-name">Minivan</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip">P</span></td><td class="vehicle-name">12-Pass Van</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="rate-section-title sig">Signature series</div>
+            <table class="rate-table">
+              <thead><tr><th>Class</th><th>Vehicle</th><th>Wkly</th><th>Daily</th><th>Wknd</th></tr></thead>
+              <tbody id="rates-sig">
+                <tr><td><span class="class-chip sig">XA</span></td><td class="vehicle-name">Corvette</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XB</span></td><td class="vehicle-name">Mustang</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XC</span></td><td class="vehicle-name">Hybrid</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XD</span></td><td class="vehicle-name">Small Pickup</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XE</span></td><td class="vehicle-name">Range Rover Velar</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XF</span></td><td class="vehicle-name">Mercedes C300</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XG</span></td><td class="vehicle-name">Jaguar F-Type</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XH</span></td><td class="vehicle-name">Lincoln Continental</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XK</span></td><td class="vehicle-name">Jaguar XJ</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XL</span></td><td class="vehicle-name">Jeep Wrangler</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XP</span></td><td class="vehicle-name">Lincoln Navigator</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XS</span></td><td class="vehicle-name">Mustang 5.0 GT</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XV</span></td><td class="vehicle-name">15-Pass Van</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XW</span></td><td class="vehicle-name">Large Pickup</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+                <tr><td><span class="class-chip sig">XZ</span></td><td class="vehicle-name">Mercedes GLS 450</td><td class="rate-empty">—</td><td class="rate-empty">—</td><td class="rate-empty">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:#BBB;text-align:center;">Rates pulled from AutoFlowX · Updated daily</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ACKNOWLEDGE TAB ── -->
+    <div class="page" id="page-acknowledge">
+
+      <!-- State: needs to pick employee -->
+      <div id="ack-state-pick" style="display:none;">
+        <!-- Employee picker modal rendered inline for iPad -->
+        <div style="max-width:480px;margin:20px auto;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:18px;font-weight:600;color:#1A1A1A;margin-bottom:4px;">Who's acknowledging?</div>
+            <div style="font-size:14px;color:#888;">Select your name to review today's briefing</div>
+          </div>
+          <input class="employee-search" type="text" id="emp-search" placeholder="Search by name..." oninput="filterEmployees(this.value)">
+          <div class="employee-list" id="emp-list"></div>
+        </div>
+      </div>
+
+      <!-- State: ready to acknowledge -->
+      <div id="ack-state-ready" style="display:none;">
+        <div class="ack-page-content">
+          <div class="ack-agent-bar">
+            <div class="ack-agent-avatar" id="ack-avatar-initials">??</div>
+            <div>
+              <div class="ack-agent-name" id="ack-agent-name">—</div>
+              <div class="ack-agent-sub" id="ack-agent-sub">Counter Agent</div>
+            </div>
+            <span class="ack-change" onclick="showPickState()">Change</span>
+          </div>
+
+          <div class="ack-items">
+            <div class="ack-item">
+              <div class="ack-bullet"><div class="ack-bullet-inner"></div></div>
+              <div class="ack-item-text" id="ack-summary-msg">I've read today's message board including the manager note and upsell focus for today.</div>
+            </div>
+            <div class="ack-item">
+              <div class="ack-bullet"><div class="ack-bullet-inner"></div></div>
+              <div class="ack-item-text" id="ack-summary-fuel">I know today's fuel price is <strong id="ack-fuel-inline">$4.89/gal</strong> and will reference it when discussing the prepay option.</div>
+            </div>
+            <div class="ack-item">
+              <div class="ack-bullet"><div class="ack-bullet-inner"></div></div>
+              <div class="ack-item-text">I've reviewed today's upsell focus and rate highlights for my shift.</div>
+            </div>
+            <div class="ack-item">
+              <div class="ack-bullet"><div class="ack-bullet-inner"></div></div>
+              <div class="ack-item-text">I understand today's team assignments and support contacts.</div>
+            </div>
+          </div>
+
+          <button class="ack-btn" onclick="submitAcknowledgement()">I've reviewed today's game plan</button>
+          <div class="ack-device-note" id="ack-device-note">Device: SNA-Counter-01 · <span id="ack-timestamp-now"></span></div>
+        </div>
+      </div>
+
+      <!-- State: already acknowledged -->
+      <div id="ack-state-done" style="display:none;">
+        <div class="acked-state">
+          <div class="acked-icon"><div class="acked-icon-inner"></div></div>
+          <div class="acked-name" id="acked-name-display">—</div>
+          <div class="acked-time" id="acked-time-display">Acknowledged at —</div>
+          <div class="acked-re-prompt">Next prompt in</div>
+          <div class="acked-timer" id="acked-countdown">—</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── TEAM STATUS TAB ── -->
+    <div class="page" id="page-team">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-body">
+          <div class="progress-row">
+            <span class="progress-label">Team acknowledged today</span>
+            <span class="progress-pct" id="team-pct">70%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="team-progress" style="width:70%;"></div></div>
+          <div style="font-size:12px;color:#AAA;">7 of 10 agents · Resets at midnight</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">All agents · <span id="team-date-label">Mar 15</span></span></div>
+        <div id="team-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+
+    <!-- MANIFEST TAB -->
+    <div class="page" id="page-manifest">
+      <div class="manifest-date-bar">
+        <div class="manifest-date-label">Daily manifest</div>
+        <div class="manifest-date-val" id="manifest-date-display">—</div>
+      </div>
+      <div class="manifest-summary" id="manifest-summary"></div>
+      <div id="manifest-sections"></div>
+    </div>
+
+  </div><!-- /pages -->
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIG — flip USE_LIVE_DATA sections as wired in
+// ═══════════════════════════════════════════════
+var CONFIG = {
+  USE_LIVE_DATA: false,
+  APP_NAME: 'lax-abg',
+  BRIEFING_REPORT: 'All_Daily_Briefings',
+  ACK_REPORT: 'All_Agent_Acknowledgements',
+  ACK_FORM: 'Agent_Acknowledgements',
+  EMPLOYEE_REPORT: 'All_Employee_Info',
+  MANIFEST_REPORT: 'All_Daily_Manifest',
+  ACK_INTERVAL_MS: 4 * 60 * 60 * 1000  // 4 hours
+};
+
+// ═══════════════════════════════════════════════
+// MOCK DATA — mirrors shape of future API responses
+// ═══════════════════════════════════════════════
+var MOCK = {
+  briefing: {
+    Briefing_Date: 'today',
+    Fuel_Price: '4.89',
+    Message_1: 'Big weekend ahead — stadium event Saturday night. Push full-size and SUVs. Remind customers of prepay fuel savings vs pump price.',
+    Message_2: 'Push Signature Series on every walk-up. Mustang and Range Rover Velar are in fleet today.',
+    Upsell_Focus: 'Full-size, SUV, Signature Series'
+  },
+  employees: [
+    { Employee_ID: 'E001', First_Name: 'Jorge',   Last_Name: 'Ramirez',  Role: 'Counter Agent' },
+    { Employee_ID: 'E002', First_Name: 'Tina',    Last_Name: 'Nguyen',   Role: 'Counter Agent' },
+    { Employee_ID: 'E003', First_Name: 'Brian',   Last_Name: 'Kim',      Role: 'Counter Agent' },
+    { Employee_ID: 'E004', First_Name: 'Aisha',   Last_Name: 'Patel',    Role: 'Counter Agent' },
+    { Employee_ID: 'E005', First_Name: 'Sam',     Last_Name: 'Wilson',   Role: 'Supervisor'    },
+    { Employee_ID: 'E006', First_Name: 'Diana',   Last_Name: 'Torres',   Role: 'Counter Agent' },
+    { Employee_ID: 'E007', First_Name: 'Ray',     Last_Name: 'Chen',     Role: 'Counter Agent' },
+    { Employee_ID: 'E008', First_Name: 'Luis',    Last_Name: 'Martinez', Role: 'Counter Agent' },
+    { Employee_ID: 'E009', First_Name: 'Keisha',  Last_Name: 'Jackson',  Role: 'Counter Agent' },
+    { Employee_ID: 'E010', First_Name: 'Marcus',  Last_Name: 'Lopez',    Role: 'Supervisor'    }
+  ],
+  acks: [
+    { Employee_Name: 'Jorge Ramirez',  Shift: 'AM', Ack_DateTime: '2026-03-15T07:42:00', status: 'yes' },
+    { Employee_Name: 'Tina Nguyen',    Shift: 'AM', Ack_DateTime: '2026-03-15T07:58:00', status: 'yes' },
+    { Employee_Name: 'Brian Kim',      Shift: 'AM', Ack_DateTime: '2026-03-15T08:11:00', status: 'yes' },
+    { Employee_Name: 'Aisha Patel',    Shift: 'PM', Ack_DateTime: '2026-03-15T12:03:00', status: 'yes' },
+    { Employee_Name: 'Sam Wilson',     Shift: 'PM', Ack_DateTime: '2026-03-15T12:18:00', status: 'yes' },
+    { Employee_Name: 'Diana Torres',   Shift: 'PM', Ack_DateTime: '2026-03-15T12:44:00', status: 'yes' },
+    { Employee_Name: 'Marcus Lopez',   Shift: 'AM', Ack_DateTime: '2026-03-15T08:05:00', status: 'yes' },
+    { Employee_Name: 'Ray Chen',       Shift: 'PM', Ack_DateTime: null,                  status: 'pending' },
+    { Employee_Name: 'Luis Martinez',  Shift: 'PM', Ack_DateTime: null,                  status: 'no' },
+    { Employee_Name: 'Keisha Jackson', Shift: 'AM', Ack_DateTime: null,                  status: 'pending' }
+  ],
+  manifest: [
+    { Special_Rez_Type: 'LHC',             MVA: '123456', Make_Model: 'Toyota Camry',       License_Plate: '8ABC123', Space_Number: 'A12', Instructions: 'Keys in lockbox' },
+    { Special_Rez_Type: 'LHC',             MVA: '234567', Make_Model: 'Honda Accord',        License_Plate: '7XYZ456', Space_Number: 'A14', Instructions: '' },
+    { Special_Rez_Type: 'RHC',             MVA: '345678', Make_Model: 'Ford Explorer',       License_Plate: '6DEF789', Space_Number: 'B03', Instructions: 'Full tank required' },
+    { Special_Rez_Type: 'Licensee Cars',   MVA: '456789', Make_Model: 'Chevy Malibu',        License_Plate: '5GHI012', Space_Number: 'C07', Instructions: '' },
+    { Special_Rez_Type: 'Oneway',          MVA: '567890', Make_Model: 'Nissan Altima',        License_Plate: '4JKL345', Space_Number: 'D11', Instructions: 'Drop at SFO — confirm with ops' },
+    { Special_Rez_Type: 'Oneway',          MVA: '678901', Make_Model: 'Hyundai Sonata',       License_Plate: '3MNO678', Space_Number: 'D12', Instructions: 'Drop at LAX' },
+    { Special_Rez_Type: 'Minilease',       MVA: '789012', Make_Model: 'Honda CR-V',           License_Plate: '2PQR901', Space_Number: 'E02', Instructions: '30-day term' },
+    { Special_Rez_Type: 'Extended Rental', MVA: '890123', Make_Model: 'Toyota RAV4',          License_Plate: '1STU234', Space_Number: 'E05', Instructions: 'Rate locked at weekly' },
+    { Special_Rez_Type: 'VIP',             MVA: '901234', Make_Model: 'Lincoln Navigator',    License_Plate: '9VWX567', Space_Number: 'F01', Instructions: 'Greet by name — Mr. Harrison' },
+    { Special_Rez_Type: 'NRT',             MVA: '012345', Make_Model: 'Ford Mustang',         License_Plate: '8YZA890', Space_Number: 'G04', Instructions: '' },
+    { Special_Rez_Type: 'CHM',             MVA: '111222', Make_Model: 'Mercedes GLS 450',     License_Plate: '7BCD123', Space_Number: 'H01', Instructions: 'Corporate acct — no upcharge' },
+    { Special_Rez_Type: 'Delivery',        MVA: '222333', Make_Model: 'Dodge Grand Caravan',  License_Plate: '6EFG456', Space_Number: '',    Instructions: 'Deliver to Terminal 4 by 14:00' }
+  ]
+};
+
+// ═══════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════
+var STATE = {
+  deviceLogin: 'device.sna01@odorzx.com',  // replaced by getInitParams in Phase 2
+  deviceLabel: 'SNA-Counter-01',
+  currentEmployee: null,   // { Employee_ID, First_Name, Last_Name, Role }
+  ackRecord: null,          // populated after acknowledgement
+  briefing: null,
+  employees: [],
+  filteredEmployees: []
+};
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+window.onload = function() {
+  // Phase 2: replace with ZOHO.CREATOR.UTIL.getInitParams().then(...)
+  initApp();
+};
+
+function initApp() {
+  setHeaderDate();
+  loadBriefing();
+  loadEmployees();
+  loadManifest();
+  renderTeamStatus();
+  renderAckTab();
+  startAckCountdown();
+}
+
+// ═══════════════════════════════════════════════
+// DATE HELPERS
+// ═══════════════════════════════════════════════
+function getTodayLabel() {
+  var d = new Date();
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+}
+
+function getTimeLabel(dt) {
+  if (!dt) return '—';
+  var d = new Date(dt);
+  var h = d.getHours();
+  var m = d.getMinutes();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+}
+
+function setHeaderDate() {
+  var el = document.getElementById('header-date');
+  if (el) el.textContent = getTodayLabel();
+  var tl = document.getElementById('team-date-label');
+  if (tl) {
+    var d = new Date();
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    tl.textContent = months[d.getMonth()] + ' ' + d.getDate();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// BRIEFING
+// ═══════════════════════════════════════════════
+function loadBriefing() {
+  // Phase 2: swap for ZOHO.CREATOR.DATA.getRecords call
+  if (!CONFIG.USE_LIVE_DATA) {
+    applyBriefing(MOCK.briefing);
+    return;
+  }
+  // LIVE: ZOHO.CREATOR.DATA.getRecords({ app_name: CONFIG.APP_NAME, report_name: CONFIG.BRIEFING_REPORT, criteria: '...' })
+}
+
+function applyBriefing(b) {
+  STATE.briefing = b;
+  var fuel = '$' + parseFloat(b.Fuel_Price).toFixed(2);
+  var fuelEl = document.getElementById('metric-fuel');
+  var fuelBig = document.getElementById('fuel-big');
+  var fuelInline = document.getElementById('ack-fuel-inline');
+  if (fuelEl) fuelEl.textContent = fuel;
+  if (fuelBig) fuelBig.textContent = fuel;
+  if (fuelInline) fuelInline.textContent = fuel + '/gal';
+  var msg1 = document.getElementById('msg-1');
+  var msg2 = document.getElementById('msg-2');
+  if (msg1 && b.Message_1) msg1.textContent = b.Message_1;
+  if (msg2 && b.Message_2) msg2.textContent = b.Message_2;
+}
+
+// ═══════════════════════════════════════════════
+// EMPLOYEES
+// ═══════════════════════════════════════════════
+function loadEmployees() {
+  // Phase 2: swap for ZOHO.CREATOR.DATA.getRecords on Employee_Info report
+  if (!CONFIG.USE_LIVE_DATA) {
+    STATE.employees = MOCK.employees;
+    STATE.filteredEmployees = MOCK.employees.slice();
+    renderEmployeeList();
+    return;
+  }
+}
+
+function filterEmployees(query) {
+  var q = query.toLowerCase().trim();
+  STATE.filteredEmployees = STATE.employees.filter(function(e) {
+    return (e.First_Name + ' ' + e.Last_Name).toLowerCase().indexOf(q) > -1;
+  });
+  renderEmployeeList();
+}
+
+function renderEmployeeList() {
+  var list = document.getElementById('emp-list');
+  if (!list) return;
+  list.innerHTML = '';
+  STATE.filteredEmployees.forEach(function(e) {
+    var item = document.createElement('div');
+    item.className = 'employee-item';
+    var initials = e.First_Name.charAt(0) + e.Last_Name.charAt(0);
+    item.innerHTML = '<div class="avatar blue" style="width:28px;height:28px;font-size:10px;">' + initials + '</div>' +
+      '<span>' + e.First_Name + ' ' + e.Last_Name + '</span>' +
+      '<span class="emp-role">' + e.Role + '</span>';
+    item.addEventListener('pointerdown', function() { selectEmployee(e); });
+    list.appendChild(item);
+  });
+}
+
+function selectEmployee(emp) {
+  STATE.currentEmployee = emp;
+  var nameEl = document.getElementById('ack-agent-name');
+  var subEl = document.getElementById('ack-agent-sub');
+  var avatarEl = document.getElementById('ack-avatar-initials');
+  if (nameEl) nameEl.textContent = emp.First_Name + ' ' + emp.Last_Name;
+  if (subEl) subEl.textContent = emp.Role;
+  if (avatarEl) avatarEl.textContent = emp.First_Name.charAt(0) + emp.Last_Name.charAt(0);
+  updateAckTimestamp();
+  showReadyState();
+}
+
+// ═══════════════════════════════════════════════
+// ACK TAB STATE MACHINE
+// ═══════════════════════════════════════════════
+function renderAckTab() {
+  // Check if this device already has a recent ack in STATE
+  // Phase 2: this will also check Creator for today's ack record
+  if (STATE.ackRecord && isRecentAck(STATE.ackRecord.Ack_DateTime)) {
+    showDoneState();
+  } else if (STATE.currentEmployee) {
+    showReadyState();
+  } else {
+    showPickState();
+  }
+  updateHeaderAckStatus();
+}
+
+function isRecentAck(dt) {
+  if (!dt) return false;
+  return (new Date() - new Date(dt)) < CONFIG.ACK_INTERVAL_MS;
+}
+
+function showPickState() {
+  document.getElementById('ack-state-pick').style.display = 'block';
+  document.getElementById('ack-state-ready').style.display = 'none';
+  document.getElementById('ack-state-done').style.display = 'none';
+  var search = document.getElementById('emp-search');
+  if (search) { search.value = ''; filterEmployees(''); }
+}
+
+function showReadyState() {
+  document.getElementById('ack-state-pick').style.display = 'none';
+  document.getElementById('ack-state-ready').style.display = 'block';
+  document.getElementById('ack-state-done').style.display = 'none';
+}
+
+function showDoneState() {
+  document.getElementById('ack-state-pick').style.display = 'none';
+  document.getElementById('ack-state-ready').style.display = 'none';
+  document.getElementById('ack-state-done').style.display = 'block';
+  if (STATE.ackRecord) {
+    var nameEl = document.getElementById('acked-name-display');
+    var timeEl = document.getElementById('acked-time-display');
+    if (nameEl) nameEl.textContent = STATE.ackRecord.Employee_Name;
+    if (timeEl) timeEl.textContent = 'Acknowledged at ' + getTimeLabel(STATE.ackRecord.Ack_DateTime);
+  }
+}
+
+function updateAckTimestamp() {
+  var el = document.getElementById('ack-timestamp-now');
+  if (el) {
+    var now = new Date();
+    el.textContent = getTimeLabel(now.toISOString());
+  }
+}
+
+function submitAcknowledgement() {
+  if (!STATE.currentEmployee) return;
+  var now = new Date();
+  STATE.ackRecord = {
+    Employee_ID: STATE.currentEmployee.Employee_ID,
+    Employee_Name: STATE.currentEmployee.First_Name + ' ' + STATE.currentEmployee.Last_Name,
+    Device_Login: STATE.deviceLogin,
+    Ack_DateTime: now.toISOString(),
+    Ack_Date: now.toISOString().split('T')[0],
+    Briefing_Date: now.toISOString().split('T')[0]
+  };
+
+  // Phase 3: swap for ZOHO.CREATOR.DATA.addRecords call
+  if (!CONFIG.USE_LIVE_DATA) {
+    console.log('[ACK] Would write record:', STATE.ackRecord);
+    onAckSuccess();
+    return;
+  }
+  // LIVE: ZOHO.CREATOR.DATA.addRecords({ app_name: CONFIG.APP_NAME, form_name: CONFIG.ACK_FORM, payload: { data: [STATE.ackRecord] } })
+}
+
+function onAckSuccess() {
+  showDoneState();
+  updateHeaderAckStatus();
+  // update team metric badge
+  var badge = document.getElementById('pending-badge');
+  if (badge) {
+    var cur = parseInt(badge.textContent, 10);
+    if (cur > 0) badge.textContent = cur - 1;
+    if (parseInt(badge.textContent, 10) === 0) badge.style.display = 'none';
+  }
+}
+
+function updateHeaderAckStatus() {
+  var el = document.getElementById('header-ack-status');
+  if (!el) return;
+  if (STATE.ackRecord && isRecentAck(STATE.ackRecord.Ack_DateTime)) {
+    el.textContent = 'Acknowledged ' + getTimeLabel(STATE.ackRecord.Ack_DateTime);
+    el.className = 'ack-chip done';
+  } else {
+    el.textContent = 'Not yet acknowledged';
+    el.className = 'ack-chip';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ACK COUNTDOWN TIMER (re-prompt after 4 hours)
+// ═══════════════════════════════════════════════
+function startAckCountdown() {
+  setInterval(function() {
+    if (!STATE.ackRecord) return;
+    var ackTime = new Date(STATE.ackRecord.Ack_DateTime);
+    var nextPrompt = new Date(ackTime.getTime() + CONFIG.ACK_INTERVAL_MS);
+    var remaining = nextPrompt - new Date();
+    if (remaining <= 0) {
+      STATE.currentEmployee = null;
+      renderAckTab();
+      return;
+    }
+    var h = Math.floor(remaining / 3600000);
+    var m = Math.floor((remaining % 3600000) / 60000);
+    var el = document.getElementById('acked-countdown');
+    if (el) el.textContent = h + 'h ' + m + 'm';
+  }, 30000);
+}
+
+// ═══════════════════════════════════════════════
+// TEAM STATUS
+// ═══════════════════════════════════════════════
+function renderTeamStatus() {
+  var data = CONFIG.USE_LIVE_DATA ? [] : MOCK.acks;
+  var list = document.getElementById('team-list');
+  if (!list) return;
+  list.innerHTML = '';
+  var yesCount = 0;
+  data.forEach(function(a) {
+    if (a.status === 'yes') yesCount++;
+    var initials = a.Employee_Name.split(' ').map(function(n) { return n.charAt(0); }).join('').substring(0,2);
+    var badgeClass = a.status === 'yes' ? 'badge badge-yes' : (a.status === 'pending' ? 'badge badge-pending' : 'badge badge-no');
+    var badgeText = a.status === 'yes' ? 'Acked' : (a.status === 'pending' ? 'Pending' : 'No show');
+    var row = document.createElement('div');
+    row.className = 'ack-row';
+    row.innerHTML = '<div class="ack-row-avatar">' + initials + '</div>' +
+      '<div><div class="ack-row-name">' + a.Employee_Name + '</div><div class="ack-row-shift">' + a.Shift + ' shift</div></div>' +
+      '<div style="text-align:right;"><span class="' + badgeClass + '">' + badgeText + '</span>' +
+      '<div class="ack-row-time">' + (a.Ack_DateTime ? getTimeLabel(a.Ack_DateTime) : '') + '</div></div>';
+    list.appendChild(row);
+  });
+  var pct = data.length > 0 ? Math.round((yesCount / data.length) * 100) : 0;
+  var pctEl = document.getElementById('team-pct');
+  var fillEl = document.getElementById('team-progress');
+  var metricEl = document.getElementById('metric-acked');
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (fillEl) fillEl.style.width = pct + '%';
+  if (metricEl) metricEl.textContent = yesCount + '/' + data.length;
+  var pending = data.filter(function(a) { return a.status !== 'yes'; }).length;
+  var badge = document.getElementById('pending-badge');
+  if (badge) {
+    badge.textContent = pending;
+    badge.style.display = pending > 0 ? 'inline-block' : 'none';
+  }
+}
+
+
+// ═══════════════════════════════════════════════
+// MANIFEST
+// ═══════════════════════════════════════════════
+var MANIFEST_TYPES = ['LHC','RHC','Licensee Cars','Oneway','Minilease','Extended Rental','VIP','NRT','CHM','Delivery'];
+
+function loadManifest() {
+  // Phase 2: swap for ZOHO.CREATOR.DATA.getRecords with today criteria
+  if (!CONFIG.USE_LIVE_DATA) {
+    renderManifest(MOCK.manifest);
+    return;
+  }
+  // LIVE: ZOHO.CREATOR.DATA.getRecords({ app_name: CONFIG.APP_NAME, report_name: CONFIG.MANIFEST_REPORT, criteria: 'Manifest_Date == today' })
+}
+
+function renderManifest(records) {
+  var dateEl = document.getElementById('manifest-date-display');
+  if (dateEl) dateEl.textContent = getTodayLabel();
+
+  var grouped = {};
+  MANIFEST_TYPES.forEach(function(t) { grouped[t] = []; });
+  records.forEach(function(r) {
+    if (grouped[r.Special_Rez_Type] !== undefined) grouped[r.Special_Rez_Type].push(r);
+  });
+
+  var summaryEl = document.getElementById('manifest-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = '';
+    var chip = document.createElement('div');
+    chip.className = 'manifest-chip';
+    chip.innerHTML = '<span>' + records.length + '</span> total vehicles';
+    summaryEl.appendChild(chip);
+    MANIFEST_TYPES.forEach(function(t) {
+      if (grouped[t].length > 0) {
+        var c = document.createElement('div');
+        c.className = 'manifest-chip';
+        c.innerHTML = '<span>' + grouped[t].length + '</span> ' + t;
+        summaryEl.appendChild(c);
+      }
+    });
+  }
+
+  var sectionsEl = document.getElementById('manifest-sections');
+  if (!sectionsEl) return;
+  sectionsEl.innerHTML = '';
+
+  MANIFEST_TYPES.forEach(function(type) {
+    var rows = grouped[type];
+    var section = document.createElement('div');
+    section.className = 'manifest-section';
+
+    var countBadgeClass = rows.length > 0 ? 'manifest-count-badge' : 'manifest-count-badge empty';
+    var header = document.createElement('div');
+    header.className = 'manifest-section-header';
+    header.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<span class="manifest-type-label">' + type + '</span>' +
+      '<span class="' + countBadgeClass + '">' + (rows.length > 0 ? rows.length : '0') + '</span>' +
+      '</div><span class="manifest-chevron">&#9660;</span>';
+
+    var body = document.createElement('div');
+    body.className = 'section-body';
+
+    if (rows.length === 0) {
+      body.innerHTML = '<div class="manifest-empty">No entries today</div>';
+      section.classList.add('collapsed');
+      body.classList.add('hidden');
+    } else {
+      var tableWrap = document.createElement('div');
+      tableWrap.className = 'manifest-table-wrap';
+      var html = '<table class="manifest-table"><thead><tr>' +
+        '<th>MVA</th><th>Make &amp; Model</th><th>Plate</th><th>Space</th><th>Instructions</th>' +
+        '</tr></thead><tbody>';
+      rows.forEach(function(r) {
+        html += '<tr>' +
+          '<td><span class="mva-chip">' + (r.MVA || '—') + '</span></td>' +
+          '<td style="font-weight:500;color:#1A1A1A;">' + (r.Make_Model || '—') + '</td>' +
+          '<td>' + (r.License_Plate ? '<span class="plate-chip">' + r.License_Plate + '</span>' : '<span style="color:#CCC;">—</span>') + '</td>' +
+          '<td>' + (r.Space_Number ? '<span class="space-chip">' + r.Space_Number + '</span>' : '<span style="color:#CCC;">—</span>') + '</td>' +
+          '<td class="manifest-instructions">' + (r.Instructions || '<span style="color:#CCC;">—</span>') + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      tableWrap.innerHTML = html;
+      body.appendChild(tableWrap);
+    }
+
+    header.addEventListener('pointerdown', function() {
+      if (section.classList.contains('collapsed')) {
+        section.classList.remove('collapsed');
+        body.classList.remove('hidden');
+      } else {
+        section.classList.add('collapsed');
+        body.classList.add('hidden');
+      }
+    });
+
+    section.appendChild(header);
+    section.appendChild(body);
+    sectionsEl.appendChild(section);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  el.classList.add('active');
+  var page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  if (name === 'acknowledge') {
+    renderAckTab();
+    updateAckTimestamp();
+  }
+  if (name === 'manifest') { loadManifest(); }
+}
+</script>
+</body>
+</html>
